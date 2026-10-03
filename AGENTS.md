@@ -205,3 +205,160 @@ keyword argument` and no actions is that bug, not a model problem.
 `current_phase`. `Timed out: command timed out or was killed` means the run hit
 the 1800s cap. The prompts therefore push their fixes before reporting, so work
 survives a timeout, and treat 20 minutes as their own deadline.
+
+## Subscription lifecycle is delivery-first
+
+- `SubscriptionCashFundingService.consumeDeliveredWithinTransaction` is the
+  single entitlement helper for every completion path (store self-delivery
+  `verifyAndCompleteDelivery`/`updateDelivery`, milk-grid `TOGGLE_DELIVERED`,
+  admin `reconcileDeliveredWithinTransaction`, order-flow reconciliation).
+  Completion — not cash collection — advances the plan: a delivery that
+  physically happened activates a `PENDING_CASH_COLLECTION`/`PAYMENT_DUE`
+  contract to `ACTIVE` and, on the final delivery, `COMPLETED`.
+- The outstanding `amountDuePaise` is preserved across completion so the
+  customer keeps seeing the pending balance while the plan runs. Callers that
+  just recorded cash pass `amountDueOverridePaise` (post-cash balance);
+  callers that flip the delivery to `DELIVERED` before calling pass
+  `deliveryAlreadyCompleted: true` and own idempotency via a stable audit key.
+- Do not re-add the old "no funded entitlement" conflict or gate activation on
+  cash: the cash ledger (`amountCollectedPaise`/`amountDuePaise`) and the
+  lifecycle status are independent concerns.
+- Customer-visible copy: use "Pending <amount>" for the subscription-level
+  balance and "All dues cleared" when zero, in both
+  `apps/mobile-customer/.../SubscriptionDetailScreen.tsx` and
+  `apps/admin-dashboard/src/app/(shop)/shop/subscriptions/[id]/page.tsx`. The
+  cross-app contract spec `subscription-delivery-runs.contract.spec.ts`
+  asserts these strings.
+
+## Rider assignment visibility (store)
+
+- `GET /store/subscriptions/rider-assignments?date=YYYY-MM-DD` (StoreSubscriptionsController)
+  returns `{ date, slots, totals, riders[], unassigned[] }` grouping assigned stops
+  per rider-owned run. A delivery counts as "assigned" only when it has a
+  `DeliveryRunStop` whose `deliveryRun.rider` is set — the milk grid matrix and
+  the orders board read different fields, so keep `order.riderId` and the run
+  stop in sync.
+- `dispatchToRider` (store-milk-grid.service.ts) must always create or move a
+  `DeliveryRunStop` onto the rider's run and set `order.riderId` +
+  `riderAssignedAt`; otherwise a dispatch shows as done but the grid/runs/orders
+  show "unassigned".
+- Store subscriptions UI: `RiderAssignmentsDialog` is opened from the header
+  button and the "Rider Assignments" tab; the old "Tomorrow Prep" is now the
+  "Prep list" tab.
+- Test DB is unavailable in the sandbox: jest suites that hit `prisma` fail with
+  `Environment variable not found: DATABASE_URL`. Run the full suite from
+  `apps/api-gateway` (`npx jest --runInBand`) and treat those as pre-existing.
+
+## Deploys and verifying against aagaam.in
+
+- `.github/workflows/deploy.yml` only runs on `main` (or a manual
+  `workflow_dispatch` with a `ref`). Pushing a feature branch such as `bugs` does
+  **not** deploy, so `https://aagaam.in` keeps serving whatever `main` last
+  built. A fix can be correct in the branch and still absent from the live site —
+  check `git log origin/main..origin/bugs` before trusting a live repro.
+- To reproduce a store-owner issue against the live API without the browser:
+  `POST /api/auth/login` with `{email,password}` returns an HttpOnly
+  `access_token` cookie; save it with `curl -c` and reuse with `curl -b` against
+  `/api/store/subscriptions/*`. This is far more reliable than driving the
+  heavily-polling grid page in the browser (element indices shift every refresh).
+- Subscriber-count bug (fixed on `bugs`): the live `GET /store/subscriptions/subscribers`
+  returned a raw array of every non-terminal contract, so 16 `CANCELLED` rows
+  plus duplicate/superseded live contracts inflated the tab to 58 while the grid
+  showed 36 customers. The fix returns `{subscribers, counts:{total,active,paused,cancelled}}`,
+  dedupes live contracts to one row per customer, and excludes cancelled rows
+  from the live list (queryable via `?status=cancelled`).
+
+## Rider returns and freeing BUSY riders
+
+- Failed-delivery return: the parcel is physically with the rider, so the rider
+  must always have a way to hand it back. `POST /orders/delivery-operations/jobs/:id/return/start`
+  now passes `riderInitiated` when the caller is a `RIDER`; `startReturn` then
+  supersedes the policy default (retry/escalate) with an auditable
+  `RETURN_TO_STORE` override decision instead of refusing. Admin calls keep the
+  strict policy check.
+- `GET /riders` (ADMIN) now returns each rider with `workload`
+  `{activeDeliveries, activeRuns, canBeFreed}`. The admin riders page shows this
+  next to the Busy badge and offers **Make available** (Busy → Online) / **Set
+  online** (Offline → Online). `PATCH /riders/:id/status` allows an admin to
+  release a BUSY rider to ONLINE without a fake GPS ping, but still refuses when
+  the rider holds active deliveries/runs and returns a message explaining why.
+
+## Rider-assignment visibility (mobile)
+
+- Live `aagaam.in` (revision `6caa4b6`) has **no** rider-assignment surfaces,
+  so the dispatch result cannot be read from the live API yet:
+  `GET /store/subscriptions/rider-assignments` → 404, `.../available-riders` → 404.
+  The inclusion/exclusion of the rider dispatch board is itself a candidate
+  deploy/branch issue.
+- Fallback that works live: `GET /store/subscription-operations/runs?serviceDate=YYYY-MM-DD`
+  returns runs with `riderId`, `rider`, and `stops[]`; a stop with
+  `deliveryJobId` (especially a non-`PLANNED` status) is a rider-assigned
+  delivery. `runs` for a store scope already returns all stores the owner can see.
+- Count re-verified live on 2026-10-02 against `aagaam.in` (revision still
+  `6caa4b6` on `main`; `bugs` is not deployed): **0 customers are assigned via
+  the board** for `2026-10-03`. `GET /store/subscriptions/rider-assignments`
+  is still `404` (and `.../available-riders` is now `200`), so the board cannot
+  be read live. Fallback `runs` shows the single early-dispatched AM run
+  `RUN-AAGA-AM-2026-10-03-f2ce` (`riderId ff7e0aba...`, rider `saikumarbali`,
+  status `IN_PROGRESS`) with **0 stops** (`totalStopCount: 0`), so it assigns
+  no customer. Every `RUN-ANAKAPAL-...` run on `2026-10-03` has `riderId: null`
+  even though its stops carry a `deliveryJobId` - that linkage is created at
+  order generation, not by a rider dispatch, so it must not be read as
+  "assigned". The only true dispatch signal is a `DeliveryRunStop` on a run
+  whose `riderId` is set; the delivery `dispatch-summary` for the day reports
+  `ASSIGNED: 1` (delivery `cmuqgalkr2x9vvo0d47f60wcq`, stop 3), but its run
+  stop lives on the riderless `RUN-ANAKAPAL-20261003-01-D8A121`, i.e. the
+  order's `riderId` and its run stop are out of sync. Net board count: 0.
+- Mobile entry point: the old floating **"Tomorrow"** prep FAB is replaced by
+  `StoreOperationsDock` (Rider Assignments primary, Preparation secondary).
+  Rider Assignments calls `GET/POST /store/subscriptions/*`, so the screen is
+  inert until that controller is deployed to the environment being tested.
+
+## Mobile partner offer alerts
+
+- `apps/mobile-partners/src/domain/partnerAlertPolicy.ts` makes offer alerts
+  once-only and accept-gated. The persistent alerted set lives in AsyncStorage
+  (`aagam:partner:alerted:<session>`), the first inbox load is a reconciliation
+  pass (`alertKeysForInboxBootstrap`), and inbox polling (30s) only backstops
+  missed FCM pushes. Never reintroduce the old `unseen.slice(-3)` re-alert burst.
+- The live `SUPABASE_DB_URL` in this sandbox points at an unrelated project
+  (trading/`public.instruments` schema), not the AAGAM database. Read live store
+  data through the API with a store-owner login cookie instead.
+
+## Subscription skip / pause lifecycle (fixed on `bugs`)
+
+- Root cause of the grid-vs-rider split: skip and pause only flipped
+  `SubscriptionDelivery.status`. The skip cutoff (12h) is later than order
+  generation (18-24h), so the skipped/paused day usually already owned an
+  `Order`, a `DeliveryJob` and a `DeliveryRunStop`. The grid showed NOT TAKEN
+  while the rider board still had a live stop.
+- `SubscriptionLifecycleService` is now the single teardown used by every path
+  (customer skip, customer pause, store SKIP quick action). It cancels the run
+  stop + delivery job + order, recomputes the run's stop counters, marks
+  pause-window occurrences `SKIPPED` with `skipReason = 'PAUSED_WINDOW'`
+  (keeping their order), restores them on resume (`ORDER_GENERATED` if the row
+  already had an order, else `SCHEDULED`), and shifts every non-terminal
+  delivery + its order on resume (previously only `SCHEDULED` rows moved, so a
+  generated paused day stayed due on the old date).
+- Customer `skip()` now accepts `SCHEDULED` **or** `ORDER_GENERATED` within the
+  cutoff, and its extension row carries the skipped row's `deliverySlot`,
+  `storeId` and `deliveryZoneId` (it used to default to AM with no zone).
+- `dispatchToRider` excludes `SKIPPED`/`CANCELLED` deliveries, and
+  `getDispatchSummary` no longer counts skipped/cancelled rows as milk to prep.
+- Store grid rows now expose `status` / `pauseEffectiveFrom`, and
+  `MilkDeliveryGrid` renders a **PAUSED** badge so the store sees a paused
+  customer. Paused customers stay in the grid (filter includes `PAUSED`) so the
+  store can still see and bill them.
+- Handover proof: `SubscriptionDeliveryMethod` (PERSONAL_HANDOVER /
+  TRUSTED_DROP / SECURITY_RECEPTION) is a rider-delivery concept. It is
+  genuinely enforced for rider runs, but silently discarded for store delivery
+  (`dispatchToRider` overwrites `proofMode`; store self-delivery verifies by
+  name/phone). Do not remove the three options globally; gate the customer
+  picker on store-delivery/pickup so a discarded choice is not asked.
+- Customer app: `SubscriptionDetailScreen` now hides the handover picker and
+  shows "Collected at store" for `storeDelivery` subscriptions, and
+  `updatePreferences` skips the handover-policy assertion for store delivery.
+  `SubscriptionReviewScreen` is unchanged: the customer plan catalog
+  (`SubscriptionPlan`) has no `storeDelivery`, so a customer-created
+  subscription is always rider-delivered and the picker there is genuine.
+

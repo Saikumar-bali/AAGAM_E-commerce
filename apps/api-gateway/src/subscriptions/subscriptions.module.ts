@@ -23,6 +23,7 @@ import { SubscriptionRiderCapacityNotificationService } from './subscription-rid
 import { SubscriptionAdminReportingService } from './subscription-admin-reporting.service';
 import { SubscriptionCalendarService } from './subscription-calendar.service';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import { SubscriptionOrderGenerator } from './subscription-order-generator.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { SubscriptionSchedulerService } from './subscription-scheduler.service';
@@ -59,6 +60,7 @@ import {
     SubscriptionCalendarService,
     SubscriptionPlanService,
     CustomerSubscriptionService,
+    SubscriptionLifecycleService,
     SubscriptionOrderGenerator,
     DeliveryRunPlanningService,
     DeliveryRunOperationsService,

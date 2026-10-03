@@ -1,4 +1,5 @@
 import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   partnerOperationalSessionKey,
   registerMobileSessionCleanup,
@@ -17,6 +18,13 @@ import {
   PartnerNotificationInbox,
 } from '../api/notificationService';
 import {
+  alertKeyForPayload,
+  alertKeysForInboxBootstrap,
+  inboxItemNavigationData,
+  shouldAlertForInboxItem,
+  type InboxAlertItem,
+} from '../domain/partnerAlertPolicy';
+import {
   navigationCommandForNotification,
   normalizeNotificationNavigation,
   notificationDedupeKey,
@@ -29,7 +37,11 @@ import { partnerNavigationRef } from '../navigation/partnerNavigationRef';
 const NOTIFICATION_KEY = ['partner-notifications'] as const;
 const PartnerAlertTone = NativeModules.PartnerAlertTone as { play?: () => void; stop?: () => void } | undefined;
 const MAX_DEDUPE_ENTRIES = 500;
-const INBOX_POLL_MS = 10_000;
+const ALERTED_STORAGE_PREFIX = 'aagam:partner:alerted:';
+const ALERTED_PERSIST_LIMIT = 200;
+// The durable inbox is a fallback for when FCM is unavailable. It is polled at
+// a low frequency purely to catch missed pushes, never to re-announce offers.
+const INBOX_POLL_MS = 30_000;
 const PUSH_REVERIFY_MS = 5 * 60_000;
 const PUSH_STARTUP_RETRY_MS = 30_000;
 
@@ -43,22 +55,7 @@ type RemoteMessageLike = {
 };
 
 function dataFromInboxItem(item: PartnerNotification): Record<string, unknown> {
-  const metadata = item.metadata || {};
-  return {
-    ...metadata,
-    id: item.id,
-    notificationId: item.id,
-    recipientId: item.recipientId || item.id,
-    eventType: item.type,
-    target: item.target,
-    action: item.action,
-    deepLink: item.deepLink,
-    orderId: item.orderId ?? metadata.orderId,
-    deliveryJobId: item.deliveryJobId ?? metadata.deliveryJobId,
-    assignmentId: item.assignmentId ?? metadata.assignmentId,
-    ticketId: item.ticketId ?? metadata.ticketId,
-    storeId: item.storeId ?? metadata.storeId,
-  };
+  return inboxItemNavigationData(item as InboxAlertItem);
 }
 
 function dataFromRemoteMessage(message: RemoteMessageLike) {
@@ -69,7 +66,11 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
   const user = useAuthStore((state) => state.user);
   const pendingNavigation = useRef<PartnerNavigationCommand[]>([]);
   const seen = useRef(new Map<string, number>());
+  const alerted = useRef<Set<string>>(new Set());
   const inboxBootstrapped = useRef(false);
+  // Snapshot of launch time: the bootstrap pass must only silence items that
+  // predate this session, never offers that arrived while it was starting up.
+  const appStartedAt = useRef(Date.now());
   const previousSession = useRef<string | null>(null);
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     if (previousSession.current && previousSession.current !== sessionKey) {
       pendingNavigation.current = [];
       seen.current.clear();
+      alerted.current.clear();
       inboxBootstrapped.current = false;
       queryClient.removeQueries({
         predicate: (query) => {
@@ -103,6 +105,33 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     let polling = false;
     let pushReverifyInFlight: Promise<void> | null = null;
     let pushLifecycleStartInFlight: Promise<void> | null = null;
+    const alertedStorageKey = `${ALERTED_STORAGE_PREFIX}${partnerOperationalSessionKey(user as any) || 'anonymous'}`;
+
+    const persistAlerted = () => {
+      const entries = Array.from(alerted.current).slice(-ALERTED_PERSIST_LIMIT);
+      void AsyncStorage.setItem(alertedStorageKey, JSON.stringify(entries)).catch(() => undefined);
+    };
+
+    const rememberAlert = (key: string) => {
+      if (!key || alerted.current.has(key)) return false;
+      alerted.current.add(key);
+      persistAlerted();
+      return true;
+    };
+
+    // Load the alerted set for this session before the first inbox pass so a
+    // relaunch does not re-announce offers the rider already saw.
+    const alertedLoaded = AsyncStorage.getItem(alertedStorageKey)
+      .then((raw) => {
+        if (disposed || !raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) parsed.forEach((entry) => { if (typeof entry === 'string') alerted.current.add(entry); });
+        } catch {
+          // Corrupt cache is ignored; a fresh set is rebuilt from the inbox.
+        }
+      })
+      .catch(() => undefined);
 
     const clearPushRecoveryTimers = () => {
       if (pushReverifyInterval) {
@@ -178,6 +207,10 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
     ) => {
       const payload = normalizeNotificationNavigation(raw);
       if (!remember(notificationDedupeKey(payload))) return;
+      // Offers are announced exactly once per assignment. The offer itself stays
+      // in the durable inbox and on the dashboard until the rider accepts or it
+      // expires; no repeat alert is raised while it waits.
+      if (!rememberAlert(alertKeyForPayload(payload))) return;
       PartnerAlertTone?.play?.();
       Toast.show({
         type: 'info',
@@ -193,9 +226,15 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
       if (disposed || polling) return;
       polling = true;
       try {
+        // Wait for the persisted alerted set before the first pass so a relaunch
+        // does not re-announce already-seen offers.
+        await alertedLoaded;
         const inbox = await notificationService.getInbox(50);
         queryClient.setQueryData<PartnerNotificationInbox>(NOTIFICATION_KEY, inbox);
         if (!inboxBootstrapped.current) {
+          // The first load reconciles the inbox; it must not raise an alert burst.
+          alertKeysForInboxBootstrap(inbox.items, appStartedAt.current).forEach((key) => alerted.current.add(key));
+          persistAlerted();
           inbox.items.forEach((item) => remember(notificationDedupeKey(
             normalizeNotificationNavigation(dataFromInboxItem(item)),
           )));
@@ -203,10 +242,11 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
           return;
         }
 
-        const unseen = inbox.items
-          .filter((item) => !item.readAt)
+        // Only genuinely-new, unread rows alert, and each alerts at most once.
+        const pending = inbox.items
+          .filter((item) => shouldAlertForInboxItem(item as InboxAlertItem, alerted.current))
           .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
-        for (const item of unseen.slice(-3)) {
+        for (const item of pending) {
           await showForeground(dataFromInboxItem(item), item.title, item.body);
         }
       } catch {

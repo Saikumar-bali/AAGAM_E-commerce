@@ -238,7 +238,18 @@ export class RiderDeliveryRunsController {
     private readonly runs: DeliveryRunOperationsService,
     private readonly cash: CashDepositBatchService,
     private readonly trustedDrop: TrustedDropService,
+    private readonly milkGrid: StoreMilkGridService,
   ) {}
+
+  /**
+   * Rider-facing route board: every assigned stop of every run for the day,
+   * with address, coordinates, items and cash, so the rider UI can show the
+   * full assignment and offer one-by-one navigation.
+   */
+  @Get('route-board')
+  routeBoard(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
+    return this.milkGrid.getRiderRouteBoard(req.user, date);
+  }
 
   @Get('today')
   today(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
@@ -484,6 +495,11 @@ export class StoreSubscriptionsController {
     return this.milkGrid.getAvailableRiders(req.user);
   }
 
+  @Get('rider-assignments')
+  riderAssignments(@Req() req: AuthenticatedRequest, @Query('date') date?: string) {
+    return this.milkGrid.getRiderAssignments(req.user, date);
+  }
+
   @Post('dispatch-to-rider')
   dispatchToRider(
     @Body() body: DispatchToRiderDto,
@@ -520,6 +536,7 @@ export class StoreSubscriptionsController {
 
 
   @Post('deliveries/:id/quick-action')
+  @Roles(Role.STORE_OWNER, Role.ADMIN, Role.RIDER)
   quickAction(
     @Param('id') id: string,
     @Body()
@@ -572,8 +589,8 @@ export class StoreSubscriptionsController {
   }
 
   @Get('subscribers')
-  subscribers(@Req() req: AuthenticatedRequest) {
-    return this.reporting.storeSubscribers(req.user);
+  subscribers(@Req() req: AuthenticatedRequest, @Query('status') status?: 'active' | 'cancelled') {
+    return this.reporting.storeSubscribers(req.user, { status });
   }
 
   @Get('subscribers/:subscriptionId/history')
@@ -603,8 +620,9 @@ export class StoreSubscriptionsController {
     @Param('id') id: string,
     @Body() body: RenewSubscriptionDto,
     @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
   ) {
-    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role);
+    return this.reporting.renewSubscription(id, body, req.user.id, req.user.role, key);
   }
 
   @Post('subscribers/:id/cancel')
@@ -678,14 +696,18 @@ export class StoreSubscriptionsController {
   }
 
   @Post('manual-subscribe')
-  async createManualSubscription(@Body() body: CreateAdminManualSubscriptionDto, @Req() req: AuthenticatedRequest) {
+  async createManualSubscription(
+    @Body() body: CreateAdminManualSubscriptionDto,
+    @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
+  ) {
     if (req.user.role !== Role.ADMIN) {
       const store = await prisma.store.findUnique({ where: { id: body.storeId } });
       if (!store || store.ownerId !== req.user.id) {
         throw new ForbiddenException('You do not own this store');
       }
     }
-    return this.reporting.createManualSubscription(body, req.user.id);
+    return this.reporting.createManualSubscription(body, req.user.id, key);
   }
 
   @Post('custom-subscribe')

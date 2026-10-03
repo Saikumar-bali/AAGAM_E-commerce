@@ -112,7 +112,7 @@ describe('COD subscription delivery runs production contract', () => {
     expect(controller).toContain('@Roles(Role.STORE_OWNER, Role.ADMIN)');
     expect(controller).toContain('@Roles(Role.ADMIN)');
     expect(controller).toContain('storeDeliveryCalendar(req.user, from, to)');
-    expect(controller).toContain('storeSubscribers(req.user)');
+    expect(controller).toContain('storeSubscribers(req.user, { status })');
     expect(controller).toContain('storeAnalytics(req.user)');
     expect(controller).toContain('listForStore(req.user.id)');
     // Store-scoped views must never scan every subscription/delivery in the database.
@@ -127,13 +127,17 @@ describe('COD subscription delivery runs production contract', () => {
     const customerWeb = repo('apps/admin-dashboard/src/app/(shop)/shop/subscriptions/[id]/page.tsx');
     const riderWeb = repo('apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx');
     const storeWeb = repo('apps/admin-dashboard/src/app/(store)/store/subscriptions/page.tsx');
-    expect(customerAndroid).toContain('Customer due ₹0');
+    expect(customerAndroid).toContain('All dues cleared');
     expect(customerAndroid).toContain('Report a delivery problem');
     expect(customerAndroid).toContain('Cancel subscription?');
+    // Delivery-first: the pending balance stays visible even though the plan is
+    // live, on both the customer Android app and the customer web app.
+    expect(customerAndroid).toContain('amountDuePaise');
     expect(riderAndroid).toContain('Do not collect cash');
     expect(riderAndroid).toContain('Finish route after all stops');
     expect(storeAndroid).toContain('Confirm store handoff');
-    expect(customerWeb).toContain('Subscription already funded');
+    expect(customerWeb).toContain('All dues cleared');
+    expect(customerWeb).toContain('Pending amount');
     expect(riderWeb).toContain('Do not collect');
     expect(storeWeb).toContain('store handoff');
   });

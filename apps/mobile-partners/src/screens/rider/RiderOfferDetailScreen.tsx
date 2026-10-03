@@ -10,9 +10,10 @@ import {
   Package,
   Route,
   ShieldAlert,
+  Store,
   XCircle,
 } from 'lucide-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -27,6 +28,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
+import { palette, toneTokens } from '../../design/tokens';
+import { Card, StatusPill } from '../../components/ui/primitives';
 
 function errorMessage(error: any) {
   const value = error?.response?.data?.message;
@@ -45,6 +48,34 @@ function label(value: unknown) {
 function remainingSeconds(expiresAt: string | null | undefined, now: number) {
   if (!expiresAt) return null;
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
+}
+
+type PreparationStatus = 'READY' | 'PENDING' | 'SHORTAGE' | string;
+
+function prepTone(status: PreparationStatus) {
+  if (status === 'READY') return 'success' as const;
+  if (status === 'SHORTAGE') return 'danger' as const;
+  return 'warning' as const;
+}
+
+function prepColor(status: PreparationStatus) {
+  return toneTokens[prepTone(status)].fg;
+}
+
+function prepLabel(status: PreparationStatus) {
+  if (status === 'READY') return 'Ready for pickup';
+  if (status === 'SHORTAGE') return 'Shortage flagged';
+  return 'Preparing';
+}
+
+function prepMessage(status: PreparationStatus) {
+  if (status === 'READY') {
+    return 'The store has confirmed this order is prepared and waiting. Accept to start your trip to the store.';
+  }
+  if (status === 'SHORTAGE') {
+    return 'The store reported a stock shortage. Accept only if dispatch confirms the parcel can be completed.';
+  }
+  return 'The store is still preparing this order. The offer is valid — the parcel will be ready when you arrive.';
 }
 
 export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navigation: any }) => {
@@ -130,6 +161,32 @@ export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navi
               <Metric icon={<Package size={19} color="#0F766E" />} label="Parcels" value={detail.parcelCount == null ? `${detail.lineCount} lines` : String(detail.parcelCount)} />
             </View>
 
+            {detail.storePreparation?.required ? (
+              <Card
+                style={[
+                  styles.cardSpacing,
+                  detail.storePreparation.status === 'READY'
+                    ? styles.prepReady
+                    : detail.storePreparation.status === 'SHORTAGE'
+                      ? styles.prepShortage
+                      : styles.prepPending,
+                ]}
+              >
+                <View style={styles.sectionHeader}>
+                  <Store size={20} color={prepColor(detail.storePreparation.status)} />
+                  <Text style={styles.sectionTitle}>Store preparation</Text>
+                  <View style={styles.flex} />
+                  <StatusPill label={prepLabel(detail.storePreparation.status)} tone={prepTone(detail.storePreparation.status)} />
+                </View>
+                <Text style={styles.prepCopy}>{prepMessage(detail.storePreparation.status)}</Text>
+                {detail.storePreparation.confirmedAt ? (
+                  <Text style={styles.prepMeta}>
+                    Confirmed {new Date(detail.storePreparation.confirmedAt).toLocaleString('en-IN')}
+                  </Text>
+                ) : null}
+              </Card>
+            ) : null}
+
             <View style={[styles.card, !payoutPublished && styles.warningCard]}>
               <View style={styles.sectionHeader}><Banknote size={21} color={payoutPublished ? '#0F766E' : '#B45309'} /><Text style={styles.sectionTitle}>Rider payout</Text></View>
               <Text style={[styles.payoutAmount, !payoutPublished && styles.warningText]}>{money(detail.payout?.totalPaise)}</Text>
@@ -192,6 +249,7 @@ const styles = StyleSheet.create({
   routeCard: { marginTop: 10, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 14 }, routeRow: { flexDirection: 'row', gap: 12 }, pin: { width: 41, height: 41, borderRadius: 13, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, routeValue: { color: '#0F172A', fontSize: 14, fontWeight: '600', marginTop: 2 }, routeDetail: { color: '#64748B', fontSize: 10, lineHeight: 16, marginTop: 4 }, divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 14 },
   metricsRow: { flexDirection: 'row', gap: 8, marginTop: 10 }, metric: { flex: 1, minHeight: 92, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', padding: 8 }, metricLabel: { color: '#64748B', fontSize: 9, fontWeight: '600', marginTop: 4 }, metricValue: { color: '#0F172A', fontSize: 11, fontWeight: '600', marginTop: 4, textAlign: 'center' },
   card: { marginTop: 10, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 14 }, warningCard: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' }, sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 }, sectionTitle: { color: '#0F172A', fontSize: 15, fontWeight: '600' }, payoutAmount: { color: '#0F766E', fontSize: 25, fontWeight: '600', marginTop: 11 }, warningText: { color: '#B45309' }, warningNote: { borderRadius: 12, backgroundColor: '#FEF3C7', padding: 10, marginTop: 10, flexDirection: 'row', gap: 8 }, warningNoteText: { flex: 1, color: '#92400E', fontSize: 10, lineHeight: 15 },
+  cardSpacing: { marginTop: 10 }, prepReady: { backgroundColor: palette.green050, borderColor: palette.green100 }, prepPending: { backgroundColor: palette.amber050, borderColor: palette.amber100 }, prepShortage: { backgroundColor: palette.rose050, borderColor: palette.rose100 }, prepCopy: { color: palette.slate700, fontSize: 11, lineHeight: 16, marginTop: 8, fontWeight: '500' }, prepMeta: { color: palette.slate500, fontSize: 10, fontWeight: '600', marginTop: 6 },
   fact: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E2E8F0' }, factLabel: { color: '#64748B', fontSize: 9, fontWeight: '600' }, factValue: { color: '#0F172A', fontSize: 11, lineHeight: 17, fontWeight: '500', marginTop: 4 }, danger: { color: '#B91C1C' },
   reasonRail: { gap: 8, paddingVertical: 11 }, reasonChip: { minHeight: 37, borderRadius: 11, backgroundColor: '#F1F5F9', paddingHorizontal: 11, justifyContent: 'center' }, reasonChipActive: { backgroundColor: '#0F766E' }, reasonText: { color: '#475569', fontSize: 9, fontWeight: '600' }, reasonTextActive: { color: '#FFFFFF' }, input: { minHeight: 49, borderRadius: 12, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', paddingHorizontal: 12, color: '#0F172A' },
   actions: { flexDirection: 'row', gap: 8, marginTop: 11 }, rejectButton: { flex: 1, minHeight: 51, borderRadius: 14, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, rejectText: { color: '#B91C1C', fontWeight: '600' }, acceptButton: { flex: 1.35, minHeight: 51, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, acceptText: { color: '#FFFFFF', fontWeight: '600' }, disabled: { opacity: 0.45 },

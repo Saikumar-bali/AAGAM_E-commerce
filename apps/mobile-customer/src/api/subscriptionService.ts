@@ -129,6 +129,8 @@ export type CustomerSubscription = {
   deliveryWindowStartMinute: number;
   deliveryWindowEndMinute: number;
   deliveryMethod: SubscriptionDeliveryMethod;
+  /** True when the store fulfils this subscription at its counter, where doorstep handover proof does not apply. */
+  storeDelivery?: boolean;
   trustedDropInstructions?: string | null;
   fundingCycle: SubscriptionFundingCycle;
   fundedDeliveryCount: number;

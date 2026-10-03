@@ -34,6 +34,7 @@ import {
   Settings2,
   ShieldX,
   SkipForward,
+  Store,
   TriangleAlert,
   X,
 } from "lucide-react-native";
@@ -56,6 +57,8 @@ const date = (value?: string | null) =>
         month: "short",
       })
     : "—";
+const money = (paise?: number | null) =>
+  `₹${(Number(paise || 0) / 100).toLocaleString("en-IN")}`;
 const tomorrow = () => {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -324,13 +327,15 @@ export const SubscriptionDetailScreen = () => {
           <Text style={styles.eyebrow}>SUBSCRIPTION</Text>
           <Text style={styles.title}>{subscription.plan.name}</Text>
         </View>
-        <Pressable
-          style={styles.icon}
-          onPress={openPreferences}
-          accessibilityLabel="Edit subscription preferences"
-        >
-          <Settings2 size={21} color="#173D32" />
-        </Pressable>
+        {!subscription.storeDelivery ? (
+          <Pressable
+            style={styles.icon}
+            onPress={openPreferences}
+            accessibilityLabel="Edit subscription preferences"
+          >
+            <Settings2 size={21} color="#173D32" />
+          </Pressable>
+        ) : null}
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -363,9 +368,9 @@ export const SubscriptionDetailScreen = () => {
               </Text>
             </Text>
             <Text style={styles.heroFact}>
-              Skipped{" "}
+              Pending{" "}
               <Text style={styles.heroFactStrong}>
-                {subscription.skippedDeliveries}
+                {money(subscription.amountDuePaise)}
               </Text>
             </Text>
           </View>
@@ -380,11 +385,13 @@ export const SubscriptionDetailScreen = () => {
               {date(next?.serviceDate || subscription.nextDeliveryDate)}
             </Text>
             <Text style={styles.nextMeta}>
-              {next && next.cashDuePaise > 0
-                ? `Cash due ₹${(next.cashDuePaise / 100).toLocaleString(
-                    "en-IN"
-                  )}`
-                : "Subscription funded · Customer due ₹0"}
+              {subscription.amountDuePaise > 0
+                ? `Pending ${money(subscription.amountDuePaise)}${
+                    next && next.cashDuePaise > 0
+                      ? ` · collect on next delivery`
+                      : ""
+                  }`
+                : "All dues cleared"}
             </Text>
           </View>
           <Pressable
@@ -449,7 +456,7 @@ export const SubscriptionDetailScreen = () => {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Delivery preferences</Text>
-            {canChange ? (
+            {canChange && !subscription.storeDelivery ? (
               <Pressable onPress={openPreferences}>
                 <Text style={styles.link}>Edit</Text>
               </Pressable>
@@ -462,11 +469,19 @@ export const SubscriptionDetailScreen = () => {
               subscription.deliveryWindowStartMinute
             )} – ${minuteTime(subscription.deliveryWindowEndMinute)}`}
           />
-          <Info
-            icon={<MapPin size={18} color="#0F766E" />}
-            label="Handover"
-            value={subscription.deliveryMethod.replaceAll("_", " ")}
-          />
+          {subscription.storeDelivery ? (
+            <Info
+              icon={<Store size={18} color="#0F766E" />}
+              label="Handover"
+              value="Collected at store"
+            />
+          ) : (
+            <Info
+              icon={<MapPin size={18} color="#0F766E" />}
+              label="Handover"
+              value={subscription.deliveryMethod.replaceAll("_", " ")}
+            />
+          )}
           <Info
             icon={<ReceiptIndianRupee size={18} color="#B96600" />}
             label="Funding"
@@ -695,35 +710,41 @@ const availableMethods = (
   value: SubscriptionDeliveryMethod;
   label: string;
   copy: string;
-}> => [
-  ...(subscription.plan.allowPersonalHandover
-    ? [
-        {
-          value: "PERSONAL_HANDOVER" as const,
-          label: "Personal OTP",
-          copy: "Customer OTP and GPS proof",
-        },
-      ]
-    : []),
-  ...(subscription.plan.allowTrustedDrop
-    ? [
-        {
-          value: "TRUSTED_DROP" as const,
-          label: "Trusted doorstep",
-          copy: "One-time QR, GPS and photo proof",
-        },
-      ]
-    : []),
-  ...(subscription.plan.allowSecurityHandover
-    ? [
-        {
-          value: "SECURITY_RECEPTION" as const,
-          label: "Security / reception",
-          copy: "Named reception handover proof",
-        },
-      ]
-    : []),
-];
+}> => {
+  // Store-counter fulfilment is verified by the store against the customer's
+  // name/phone; there is no rider doorstep handover to prove, so offering a
+  // handover method here would silently discard the customer's choice.
+  if (subscription.storeDelivery) return [];
+  return [
+    ...(subscription.plan.allowPersonalHandover
+      ? [
+          {
+            value: "PERSONAL_HANDOVER" as const,
+            label: "Personal OTP",
+            copy: "Customer OTP and GPS proof",
+          },
+        ]
+      : []),
+    ...(subscription.plan.allowTrustedDrop
+      ? [
+          {
+            value: "TRUSTED_DROP" as const,
+            label: "Trusted doorstep",
+            copy: "One-time QR, GPS and photo proof",
+          },
+        ]
+      : []),
+    ...(subscription.plan.allowSecurityHandover
+      ? [
+          {
+            value: "SECURITY_RECEPTION" as const,
+            label: "Security / reception",
+            copy: "Named reception handover proof",
+          },
+        ]
+      : []),
+  ];
+};
 const Info = ({
   icon,
   label,

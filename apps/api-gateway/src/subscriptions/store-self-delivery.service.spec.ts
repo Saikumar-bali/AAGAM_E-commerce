@@ -1,9 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { prisma } from '@aagam/database';
 import { StoreSelfDeliveryService } from './store-self-delivery.service';
+import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 
 jest.mock('@aagam/database', () => ({
-  Prisma: { TransactionIsolationLevel: { Serializable: 'Serializable' } },
+  Prisma: {
+    TransactionIsolationLevel: { Serializable: 'Serializable' },
+    sql: (strings: TemplateStringsArray, ...values: any[]) => ({ strings, values }),
+  },
   Role: { STORE_OWNER: 'STORE_OWNER', ADMIN: 'ADMIN' },
   SubscriptionDeliveryStatus: {
     SCHEDULED: 'SCHEDULED',
@@ -15,12 +19,18 @@ jest.mock('@aagam/database', () => ({
     FAILED: 'FAILED',
   },
   PaymentStatus: { CAPTURED: 'CAPTURED', CREATED: 'CREATED', PENDING_COD: 'PENDING_COD' },
-  CustomerSubscriptionStatus: { ACTIVE: 'ACTIVE', PENDING_CASH_COLLECTION: 'PENDING_CASH_COLLECTION', PAYMENT_DUE: 'PAYMENT_DUE' },
+  CustomerSubscriptionStatus: {
+    ACTIVE: 'ACTIVE',
+    PENDING_CASH_COLLECTION: 'PENDING_CASH_COLLECTION',
+    PAYMENT_DUE: 'PAYMENT_DUE',
+    COMPLETED: 'COMPLETED',
+  },
   DeliveryJobStatus: { SCHEDULED: 'SCHEDULED', STORE_DELIVERING: 'STORE_DELIVERING' },
   prisma: {
     subscriptionDelivery: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       updateMany: jest.fn(),
       update: jest.fn(),
     },
@@ -42,13 +52,15 @@ jest.mock('@aagam/database', () => ({
       create: jest.fn(),
     },
     deliveryJob: { updateMany: jest.fn(), update: jest.fn() },
-    subscriptionAuditEntry: { create: jest.fn() },
+    subscriptionAuditEntry: { create: jest.fn(), findUnique: jest.fn() },
+    $executeRaw: jest.fn().mockResolvedValue(1),
     $transaction: jest.fn(),
   },
 }));
 
 describe('StoreSelfDeliveryService — store fulfillment queue', () => {
-  const service = new StoreSelfDeliveryService();
+  const funding = new SubscriptionCashFundingService({} as any);
+  const service = new StoreSelfDeliveryService(funding);
   const findMany = prisma.subscriptionDelivery.findMany as jest.Mock;
 
   const storeId = 'store-aagaam';
@@ -173,7 +185,7 @@ describe('StoreSelfDeliveryService — store fulfillment queue', () => {
     expect(queue[0].cashCollectedAt).toEqual(collectedAt);
   });
 
-  it('updateDelivery records cash and updates customerSubscription amountCollected and amountDue', async () => {
+  it('updateDelivery records cash and activates the plan through completion, not cash', async () => {
     const row = baseDelivery({
       id: 'delivery-1',
       status: 'STORE_DELIVERING',
@@ -181,8 +193,26 @@ describe('StoreSelfDeliveryService — store fulfillment queue', () => {
       cashCollectedPaise: 0,
       subscriptionId: 'sub-1',
     });
-    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(row);
+    (prisma.subscriptionDelivery.findUnique as jest.Mock)
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce({
+        id: 'delivery-1',
+        status: 'STORE_DELIVERING',
+        subscriptionId: 'sub-1',
+        serviceDate: new Date('2026-09-12T00:00:00.000Z'),
+        subscription: {
+          id: 'sub-1',
+          status: 'PENDING_CASH_COLLECTION',
+          completedDeliveries: 0,
+          remainingFundedDeliveries: 29,
+          amountDuePaise: 20000,
+          amountCollectedPaise: 0,
+          planVersion: { totalDeliveries: 30 },
+        },
+      });
     (prisma.subscriptionDelivery.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.subscriptionDelivery.update as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionDelivery.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.customerSubscription.findUnique as jest.Mock).mockResolvedValue({
       id: 'sub-1',
       amountCollectedPaise: 0,
@@ -191,6 +221,7 @@ describe('StoreSelfDeliveryService — store fulfillment queue', () => {
     });
     (prisma.customerSubscription.update as jest.Mock).mockResolvedValue({});
     (prisma.subscriptionAuditEntry.create as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionAuditEntry.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.store.findUnique as jest.Mock).mockResolvedValue({ ownerId: 'store-user' });
     prisma.$transaction = jest.fn().mockImplementation(async (cb: any) => cb(prisma));
 
@@ -202,13 +233,76 @@ describe('StoreSelfDeliveryService — store fulfillment queue', () => {
     );
 
     expect(result.success).toBe(true);
+    // Ledger is debited by cash...
+    expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sub-1' },
+        data: expect.objectContaining({ amountCollectedPaise: 20000, amountDuePaise: 0 }),
+      }),
+    );
+    // ...and completion owns the status transition and the entitlement drawdown.
     expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'sub-1' },
         data: expect.objectContaining({
-          amountCollectedPaise: 20000,
-          amountDuePaise: 0,
           status: 'ACTIVE',
+          completedDeliveries: 1,
+          remainingFundedDeliveries: 28,
+          amountDuePaise: 0,
+        }),
+      }),
+    );
+  });
+
+  it('updateDelivery activates an unfunded plan on delivery and keeps the pending balance as due', async () => {
+    const row = baseDelivery({
+      id: 'delivery-2',
+      status: 'STORE_DELIVERING',
+      cashDuePaise: 59900,
+      cashCollectedPaise: 0,
+      subscriptionId: 'sub-2',
+    });
+    (prisma.subscriptionDelivery.findUnique as jest.Mock)
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce({
+        id: 'delivery-2',
+        status: 'STORE_DELIVERING',
+        subscriptionId: 'sub-2',
+        serviceDate: new Date('2026-09-12T00:00:00.000Z'),
+        subscription: {
+          id: 'sub-2',
+          status: 'PENDING_CASH_COLLECTION',
+          completedDeliveries: 0,
+          remainingFundedDeliveries: 0,
+          amountDuePaise: 59900,
+          amountCollectedPaise: 0,
+          planVersion: { totalDeliveries: 30 },
+        },
+      });
+    (prisma.subscriptionDelivery.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.subscriptionDelivery.update as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionDelivery.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.customerSubscription.findUnique as jest.Mock).mockResolvedValue({
+      id: 'sub-2',
+      amountCollectedPaise: 0,
+      amountDuePaise: 59900,
+      status: 'PENDING_CASH_COLLECTION',
+    });
+    (prisma.customerSubscription.update as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionAuditEntry.create as jest.Mock).mockResolvedValue({});
+    (prisma.subscriptionAuditEntry.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.store.findUnique as jest.Mock).mockResolvedValue({ ownerId: 'store-user' });
+    prisma.$transaction = jest.fn().mockImplementation(async (cb: any) => cb(prisma));
+
+    await service.updateDelivery('delivery-2', 'store-user', { status: 'DELIVERED' }, 'STORE_OWNER' as any);
+
+    expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sub-2' },
+        data: expect.objectContaining({
+          status: 'ACTIVE',
+          amountDuePaise: 59900,
+          completedDeliveries: 1,
         }),
       }),
     );

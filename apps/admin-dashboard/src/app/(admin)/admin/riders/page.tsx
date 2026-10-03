@@ -34,6 +34,11 @@ interface Rider {
   vehicleType?: string | null;
   vehicleNumber?: string | null;
   orders?: Array<{ id: string }>;
+  workload?: {
+    activeDeliveries: number;
+    activeRuns: number;
+    canBeFreed: boolean;
+  };
 }
 
 const LiveTrackingMap = dynamic(() => import('@/components/LiveTrackingMap'), {
@@ -58,6 +63,8 @@ export default function AdminRidersPage() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
 
   const fetchRiders = async () => {
     try {
@@ -79,6 +86,9 @@ export default function AdminRidersPage() {
       setRiders((current) => current.map((rider) => rider.id === data.riderId
         ? { ...rider, latitude: data.latitude, longitude: data.longitude, bearing: data.bearing, status: data.status as Rider['status'], updatedAt: data.timestamp }
         : rider));
+      // A status change invalidates the workload payload, so refetch rather than
+      // showing a stale "Handling N delivery(ies)" line.
+      void fetchRiders();
     });
     return () => socket.disconnect();
   }, []);
@@ -118,6 +128,31 @@ export default function AdminRidersPage() {
     }
   };
 
+  const changeStatus = async (rider: Rider, status: 'ONLINE' | 'OFFLINE') => {
+    setStatusBusyId(rider.id);
+    setNotice(null);
+    try {
+      await apiClient.patch(`/riders/${rider.id}/status`, { status });
+      await fetchRiders();
+      setNotice({
+        tone: 'ok',
+        text:
+          status === 'ONLINE'
+            ? `${rider.user?.name || 'Rider'} is now available for dispatch.`
+            : `${rider.user?.name || 'Rider'} is now offline.`,
+      });
+    } catch (error: any) {
+      setNotice({
+        tone: 'error',
+        text:
+          error?.response?.data?.message ||
+          'Could not update the Rider status. Please try again.',
+      });
+    } finally {
+      setStatusBusyId(null);
+    }
+  };
+
   const continueInternalOnboarding = (detail: any) => {
     const id = detail?.application?.id;
     window.location.assign(`/admin/partner-applications${id ? `?application=${encodeURIComponent(id)}` : ''}`);
@@ -144,6 +179,11 @@ export default function AdminRidersPage() {
           <div><p className="font-semibold">One Rider creation path</p><p className="mt-1 text-xs leading-5 text-teal-800">Add Rider now uses the same Admin-controlled profile, zone, document and approval flow as Partner Applications. OTP is not required for Admin-created accounts.</p></div>
         </div>
 
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+          <div><p className="font-semibold">Freeing a Busy rider</p><p className="mt-1 text-xs leading-5 text-amber-800">A rider is Busy while they hold an active delivery or delivery run. Once that work is completed or reassigned, use <span className="font-bold">Make available</span> to return them to the dispatch pool. If the button is disabled, the rider still has active work shown in the Status column.</p></div>
+        </div>
+
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <div key={stat.label} className="rounded-xl border border-gray-100 bg-white p-5 ">
@@ -155,6 +195,21 @@ export default function AdminRidersPage() {
           ))}
         </div>
       </div>
+
+      {notice ? (
+        <div
+          className={`mb-5 flex items-start justify-between gap-4 rounded-xl border p-4 text-sm font-semibold ${
+            notice.tone === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-red-200 bg-red-50 text-red-800'
+          }`}
+        >
+          <span>{notice.text}</span>
+          <button onClick={() => setNotice(null)} className="shrink-0 rounded-lg p-1 hover:bg-black/5">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white ">
         <div className="border-b border-gray-50 bg-gray-50/50 p-4">
@@ -180,10 +235,53 @@ export default function AdminRidersPage() {
                 return <tr key={rider.id} className="group transition-colors hover:bg-gray-50">
                   <td className="px-6 py-4"><div className="flex items-center"><div className="mr-4 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white"><User className="h-5 w-5" /></div><div><p className="text-sm font-bold text-gray-900">{rider.user?.name || 'Unknown'}</p><p className="text-xs text-gray-500">ID: {rider.id.substring(0, 8)}</p></div></div></td>
                   <td className="px-6 py-4"><div className="space-y-1 text-sm font-bold text-gray-600"><div className="flex items-center"><Mail className="mr-2 h-4 w-4 text-gray-400" />{rider.user?.email || 'No email'}</div><div className="flex items-center"><Phone className="mr-2 h-4 w-4 text-gray-400" />{rider.user?.phone || 'No phone'}</div></div></td>
-                  <td className="px-6 py-4"><span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${status.classes}`}><status.Icon className="mr-1.5 h-3 w-3" />{status.label}</span></td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${status.classes}`}><status.Icon className="mr-1.5 h-3 w-3" />{status.label}</span>
+                    {rider.status === 'BUSY' && (
+                      <p className="mt-2 max-w-[16rem] text-xs font-semibold text-amber-700">
+                        {!rider.workload
+                          ? 'Handling active work — workload details unavailable.'
+                          : rider.workload.canBeFreed
+                            ? 'No active deliveries — safe to make available.'
+                            : `Handling ${rider.workload.activeDeliveries} delivery(ies) and ${rider.workload.activeRuns} run(s).`}
+                      </p>
+                    )}
+                    {rider.status === 'OFFLINE' && (
+                      <p className="mt-2 max-w-[16rem] text-xs font-semibold text-gray-500">Not on shift. Set online to receive dispatch.</p>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm font-bold text-gray-700">{rider.vehicleType || '—'}{rider.vehicleNumber ? ` · ${rider.vehicleNumber}` : ''}</td>
                   <td className="px-6 py-4"><div className="flex items-center text-sm font-bold text-gray-900"><Package className="mr-2 h-4 w-4 text-purple-500" />{rider.orders?.length || 0}</div></td>
-                  <td className="px-6 py-4 text-right"><div className="flex justify-end gap-1.5"><button onClick={() => { setSelectedRider(rider); setShowMapModal(true); }} className="rounded-lg p-2 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Track Live"><MapPin className="h-4 w-4" /></button><button onClick={() => void handleDelete(rider)} disabled={deleting} className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button></div></td>
+                  <td className="px-6 py-4 text-right"><div className="flex items-center justify-end gap-1.5">
+                    {rider.status === 'BUSY' && (
+                      <button
+                        onClick={() => void changeStatus(rider, 'ONLINE')}
+                        disabled={statusBusyId === rider.id || rider.workload?.canBeFreed === false}
+                        title={rider.workload?.canBeFreed === false ? 'Finish or reassign active work first' : 'Free this rider for dispatch'}
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {statusBusyId === rider.id ? 'Working…' : 'Make available'}
+                      </button>
+                    )}
+                    {rider.status === 'OFFLINE' && (
+                      <button
+                        onClick={() => void changeStatus(rider, 'ONLINE')}
+                        disabled={statusBusyId === rider.id}
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-40"
+                      >
+                        {statusBusyId === rider.id ? 'Working…' : 'Set online'}
+                      </button>
+                    )}
+                    {rider.status === 'ONLINE' && (
+                      <button
+                        onClick={() => void changeStatus(rider, 'OFFLINE')}
+                        disabled={statusBusyId === rider.id}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
+                      >
+                        {statusBusyId === rider.id ? 'Working…' : 'Set offline'}
+                      </button>
+                    )}
+                    <button onClick={() => { setSelectedRider(rider); setShowMapModal(true); }} className="rounded-lg p-2 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Track Live"><MapPin className="h-4 w-4" /></button><button onClick={() => void handleDelete(rider)} disabled={deleting} className="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button></div></td>
                 </tr>;
               })}
             </tbody>

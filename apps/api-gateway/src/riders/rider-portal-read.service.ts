@@ -272,6 +272,31 @@ export class RiderPortalReadService {
       reference: record.reference,
     }));
 
+    // Surface the store's preparation state on the offer so the rider knows the
+    // parcel is genuinely ready. Subscription offers are only raised after the
+    // store's stock-readiness audit; shop offers are gated on the PACKED status.
+    const subscriptionDeliveryId = (job.order as any).subscriptionDeliveryId as string | null;
+    const preparationAudit = subscriptionDeliveryId
+      ? await prisma.subscriptionAuditEntry.findFirst({
+          where: {
+            subscriptionId: job.order.subscriptionId
+              ? job.order.subscriptionId
+              : undefined,
+            action: { in: ["STORE_STOCK_READY", "STORE_STOCK_SHORTAGE"] },
+            metadata: { path: ["subscriptionDeliveryId"], equals: subscriptionDeliveryId } as any,
+          },
+          orderBy: { createdAt: "desc" },
+          select: { action: true, createdAt: true },
+        })
+      : null;
+    const storePreparation = subscriptionDeliveryId
+      ? preparationAudit?.action === "STORE_STOCK_READY"
+        ? { required: true, status: "READY", confirmedAt: preparationAudit.createdAt }
+        : preparationAudit?.action === "STORE_STOCK_SHORTAGE"
+          ? { required: true, status: "SHORTAGE", confirmedAt: preparationAudit.createdAt }
+          : { required: true, status: "PENDING", confirmedAt: null }
+      : { required: false, status: "READY", confirmedAt: null };
+
     return {
       assignment,
       offer: {
@@ -282,6 +307,7 @@ export class RiderPortalReadService {
         expiresAt: assignment.expiresAt,
         orderId: job.orderId,
         pickup: job.order.store,
+        storePreparation,
         delivery: {
           customerName: job.order.customer?.name || "Customer",
           addressSnapshot: job.order.addressSnapshot,

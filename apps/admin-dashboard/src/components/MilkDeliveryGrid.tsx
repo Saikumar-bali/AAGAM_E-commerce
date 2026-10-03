@@ -89,6 +89,8 @@ interface GridRow {
     dailyQuantity: string;
   };
   slot: string;
+  status?: string;
+  pauseEffectiveFrom?: string | null;
   defaultRider?: {
     id: string;
     name: string;
@@ -288,6 +290,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
   // Modal / Popover States
   const [selectedCell, setSelectedCell] = useState<{ row: GridRow; day: number; cell: GridCell | null } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  // One key per grid-triggered renewal so a double-click replays the same renewal.
+  const renewKeyRef = useRef<string>('');
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
   const [dispatchData, setDispatchData] = useState<any>(null);
   const [dispatchLoading, setDispatchLoading] = useState(false);
@@ -958,6 +962,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
               }`}>
                 {row.customer.customerType === 'offline' ? 'OFFLINE' : 'ONLINE'}
               </span>
+              {row.status === 'PAUSED' && (
+                <span
+                  className="inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-semibold leading-none bg-rose-100 text-rose-700 border border-rose-200"
+                  title={row.pauseEffectiveFrom ? `Paused from ${new Date(row.pauseEffectiveFrom).toLocaleDateString()}` : 'Paused'}
+                >
+                  PAUSED{row.pauseEffectiveFrom ? ` FROM ${new Date(row.pauseEffectiveFrom).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : ''}
+                </span>
+              )}
               {isPending && mobileSortMode === 'pending-first' && (
                 <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500">
                   Seq #{originalIndex + 1}
@@ -2608,15 +2620,20 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             onClick={async () => {
                               try {
                                 setActionLoading(true);
+                                if (!renewKeyRef.current) renewKeyRef.current = `store-grid-renew:${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36)}`;
                                 await apiClient.post(
                                   `/store/subscriptions/subscribers/${selectedCell.row.subscriptionId}/renew`,
                                   {
                                     isSamePlan: true,
                                     totalDeliveries: 30,
                                   },
+                                  { headers: { "Idempotency-Key": renewKeyRef.current } },
                                 );
                                 toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
                                 setSelectedCell(null);
+                                // Clear the key only after success so a retry of a
+                                // failed request reuses the same idempotency key.
+                                renewKeyRef.current = '';
                                 void loadGrid();
                               } catch (err: any) {
                                 toast.error(err.response?.data?.message || 'Renewal failed');

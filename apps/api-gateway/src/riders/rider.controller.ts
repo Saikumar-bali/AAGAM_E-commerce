@@ -28,7 +28,7 @@ export class RiderController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   async findAll() {
-    return this.riderService.findAll();
+    return this.riderService.findAllWithWorkload();
   }
 
   @Get('me')

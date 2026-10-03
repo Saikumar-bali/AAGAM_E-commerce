@@ -9,6 +9,8 @@ export interface Column<T> {
   width?: string;
   align?: 'left' | 'center' | 'right';
   render: (row: T, index: number) => React.ReactNode;
+  // Plain-text form of a JSX-rendering cell, so search still matches it.
+  searchValue?: (row: T) => string;
 }
 
 interface DataTableProps<T> {
@@ -55,9 +57,9 @@ export function DataTable<T>({
     const query = search.toLowerCase();
     return data.filter((row) =>
       columns.some((col) => {
-        const value = col.render(row, 0);
-        if (typeof value === 'string') return value.toLowerCase().includes(query);
-        if (typeof value === 'number') return String(value).includes(query);
+        const searchable = col.searchValue?.(row) ?? col.render(row, 0);
+        if (typeof searchable === 'string') return searchable.toLowerCase().includes(query);
+        if (typeof searchable === 'number') return String(searchable).includes(query);
         return false;
       })
     );

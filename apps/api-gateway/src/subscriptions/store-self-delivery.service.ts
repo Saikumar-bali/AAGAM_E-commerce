@@ -2,9 +2,11 @@ import { BadRequestException, Injectable, NotFoundException, ForbiddenException 
 import { CustomerSubscriptionStatus, DeliveryJobStatus, PaymentStatus, Prisma, Role, SubscriptionDeliveryStatus, prisma } from '@aagam/database';
 import { randomUUID } from 'crypto';
 import { DEFAULT_DELIVERY_TIMEZONE, todayInTimezone } from './subscription-timezone';
+import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 
 @Injectable()
 export class StoreSelfDeliveryService {
+  constructor(private readonly funding: SubscriptionCashFundingService) {}
 
   async updateDelivery(
     subscriptionDeliveryId: string,
@@ -48,6 +50,7 @@ export class StoreSelfDeliveryService {
       let newStatus: SubscriptionDeliveryStatus | undefined;
       let cashToRecord = dto.cashCollectedPaise;
       let failureReason: string | undefined;
+      let deliveredAt: Date | undefined;
 
       if (dto.status === 'DELIVERED') {
         if (subDelivery.status === SubscriptionDeliveryStatus.DELIVERED) {
@@ -103,7 +106,8 @@ export class StoreSelfDeliveryService {
           if (newStatus) {
             data.status = newStatus;
             if (newStatus === SubscriptionDeliveryStatus.DELIVERED) {
-              data.deliveredAt = new Date();
+              deliveredAt = new Date();
+              data.deliveredAt = deliveredAt;
               data.deliveredByStoreUserId = storeUserId;
             } else {
               data.failedAt = new Date();
@@ -124,6 +128,7 @@ export class StoreSelfDeliveryService {
 
       const previousCash = subDelivery.cashCollectedPaise || 0;
       const cashDelta = cashToRecord !== undefined ? cashToRecord - previousCash : 0;
+      let cashAdjustedDuePaise: number | undefined;
       if (cashDelta !== 0) {
         const sub = await tx.customerSubscription.findUnique({
           where: { id: subDelivery.subscriptionId },
@@ -132,14 +137,16 @@ export class StoreSelfDeliveryService {
         if (sub) {
           const nextCollected = Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta);
           const nextDue = Math.max(0, (sub.amountDuePaise || 0) - cashDelta);
-          const shouldActivate = (sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION || sub.status === CustomerSubscriptionStatus.PAYMENT_DUE) && nextDue === 0;
+          cashAdjustedDuePaise = nextDue;
 
+          // Cash only moves the ledger here; the completion call below owns the
+          // status transition so a delivered plan activates even when cash is
+          // still owed.
           await tx.customerSubscription.update({
             where: { id: subDelivery.subscriptionId },
             data: {
               amountCollectedPaise: nextCollected,
               amountDuePaise: nextDue,
-              ...(shouldActivate ? { status: CustomerSubscriptionStatus.ACTIVE } : {}),
             },
           });
         }
@@ -189,10 +196,18 @@ export class StoreSelfDeliveryService {
           });
         }
 
-        await tx.customerSubscription.update({
-          where: { id: subDelivery.subscriptionId },
-          data: { completedDeliveries: { increment: 1 } },
-        });
+        // Completion — not cash — advances the plan. The delivery is already
+        // DELIVERED above, so pass deliveryAlreadyCompleted and a stable key
+        // derived from the completion timestamp: the key matches the delivery's
+        // deliveredAt, so an idempotent retry of this same completion is a
+        // no-op while a later undo+redo still counts.
+        await this.funding.consumeDeliveredWithinTransaction(
+          tx,
+          subscriptionDeliveryId,
+          { id: storeUserId, role: actorRole },
+          `store-delivery-consume:${subscriptionDeliveryId}:${(deliveredAt ?? new Date()).getTime()}`,
+          { amountDueOverridePaise: cashAdjustedDuePaise, deliveryAlreadyCompleted: true },
+        );
       } else if (newStatus === SubscriptionDeliveryStatus.FAILED) {
         const orderId = subDelivery.deliveryJob?.orderId || subDelivery.order?.id || null;
         if (subDelivery.deliveryJobId) {
@@ -517,17 +532,19 @@ export class StoreSelfDeliveryService {
       const cashToRecord = dto.cashCollectedPaise !== undefined ? dto.cashCollectedPaise : prevCash;
       const cashDelta = cashToRecord - prevCash;
 
+      const deliveredAt = new Date();
       await tx.subscriptionDelivery.update({
         where: { id: subscriptionDeliveryId },
         data: {
           status: SubscriptionDeliveryStatus.DELIVERED,
-          deliveredAt: new Date(),
+          deliveredAt,
           deliveredByStoreUserId: storeUserId,
           cashCollectedPaise: cashToRecord,
           cashCollectedAt: cashDelta > 0 ? new Date() : (subDelivery.cashCollectedAt || undefined),
         },
       });
 
+      let cashAdjustedDuePaise: number | undefined;
       if (cashDelta !== 0) {
         const sub = await tx.customerSubscription.findUnique({
           where: { id: subDelivery.subscriptionId },
@@ -536,14 +553,16 @@ export class StoreSelfDeliveryService {
         if (sub) {
           const nextCollected = Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta);
           const nextDue = Math.max(0, (sub.amountDuePaise || 0) - cashDelta);
-          const shouldActivate = (sub.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION || sub.status === CustomerSubscriptionStatus.PAYMENT_DUE) && nextDue === 0;
+          cashAdjustedDuePaise = nextDue;
 
+          // Cash only moves the ledger here; the completion call below owns the
+          // status transition so a delivered plan activates even when cash is
+          // still owed.
           await tx.customerSubscription.update({
             where: { id: subDelivery.subscriptionId },
             data: {
               amountCollectedPaise: nextCollected,
               amountDuePaise: nextDue,
-              ...(shouldActivate ? { status: CustomerSubscriptionStatus.ACTIVE } : {}),
             },
           });
         }
@@ -595,10 +614,18 @@ export class StoreSelfDeliveryService {
         });
       }
 
-      await tx.customerSubscription.update({
-        where: { id: subDelivery.subscriptionId },
-        data: { completedDeliveries: { increment: 1 } },
-      });
+      // Completion — not cash — advances the plan. The delivery is already
+      // DELIVERED above, so pass deliveryAlreadyCompleted and a stable key
+      // derived from the completion timestamp: the key matches the delivery's
+      // deliveredAt, so an idempotent retry of this same completion is a no-op
+      // while a later undo+redo still counts.
+      await this.funding.consumeDeliveredWithinTransaction(
+        tx,
+        subscriptionDeliveryId,
+        { id: storeUserId, role: Role.STORE_OWNER },
+        `store-delivery-consume:${subscriptionDeliveryId}:${deliveredAt.getTime()}`,
+        { amountDueOverridePaise: cashAdjustedDuePaise, deliveryAlreadyCompleted: true },
+      );
 
       await tx.subscriptionAuditEntry.create({
         data: {
