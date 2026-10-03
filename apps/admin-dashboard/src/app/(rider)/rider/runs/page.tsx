@@ -284,7 +284,23 @@ function coordinates(): Promise<Coordinates> {
   });
 }
 
-export default function RiderRunsPage() {
+export default function RiderRunsPageRoute() {
+  // useSearchParams() opts the page out of static generation, so Next requires
+  // a Suspense boundary above it or `next build` aborts prerendering.
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+          Loading rider runs…
+        </div>
+      }
+    >
+      <RiderRunsPage />
+    </React.Suspense>
+  );
+}
+
+function RiderRunsPage() {
   const toast = useToast();
   const searchParams = useSearchParams();
   const deepLinkRunId = searchParams.get("run");
