@@ -85,6 +85,11 @@ describe('updateManualSubscription — slot change applies to the whole remainin
       data: { deliverySlot: 'PM' },
     });
 
+    // The order re-sync query must apply the same eligible-status predicate,
+    // so a delivery that advanced past selection keeps its old window.
+    const flippedQuery = (prisma.subscriptionDelivery.findMany as jest.Mock).mock.calls[2][0];
+    expect(flippedQuery.where.status.in).toEqual(remainingQuery.where.status.in);
+
     // The already-generated order for 4 Oct now carries the PM window
     // (17:00–20:00 IST == 11:30–14:30 UTC).
     expect(prisma.order.update).toHaveBeenCalledWith({

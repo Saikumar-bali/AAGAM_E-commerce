@@ -893,7 +893,10 @@ export class SubscriptionAdminReportingService {
     const timezone = store?.timezone || DEFAULT_DELIVERY_TIMEZONE;
     const slotWindow = DELIVERY_SLOT_WINDOWS[targetSlot];
     const flipped = await tx.subscriptionDelivery.findMany({
-      where: { id: { in: flipIds }, order: { isNot: null } },
+      // Same eligible-status predicate as the update above: a delivery that
+      // advanced past selection keeps its slot, so its order window must not
+      // be re-synced either.
+      where: { id: { in: flipIds }, status: { in: REMAINING_DELIVERY_STATUSES }, order: { isNot: null } },
       select: { serviceDate: true, order: { select: { id: true } } },
     });
     let orders = 0;
