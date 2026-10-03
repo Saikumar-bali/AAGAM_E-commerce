@@ -206,6 +206,30 @@ keyword argument` and no actions is that bug, not a model problem.
 the 1800s cap. The prompts therefore push their fixes before reporting, so work
 survives a timeout, and treat 20 minutes as their own deadline.
 
+## Subscription lifecycle is delivery-first
+
+- `SubscriptionCashFundingService.consumeDeliveredWithinTransaction` is the
+  single entitlement helper for every completion path (store self-delivery
+  `verifyAndCompleteDelivery`/`updateDelivery`, milk-grid `TOGGLE_DELIVERED`,
+  admin `reconcileDeliveredWithinTransaction`, order-flow reconciliation).
+  Completion — not cash collection — advances the plan: a delivery that
+  physically happened activates a `PENDING_CASH_COLLECTION`/`PAYMENT_DUE`
+  contract to `ACTIVE` and, on the final delivery, `COMPLETED`.
+- The outstanding `amountDuePaise` is preserved across completion so the
+  customer keeps seeing the pending balance while the plan runs. Callers that
+  just recorded cash pass `amountDueOverridePaise` (post-cash balance);
+  callers that flip the delivery to `DELIVERED` before calling pass
+  `deliveryAlreadyCompleted: true` and own idempotency via a stable audit key.
+- Do not re-add the old "no funded entitlement" conflict or gate activation on
+  cash: the cash ledger (`amountCollectedPaise`/`amountDuePaise`) and the
+  lifecycle status are independent concerns.
+- Customer-visible copy: use "Pending <amount>" for the subscription-level
+  balance and "All dues cleared" when zero, in both
+  `apps/mobile-customer/.../SubscriptionDetailScreen.tsx` and
+  `apps/admin-dashboard/src/app/(shop)/shop/subscriptions/[id]/page.tsx`. The
+  cross-app contract spec `subscription-delivery-runs.contract.spec.ts`
+  asserts these strings.
+
 ## Rider assignment visibility (store)
 
 - `GET /store/subscriptions/rider-assignments?date=YYYY-MM-DD` (StoreSubscriptionsController)
