@@ -1,0 +1,69 @@
+# CodeRabbit configuration — review GUIDANCE only.
+#
+# Deliberately additive: no behavior keys are set (profile, auto_review,
+# path_filters, high_level_summary, ...). Every review setting keeps the
+# exact default CodeRabbit applies when this file is absent, so current
+# review behaviour cannot change. The only addition is path_instructions,
+# which injects the IMPACT ANALYSIS rules into every review so findings
+# cover cross-surface blast radius (store/admin <-> customer <-> rider,
+# shared packages, async workers) instead of only the changed lines.
+#
+# The agent (OpenCode / OpenHands triage fixer) remains the fixing side:
+# CodeRabbit flags with these rules, the agent fixes.
+reviews:
+  path_instructions:
+    - path: "**"
+      instructions: >
+        IMPACT ANALYSIS (mandatory for every finding): before flagging an
+        issue, work out its blast radius across this TypeScript monorepo.
+        Surfaces: apps/api-gateway (REST backend), apps/admin-dashboard (web
+        audiences (admin), (store), (rider), (shop)), apps/mobile-customer
+        (customer app), apps/mobile-partners (rider app), and the shared
+        packages (database, types, utils). Any change to an entity (order,
+        delivery, subscription, payment, status) must be checked on its
+        counterpart surfaces too: a store/admin change -> check customer and
+        rider sides; a customer-side change -> check store/admin and rider;
+        a rider-side change -> check store/admin and customer. Flag findings
+        whose impact reaches files outside the diff: shared contracts
+        (packages/types), shared helpers (packages/utils), database
+        readers/writers and migrations (packages/database), and asynchronous
+        readers (outbox/notification workers, prep/dispatch, order
+        generation, scheduled jobs). Also flag duplicate derivations of the
+        same fact across surfaces (status/state mappings, online/offline
+        classification, slot/window math, money/rounding, date/timezone
+        formatting): when each surface keeps its own copy they drift —
+        recommend unifying them behind packages/utils. Report each
+        cross-surface risk as its own finding naming the exact files that
+        must change together.
+    - path: "apps/api-gateway/**"
+      instructions: >
+        Backend change: list every REST consumer affected — admin/store web
+        pages in apps/admin-dashboard, apps/mobile-customer/src,
+        apps/mobile-partners/src, and any *.contract.spec.ts asserting the
+        response shape. For schema or migration changes, check every
+        reader/writer across all apps, tolerance of existing rows (NULL,
+        enum values, backfill), and that DDL stays idempotent. For
+        status/enum/state-machine changes, check every workflow deriving
+        from them (grid, prep, dispatch, runs, orders) and all background
+        jobs.
+    - path: "packages/**"
+      instructions: >
+        Shared-code change: this is simultaneously a change in all four
+        apps. Name the importers you verified and flag any caller still
+        assuming the old behaviour.
+    - path: "apps/mobile-customer/**"
+      instructions: >
+        Customer-side change: verify the store/admin surface and the rider
+        app still agree for the same entity (order, delivery, subscription,
+        payment, issue).
+    - path: "apps/mobile-partners/**"
+      instructions: >
+        Rider-side change: verify store/admin and the customer app still
+        agree for the same entity (run stops, dispatch, delivery proof,
+        payouts).
+    - path: "apps/admin-dashboard/**"
+      instructions: >
+        Admin/store web change: verify mobile-customer and mobile-partners
+        for the same entity, and remember this dashboard serves several
+        audiences ((admin), (store), (rider), (shop)) — a shared component
+        may be read by more than one of them.
