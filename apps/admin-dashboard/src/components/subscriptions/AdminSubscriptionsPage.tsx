@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import { apiClient } from '@aagam/utils';
+import { apiClient, isOfflineSubscription } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getToastErrorMessage, useToast } from '@/components/ToastProvider';
 import OfflineCustomerTracker from '@/components/offline-customers/OfflineCustomerTracker';
@@ -1128,13 +1128,8 @@ function Subscribers({ rows, onEditSubscriber }: { rows: any[]; onEditSubscriber
   const [trackerId, setTrackerId] = useState<string | null>(null);
   const filteredRows = rows.filter((item: any) => {
     if (sourceFilter === 'all') return true;
-    const isOffline =
-      item.source === 'manual' ||
-      item.source === 'custom_manual' ||
-      item.customer?.email?.startsWith('offline.') ||
-      item.customer?.phone?.startsWith('offline_') ||
-      item.customer?.acquisitionSource === 'OFFLINE' ||
-      item.customer?.acquisitionSource === 'OFFLINE_STORE';
+    // Shared with the store Subscribers tab and the milk grid.
+    const isOffline = isOfflineSubscription(item);
     return sourceFilter === 'offline' ? isOffline : !isOffline;
   });
 
