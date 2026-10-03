@@ -34,6 +34,13 @@ const ALLOWED_PATCHED_ADVISORIES = new Set([
   // uuid (via exceljs): fixed in 11.1.1; the exceljs override pins 11.1.1.
   // exceljs only calls uuid.v4(), which is unaffected by this advisory.
   'https://github.com/advisories/GHSA-w5hq-g745-h8pq',
+  // braces (via micromatch -> metro, @jest/*, chokidar, fast-glob, tailwindcss,
+  // react-native, ts-node-dev): every release through 3.0.3 is affected by
+  // CVE-2026-93687 (stack exhaustion via deeply nested brace patterns). The
+  // advisory was reviewed 2026-10-02 and upstream has published no patched
+  // version yet, so there is no in-range fix to pin; the input is not
+  // attacker-controlled anywhere in this repo (build/test tooling only).
+  'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
 ]);
 
 function run(command, args, options = {}) {
