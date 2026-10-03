@@ -68,6 +68,9 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
   const seen = useRef(new Map<string, number>());
   const alerted = useRef<Set<string>>(new Set());
   const inboxBootstrapped = useRef(false);
+  // Snapshot of launch time: the bootstrap pass must only silence items that
+  // predate this session, never offers that arrived while it was starting up.
+  const appStartedAt = useRef(Date.now());
   const previousSession = useRef<string | null>(null);
 
   useEffect(() => {
@@ -230,7 +233,7 @@ export function PartnerPushCoordinator({ queryClient }: Props) {
         queryClient.setQueryData<PartnerNotificationInbox>(NOTIFICATION_KEY, inbox);
         if (!inboxBootstrapped.current) {
           // The first load reconciles the inbox; it must not raise an alert burst.
-          alertKeysForInboxBootstrap(inbox.items).forEach((key) => alerted.current.add(key));
+          alertKeysForInboxBootstrap(inbox.items, appStartedAt.current).forEach((key) => alerted.current.add(key));
           persistAlerted();
           inbox.items.forEach((item) => remember(notificationDedupeKey(
             normalizeNotificationNavigation(dataFromInboxItem(item)),

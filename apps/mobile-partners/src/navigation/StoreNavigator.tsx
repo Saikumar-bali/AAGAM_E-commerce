@@ -78,6 +78,7 @@ const StoreTabs = () => {
   };
 
   return (
+    <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#0F766E',
@@ -186,6 +187,8 @@ const StoreTabs = () => {
         }}
       />
     </Tab.Navigator>
+      <StoreOperationsDock />
+    </View>
   );
 };
 
@@ -203,6 +206,5 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
       <Stack.Screen name="StoreRiderAssignments" component={StoreRiderAssignmentsScreen} />
     </Stack.Navigator>
-    <StoreOperationsDock />
   </View>
 );

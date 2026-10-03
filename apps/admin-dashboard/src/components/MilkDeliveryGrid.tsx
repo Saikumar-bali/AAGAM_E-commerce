@@ -2631,12 +2631,14 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                 );
                                 toast.success(`Plan renewed for ${selectedCell.row.customer.name}!`);
                                 setSelectedCell(null);
+                                // Clear the key only after success so a retry of a
+                                // failed request reuses the same idempotency key.
+                                renewKeyRef.current = '';
                                 void loadGrid();
                               } catch (err: any) {
                                 toast.error(err.response?.data?.message || 'Renewal failed');
                               } finally {
                                 setActionLoading(false);
-                                renewKeyRef.current = '';
                               }
                             }}
                             className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800 shadow-xs"

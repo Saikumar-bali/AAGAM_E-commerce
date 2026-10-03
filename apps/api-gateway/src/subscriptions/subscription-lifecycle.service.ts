@@ -49,8 +49,8 @@ export class SubscriptionLifecycleService {
     if (stop) {
       // A delivered or already-returned stop is history; only pull back a stop
       // that has not been completed on the road.
-      await tx.deliveryRunStop.update({
-        where: { id: stop.id },
+      const cancelled = await tx.deliveryRunStop.updateMany({
+        where: { id: stop.id, status: { notIn: ['DELIVERED', 'RETURNED', 'CANCELLED'] } },
         data: {
           status: 'CANCELLED',
           failedAt: new Date(),
@@ -58,8 +58,10 @@ export class SubscriptionLifecycleService {
           version: { increment: 1 },
         },
       });
-      cancelledStop = true;
-      await this.recomputeRunCounters(tx, stop.deliveryRunId);
+      cancelledStop = cancelled.count > 0;
+      if (cancelledStop) {
+        await this.recomputeRunCounters(tx, stop.deliveryRunId);
+      }
 
       await tx.deliveryJob.updateMany({
         where: { id: stop.deliveryJobId, status: { notIn: ['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE'] } },

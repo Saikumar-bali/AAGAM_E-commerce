@@ -319,6 +319,7 @@ export default function StoreSubscriptionOperationsPage() {
   const [cancellingSubscriber, setCancellingSubscriber] = useState<SubscriberRow | null>(null);
   const [cancelReason, setCancelReason] = useState('Customer requested plan change');
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+  const [cancelledReloadToken, setCancelledReloadToken] = useState(0);
   const [editForm, setEditForm] = useState({
     mode: "renew" as "renew" | "slot" | "schedule" | "cashflow" | "edit",
     renewalType: "same" as "same" | "switch" | "split",
@@ -955,6 +956,7 @@ export default function StoreSubscriptionOperationsPage() {
                   setCancelReason('Customer requested plan change / cancellation');
                 }}
                 onAddOfflineCustomer={() => setAddCustomerModalOpen(true)}
+                cancelledReloadToken={cancelledReloadToken}
               />
             )}
 
@@ -2386,6 +2388,7 @@ export default function StoreSubscriptionOperationsPage() {
                       setCancellingSubscriber(null);
                       setEditingSubscriber(null);
                       await load();
+                      setCancelledReloadToken((token) => token + 1);
                     } catch (err: any) {
                       toast.error(getToastErrorMessage(err, 'Failed to cancel subscription'));
                     } finally {
@@ -2960,6 +2963,7 @@ function SubscribersSection({
   onViewHistory,
   onCancel,
   onAddOfflineCustomer,
+  cancelledReloadToken = 0,
 }: {
   rows: SubscriberRow[];
   counts?: { total: number; active: number; paused: number; cancelled: number } | null;
@@ -2967,21 +2971,29 @@ function SubscribersSection({
   onViewHistory?: (sub: SubscriberRow) => void;
   onCancel?: (sub: SubscriberRow) => void;
   onAddOfflineCustomer?: () => void;
+  cancelledReloadToken?: number;
 }) {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'PAUSED' | 'CANCELLED'>('all');
   const [cancelledRows, setCancelledRows] = useState<SubscriberRow[]>([]);
   const [cancelledLoaded, setCancelledLoaded] = useState(false);
   const [loadingCancelled, setLoadingCancelled] = useState(false);
+  const [cancelledError, setCancelledError] = useState(false);
+  const loadedReloadTokenRef = useRef(cancelledReloadToken);
 
   const isActiveStatus = (status: string) => status === 'ACTIVE' || status === 'PENDING_CASH_COLLECTION' || status === 'PAYMENT_DUE' || status === 'GRACE_PERIOD';
 
   // Cancelled contracts are history, so they are fetched on demand rather than
-  // shipped with the live subscriber list.
+  // shipped with the live subscriber list. The parent bumps `cancelledReloadToken`
+  // after a cancellation so the cached history is refetched.
   useEffect(() => {
-    if (statusFilter !== 'CANCELLED' || cancelledLoaded) return;
+    if (statusFilter !== 'CANCELLED') return;
+    const tokenChanged = loadedReloadTokenRef.current !== cancelledReloadToken;
+    if (cancelledLoaded && !tokenChanged) return;
+    loadedReloadTokenRef.current = cancelledReloadToken;
     let active = true;
     setLoadingCancelled(true);
+    setCancelledError(false);
     apiClient.get("/store/subscriptions/subscribers", { params: { status: 'cancelled' } })
       .then((res) => {
         if (!active) return;
@@ -2990,10 +3002,15 @@ function SubscribersSection({
         setCancelledRows(rows);
         setCancelledLoaded(true);
       })
-      .catch(() => { if (active) setCancelledRows([]); })
+      .catch(() => {
+        if (!active) return;
+        // Keep the previously loaded rows; surface the failure instead of
+        // presenting an empty list as a successful result.
+        setCancelledError(true);
+      })
       .finally(() => { if (active) setLoadingCancelled(false); });
     return () => { active = false; };
-  }, [statusFilter, cancelledLoaded]);
+  }, [statusFilter, cancelledLoaded, cancelledReloadToken]);
 
   const displayRows = statusFilter === 'CANCELLED' ? cancelledRows : rows;
 
@@ -3089,6 +3106,11 @@ function SubscribersSection({
           </div>
         </div>
       </div>
+      {statusFilter === 'CANCELLED' && cancelledError ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+          Could not load cancelled subscriptions. Please retry.
+        </div>
+      ) : null}
       {loadingCancelled ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <h2 className="text-sm font-semibold text-slate-800">Loading cancelled subscriptions…</h2>

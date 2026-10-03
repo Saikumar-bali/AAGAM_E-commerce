@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -62,7 +62,7 @@ function riderStatusTone(status?: string | null) {
 export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' }));
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -85,9 +85,24 @@ export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any })
   const riders = Array.isArray(board.riders) ? board.riders : [];
   const unassigned = Array.isArray(board.unassigned) ? board.unassigned : [];
   const selectedIds = useMemo(
-    () => Object.keys(selected).filter((id) => selected[id]),
-    [selected],
+    () => Object.keys(selected).filter((id) => selected[id] && unassigned.some((stop: any) => stop.deliveryId === id)),
+    [selected, unassigned],
   );
+
+  // Drop selections that are no longer part of the unassigned list (after a
+  // refetch or a date change) so the dispatch bar never sends hidden IDs.
+  useEffect(() => {
+    setSelected((current) => {
+      const valid = new Set(unassigned.map((stop: any) => stop.deliveryId));
+      const next: Record<string, boolean> = {};
+      let changed = false;
+      for (const [id, value] of Object.entries(current)) {
+        if (value && valid.has(id)) next[id] = true;
+        else if (value) changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [unassigned]);
 
   const dispatch = useMutation({
     mutationFn: (riderProfileId: string) =>
@@ -143,8 +158,8 @@ export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any })
           refreshControl={<RefreshControl refreshing={boardQuery.isRefetching} onRefresh={() => void boardQuery.refetch()} tintColor={palette.teal700} />}
         >
           <View style={styles.metricsRow}>
-            <Metric icon={<UserCheck size={18} color={palette.green700} />} value={String(totals.assignedCount ?? 0)} label="Assigned" />
-            <Metric icon={<CircleDashed size={18} color={palette.amber700} />} value={String(totals.unassignedCount ?? 0)} label="Unassigned" />
+            <Metric icon={<UserCheck size={18} color={palette.green700} />} value={String(totals.assigned ?? 0)} label="Assigned" />
+            <Metric icon={<CircleDashed size={18} color={palette.amber700} />} value={String(totals.unassigned ?? 0)} label="Unassigned" />
             <Metric icon={<Users size={18} color={palette.blue700} />} value={String(riders.length)} label="Riders" />
             <Metric icon={<IndianRupee size={18} color={palette.slate700} />} value={money(totals.cashToCollectPaise)} label="Cash" compact />
           </View>

@@ -86,6 +86,9 @@ export default function AdminRidersPage() {
       setRiders((current) => current.map((rider) => rider.id === data.riderId
         ? { ...rider, latitude: data.latitude, longitude: data.longitude, bearing: data.bearing, status: data.status as Rider['status'], updatedAt: data.timestamp }
         : rider));
+      // A status change invalidates the workload payload, so refetch rather than
+      // showing a stale "Handling N delivery(ies)" line.
+      void fetchRiders();
     });
     return () => socket.disconnect();
   }, []);
@@ -236,9 +239,11 @@ export default function AdminRidersPage() {
                     <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${status.classes}`}><status.Icon className="mr-1.5 h-3 w-3" />{status.label}</span>
                     {rider.status === 'BUSY' && (
                       <p className="mt-2 max-w-[16rem] text-xs font-semibold text-amber-700">
-                        {rider.workload?.canBeFreed
-                          ? 'No active deliveries — safe to make available.'
-                          : `Handling ${rider.workload?.activeDeliveries ?? 0} delivery(ies) and ${rider.workload?.activeRuns ?? 0} run(s).`}
+                        {!rider.workload
+                          ? 'Handling active work — workload details unavailable.'
+                          : rider.workload.canBeFreed
+                            ? 'No active deliveries — safe to make available.'
+                            : `Handling ${rider.workload.activeDeliveries} delivery(ies) and ${rider.workload.activeRuns} run(s).`}
                       </p>
                     )}
                     {rider.status === 'OFFLINE' && (

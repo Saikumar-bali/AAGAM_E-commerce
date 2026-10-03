@@ -166,6 +166,11 @@ export class SubscriptionCashFundingService {
       include: { subscription: { include: { planVersion: true } } },
     });
     if (!delivery) throw new NotFoundException('Subscription delivery not found');
+    // `deliveryAlreadyCompleted` lets a caller that has itself performed a
+    // guarded status transition (e.g. an updateMany excluding DELIVERED) drive
+    // the funding side of a completion. Only pass it after that guarded update
+    // has reported exactly one affected row; otherwise a concurrent request can
+    // consume the same delivery twice.
     if (delivery.status === SubscriptionDeliveryStatus.DELIVERED && !options?.deliveryAlreadyCompleted) return delivery;
 
     const subscription = delivery.subscription;

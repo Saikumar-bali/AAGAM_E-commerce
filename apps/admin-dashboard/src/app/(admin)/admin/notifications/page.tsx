@@ -99,7 +99,10 @@ export default function AdminNotificationsPage() {
       key: 'received',
       header: 'Received',
       align: 'right' as const,
-      render: (item: InboxItem) => new Date(item.createdAt).toLocaleString('en-IN'),
+      render: (item: InboxItem) => {
+        const received = new Date(item.createdAt);
+        return Number.isNaN(received.getTime()) ? '—' : received.toLocaleString('en-IN');
+      },
     },
   ];
 

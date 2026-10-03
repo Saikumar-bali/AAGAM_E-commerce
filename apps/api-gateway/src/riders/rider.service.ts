@@ -21,6 +21,29 @@ import {
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
+const TERMINAL_JOB_STATUSES = [
+  DeliveryJobStatus.DELIVERED,
+  DeliveryJobStatus.RETURNED_TO_STORE,
+  DeliveryJobStatus.CANCELLED,
+] as any;
+
+/** Non-terminal delivery jobs currently assigned to a rider. */
+const activeJobWhere = (riderProfileId: string) => ({
+  currentRiderId: riderProfileId,
+  status: { notIn: TERMINAL_JOB_STATUSES },
+});
+
+/** Fields needed to decide whether a job still occupies the rider. */
+const OCCUPANCY_JOB_SELECT = {
+  id: true,
+  status: true,
+  failureDecisions: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: { status: true, createdAt: true, appliedAt: true },
+  },
+};
+
 @Injectable()
 export class RiderService {
   private readonly logger = new Logger(RiderService.name);
@@ -63,27 +86,57 @@ export class RiderService {
    */
   async findAllWithWorkload() {
     const riders = await this.findAll();
-    const workload = await Promise.all(
-      riders.map(async (rider) => {
-        const work = await this.blockingWork(prisma, rider.id);
-        return [
-          rider.id,
-          {
-            activeDeliveries: work.activeJobs,
-            activeRuns: work.activeRuns,
-            canBeFreed:
-              rider.status === 'BUSY' &&
-              work.activeJobs === 0 &&
-              work.activeRuns === 0,
-          },
-        ] as const;
+    const riderIds = riders.map((rider) => rider.id);
+    const busyRiderIds = riders.filter((rider) => rider.status === 'BUSY').map((rider) => rider.id);
+    if (riderIds.length === 0) {
+      return riders.map((rider) => ({ ...rider, workload: undefined }));
+    }
+
+    const [jobs, runCounts] = await Promise.all([
+      prisma.deliveryJob.findMany({
+        where: { currentRiderId: { in: riderIds }, status: { notIn: TERMINAL_JOB_STATUSES } },
+        select: { ...OCCUPANCY_JOB_SELECT, currentRiderId: true },
       }),
-    );
-    const byRider = new Map(workload);
-    return riders.map((rider) => ({
-      ...rider,
-      workload: byRider.get(rider.id),
-    }));
+      prisma.deliveryRun.groupBy({
+        by: ['riderId'],
+        where: {
+          riderId: { in: riderIds },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] as any },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const now = new Date();
+    const activeDeliveriesByRider = new Map<string, number>();
+    for (const job of jobs) {
+      if (!job.currentRiderId) continue;
+      if (!isOccupyingDeliveryJob(job, now)) continue;
+      activeDeliveriesByRider.set(job.currentRiderId, (activeDeliveriesByRider.get(job.currentRiderId) || 0) + 1);
+    }
+    const activeRunsByRider = new Map<string, number>();
+    for (const row of runCounts) {
+      if (!row.riderId) continue;
+      activeRunsByRider.set(row.riderId, row._count._all);
+    }
+
+    // Only BUSY riders can be freed; other riders do not need the workload payload.
+    const busyRiderIdSet = new Set(busyRiderIds);
+    return riders.map((rider) => {
+      if (!busyRiderIdSet.has(rider.id)) {
+        return { ...rider, workload: undefined };
+      }
+      const activeDeliveries = activeDeliveriesByRider.get(rider.id) || 0;
+      const activeRuns = activeRunsByRider.get(rider.id) || 0;
+      return {
+        ...rider,
+        workload: {
+          activeDeliveries,
+          activeRuns,
+          canBeFreed: activeDeliveries === 0 && activeRuns === 0,
+        },
+      };
+    });
   }
 
   async findOne(id: string) {
@@ -171,7 +224,7 @@ export class RiderService {
         if (data.status === 'OFFLINE') {
           await this.clearAvailability(tx, rider.id);
         }
-        return { updated, wakeWaitingJobs: becomesOnline, releasedFromBusy: releasingBusy };
+        return { updated, wakeWaitingJobs: becomesOnline };
       },
       { isolationLevel: 'Serializable' as any },
     );
@@ -460,31 +513,10 @@ export class RiderService {
 
   private async activeJob(tx: DbClient, riderProfileId: string) {
     const candidates = await tx.deliveryJob.findMany({
-      where: {
-        currentRiderId: riderProfileId,
-        status: {
-          notIn: [
-            DeliveryJobStatus.DELIVERED,
-            DeliveryJobStatus.RETURNED_TO_STORE,
-            DeliveryJobStatus.CANCELLED,
-          ] as any,
-        },
-      },
+      where: activeJobWhere(riderProfileId),
       orderBy: { updatedAt: 'desc' },
       take: 5,
-      select: {
-        id: true,
-        status: true,
-        failureDecisions: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: {
-            status: true,
-            createdAt: true,
-            appliedAt: true,
-          },
-        },
-      },
+      select: OCCUPANCY_JOB_SELECT,
     });
     return candidates.find((job) => isOccupyingDeliveryJob(job)) || null;
   }
@@ -498,25 +530,8 @@ export class RiderService {
   private async blockingWork(tx: DbClient, riderProfileId: string) {
     const [jobs, activeRuns] = await Promise.all([
       tx.deliveryJob.findMany({
-        where: {
-          currentRiderId: riderProfileId,
-          status: {
-            notIn: [
-              DeliveryJobStatus.DELIVERED,
-              DeliveryJobStatus.RETURNED_TO_STORE,
-              DeliveryJobStatus.CANCELLED,
-            ] as any,
-          },
-        },
-        select: {
-          id: true,
-          status: true,
-          failureDecisions: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: { status: true, createdAt: true, appliedAt: true },
-          },
-        },
+        where: activeJobWhere(riderProfileId),
+        select: OCCUPANCY_JOB_SELECT,
       }),
       tx.deliveryRun.count({
         where: {

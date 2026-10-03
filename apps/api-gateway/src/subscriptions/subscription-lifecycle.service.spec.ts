@@ -21,6 +21,7 @@ describe('SubscriptionLifecycleService', () => {
     deliveryRunStop: {
       findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }),
       update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       aggregate: jest.fn().mockResolvedValue({ _count: { _all: 2 }, _sum: { cashDuePaise: 1500, expectedItemCount: 2, expectedParcelCount: 2 } }),
       count: jest.fn().mockResolvedValue(1),
       findMany: jest.fn(),
@@ -40,8 +41,14 @@ describe('SubscriptionLifecycleService', () => {
     const result = await service.cancelRiderArtifactsWithinTransaction(t as any, 'del-1', 'skipped');
 
     expect(result).toEqual({ cancelledStop: true, cancelledJob: true, cancelledOrder: true });
-    expect(t.deliveryRunStop.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    expect(t.deliveryRunStop.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'stop-1',
+          status: { notIn: ['DELIVERED', 'RETURNED', 'CANCELLED'] },
+        }),
+        data: expect.objectContaining({ status: 'CANCELLED' }),
+      }),
     );
     expect(t.deliveryJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),

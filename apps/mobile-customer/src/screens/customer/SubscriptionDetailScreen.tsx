@@ -327,13 +327,15 @@ export const SubscriptionDetailScreen = () => {
           <Text style={styles.eyebrow}>SUBSCRIPTION</Text>
           <Text style={styles.title}>{subscription.plan.name}</Text>
         </View>
-        <Pressable
-          style={styles.icon}
-          onPress={openPreferences}
-          accessibilityLabel="Edit subscription preferences"
-        >
-          <Settings2 size={21} color="#173D32" />
-        </Pressable>
+        {!subscription.storeDelivery ? (
+          <Pressable
+            style={styles.icon}
+            onPress={openPreferences}
+            accessibilityLabel="Edit subscription preferences"
+          >
+            <Settings2 size={21} color="#173D32" />
+          </Pressable>
+        ) : null}
       </View>
       <ScrollView
         contentContainerStyle={[

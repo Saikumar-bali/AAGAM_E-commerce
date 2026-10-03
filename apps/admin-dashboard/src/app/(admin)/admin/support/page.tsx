@@ -82,6 +82,7 @@ export default function AdminSupportQueuePage() {
       key: 'priority',
       header: 'Priority',
       align: 'center' as const,
+      searchValue: (ticket: Ticket) => ticket.metadata?.priority || 'NORMAL',
       render: (ticket: Ticket) => {
         const priority = ticket.metadata?.priority || 'NORMAL';
         const high = priority === 'HIGH';
@@ -108,6 +109,7 @@ export default function AdminSupportQueuePage() {
       key: 'refund',
       header: 'Refund',
       align: 'center' as const,
+      searchValue: (ticket: Ticket) => (ticket.metadata?.requestedRefund ? 'Review requested' : ''),
       render: (ticket: Ticket) =>
         ticket.metadata?.requestedRefund ? (
           <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">

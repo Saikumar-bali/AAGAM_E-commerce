@@ -83,8 +83,15 @@ export function shouldAlertForInboxItem(
  * burst: mark everything currently pending as "seen" so a rider is not
  * re-alerted about offers they were already notified about before restarting.
  */
-export function alertKeysForInboxBootstrap(items: readonly InboxAlertItem[]): string[] {
+export function alertKeysForInboxBootstrap(
+  items: readonly InboxAlertItem[],
+  notBefore?: number,
+): string[] {
   return items
     .filter((item) => !item.readAt && !item.openedAt)
+    // An offer that arrived between launch and the first inbox response was
+    // never announced; leave it out of the bootstrap set so the next poll
+    // raises it instead of silently swallowing it.
+    .filter((item) => notBefore == null || new Date(item.createdAt).getTime() < notBefore)
     .map((item) => alertKeyForPayload(normalizeNotificationNavigation(inboxItemNavigationData(item))));
 }

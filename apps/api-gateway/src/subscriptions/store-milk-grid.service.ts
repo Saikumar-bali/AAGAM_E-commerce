@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
+import { prisma, Prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 import { isOfflineSubscription } from '@aagam/utils';
@@ -591,10 +591,15 @@ export class StoreMilkGridService {
     // A rider may run the same field actions on a delivery that is on their own
     // run (or job). Ownership is resolved from the assignment, not a request
     // body, so a rider can never act on another rider's stop.
+    const actorRiderProfileId =
+      actor.role === Role.RIDER
+        ? (await prisma.riderProfile.findUnique({ where: { userId: actor.id }, select: { id: true } }))?.id
+        : null;
     const isAssignedRider =
       actor.role === Role.RIDER &&
-      (delivery.runStop?.deliveryRun?.riderId === actor.id ||
-        delivery.deliveryJob?.currentRiderId === actor.id);
+      actorRiderProfileId != null &&
+      (delivery.runStop?.deliveryRun?.riderId === actorRiderProfileId ||
+        delivery.deliveryJob?.currentRiderId === actorRiderProfileId);
     if (!isMaster && !isStoreOwner && !isAssignedRider) {
       throw new ForbiddenException('You can only update deliveries for your assigned store or route');
     }
@@ -626,8 +631,12 @@ export class StoreMilkGridService {
 
       const deliveredAt = isCurrentlyDelivered ? null : new Date();
       const updated = await prisma.$transaction(async (tx) => {
-        const nextDelivery = await tx.subscriptionDelivery.update({
-          where: { id: deliveryId },
+        // Guard the transition so two concurrent "mark delivered" requests
+        // cannot both consume the delivery: the second sees zero rows updated.
+        const transition = await tx.subscriptionDelivery.updateMany({
+          where: isCurrentlyDelivered
+            ? { id: deliveryId }
+            : { id: deliveryId, status: { not: SubscriptionDeliveryStatus.DELIVERED } },
           data: {
             status: newStatus,
             deliveredAt,
@@ -638,6 +647,10 @@ export class StoreMilkGridService {
             cashCollectedAt: cashDelta > 0 ? new Date() : (isCurrentlyDelivered ? null : delivery.cashCollectedAt),
           },
         });
+        if (transition.count === 0) {
+          throw new ConflictException('Delivery was already completed by another request');
+        }
+        const nextDelivery = await tx.subscriptionDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
 
         if (isCurrentlyDelivered) {
           // Undo: recompute completed count and roll the funding entitlement
@@ -656,6 +669,7 @@ export class StoreMilkGridService {
               amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
             },
           });
+          await this.syncRunStopForQuickAction(delivery, 'UNDO', tx);
           return { nextDelivery, sub: rolledBackSub };
         }
 
@@ -670,10 +684,10 @@ export class StoreMilkGridService {
           { deliveryAlreadyCompleted: true },
         );
         const advancedSub = await tx.customerSubscription.findUnique({ where: { id: delivery.subscriptionId } });
+        await this.syncRunStopForQuickAction(delivery, 'DELIVERED', tx);
         return { nextDelivery: consumed ?? nextDelivery, sub: advancedSub };
       });
 
-      await this.syncRunStopForQuickAction(delivery, isCurrentlyDelivered ? 'UNDO' : 'DELIVERED');
       return { success: true, delivery: updated.nextDelivery, subscription: updated.sub };
     }
 
@@ -938,11 +952,12 @@ export class StoreMilkGridService {
   private async syncRunStopForQuickAction(
     delivery: { runStop: { id: string; deliveryRunId: string } | null },
     action: 'DELIVERED' | 'UNDO',
+    tx: Prisma.TransactionClient,
   ) {
     const runStop = delivery.runStop;
     if (!runStop) return;
 
-    await prisma.deliveryRunStop.update({
+    await tx.deliveryRunStop.update({
       where: { id: runStop.id },
       data: {
         status: action === 'DELIVERED' ? 'DELIVERED' : 'ARRIVED',
@@ -952,17 +967,17 @@ export class StoreMilkGridService {
     });
 
     const [agg, completedStopCount] = await Promise.all([
-      prisma.deliveryRunStop.aggregate({
+      tx.deliveryRunStop.aggregate({
         where: { deliveryRunId: runStop.deliveryRunId },
         _count: { _all: true },
         _sum: { cashDuePaise: true },
       }),
-      prisma.deliveryRunStop.count({
+      tx.deliveryRunStop.count({
         where: { deliveryRunId: runStop.deliveryRunId, status: 'DELIVERED' },
       }),
     ]);
 
-    await prisma.deliveryRun.update({
+    await tx.deliveryRun.update({
       where: { id: runStop.deliveryRunId },
       data: {
         totalStopCount: agg._count._all,

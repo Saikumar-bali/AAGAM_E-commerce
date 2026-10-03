@@ -32,7 +32,11 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
   const lifecycle = new SubscriptionLifecycleService();
   const service = new StoreMilkGridService(funding, lifecycle);
   const tx: any = {
-    subscriptionDelivery: { update: jest.fn().mockResolvedValue({ id: 'del-1' }) },
+    subscriptionDelivery: {
+      update: jest.fn().mockResolvedValue({ id: 'del-1' }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'del-1' }),
+    },
     customerSubscription: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ id: 'sub-1' }) },
   };
 
@@ -98,7 +102,7 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
     (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
       delivery({ runStop: { id: 'stop-1', deliveryRunId: 'run-1' }, deliveryJobId: 'job-1' }),
     );
-    tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: {} }), count: jest.fn().mockResolvedValue(0) };
+    tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: {} }), count: jest.fn().mockResolvedValue(0) };
     tx.deliveryJob = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
     tx.order = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
     tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
@@ -106,8 +110,8 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
 
     const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'SKIP' });
 
-    expect(tx.deliveryRunStop.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'stop-1' }, data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    expect(tx.deliveryRunStop.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
     );
     expect(tx.deliveryJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),

@@ -113,7 +113,7 @@ function shiftDay(dateStr: string, delta: number) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
 }
 
 const runStatusStyle: Record<string, string> = {
