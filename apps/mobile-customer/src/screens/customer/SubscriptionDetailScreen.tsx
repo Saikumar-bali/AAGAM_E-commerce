@@ -34,6 +34,7 @@ import {
   Settings2,
   ShieldX,
   SkipForward,
+  Store,
   TriangleAlert,
   X,
 } from "lucide-react-native";
@@ -453,7 +454,7 @@ export const SubscriptionDetailScreen = () => {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Delivery preferences</Text>
-            {canChange ? (
+            {canChange && !subscription.storeDelivery ? (
               <Pressable onPress={openPreferences}>
                 <Text style={styles.link}>Edit</Text>
               </Pressable>
@@ -466,11 +467,19 @@ export const SubscriptionDetailScreen = () => {
               subscription.deliveryWindowStartMinute
             )} – ${minuteTime(subscription.deliveryWindowEndMinute)}`}
           />
-          <Info
-            icon={<MapPin size={18} color="#0F766E" />}
-            label="Handover"
-            value={subscription.deliveryMethod.replaceAll("_", " ")}
-          />
+          {subscription.storeDelivery ? (
+            <Info
+              icon={<Store size={18} color="#0F766E" />}
+              label="Handover"
+              value="Collected at store"
+            />
+          ) : (
+            <Info
+              icon={<MapPin size={18} color="#0F766E" />}
+              label="Handover"
+              value={subscription.deliveryMethod.replaceAll("_", " ")}
+            />
+          )}
           <Info
             icon={<ReceiptIndianRupee size={18} color="#B96600" />}
             label="Funding"
@@ -699,35 +708,41 @@ const availableMethods = (
   value: SubscriptionDeliveryMethod;
   label: string;
   copy: string;
-}> => [
-  ...(subscription.plan.allowPersonalHandover
-    ? [
-        {
-          value: "PERSONAL_HANDOVER" as const,
-          label: "Personal OTP",
-          copy: "Customer OTP and GPS proof",
-        },
-      ]
-    : []),
-  ...(subscription.plan.allowTrustedDrop
-    ? [
-        {
-          value: "TRUSTED_DROP" as const,
-          label: "Trusted doorstep",
-          copy: "One-time QR, GPS and photo proof",
-        },
-      ]
-    : []),
-  ...(subscription.plan.allowSecurityHandover
-    ? [
-        {
-          value: "SECURITY_RECEPTION" as const,
-          label: "Security / reception",
-          copy: "Named reception handover proof",
-        },
-      ]
-    : []),
-];
+}> => {
+  // Store-counter fulfilment is verified by the store against the customer's
+  // name/phone; there is no rider doorstep handover to prove, so offering a
+  // handover method here would silently discard the customer's choice.
+  if (subscription.storeDelivery) return [];
+  return [
+    ...(subscription.plan.allowPersonalHandover
+      ? [
+          {
+            value: "PERSONAL_HANDOVER" as const,
+            label: "Personal OTP",
+            copy: "Customer OTP and GPS proof",
+          },
+        ]
+      : []),
+    ...(subscription.plan.allowTrustedDrop
+      ? [
+          {
+            value: "TRUSTED_DROP" as const,
+            label: "Trusted doorstep",
+            copy: "One-time QR, GPS and photo proof",
+          },
+        ]
+      : []),
+    ...(subscription.plan.allowSecurityHandover
+      ? [
+          {
+            value: "SECURITY_RECEPTION" as const,
+            label: "Security / reception",
+            copy: "Named reception handover proof",
+          },
+        ]
+      : []),
+  ];
+};
 const Info = ({
   icon,
   label,

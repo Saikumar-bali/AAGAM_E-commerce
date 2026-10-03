@@ -355,4 +355,10 @@ survives a timeout, and treat 20 minutes as their own deadline.
   (`dispatchToRider` overwrites `proofMode`; store self-delivery verifies by
   name/phone). Do not remove the three options globally; gate the customer
   picker on store-delivery/pickup so a discarded choice is not asked.
+- Customer app: `SubscriptionDetailScreen` now hides the handover picker and
+  shows "Collected at store" for `storeDelivery` subscriptions, and
+  `updatePreferences` skips the handover-policy assertion for store delivery.
+  `SubscriptionReviewScreen` is unchanged: the customer plan catalog
+  (`SubscriptionPlan`) has no `storeDelivery`, so a customer-created
+  subscription is always rider-delivered and the picker there is genuine.
 

@@ -583,7 +583,9 @@ export class CustomerSubscriptionService {
   async updatePreferences(customerId: string, id: string, dto: UpdateSubscriptionPreferencesDto, idempotencyKey?: string) {
     const subscription = await this.assertOwned(customerId, id);
     const method = dto.deliveryMethod ?? subscription.deliveryMethod;
-    this.assertMethodAllowed(subscription.plan, method);
+    // A store-delivered subscription is verified at the counter (name/phone),
+    // not by a rider doorstep proof, so a handover method is meaningless here.
+    if (!subscription.storeDelivery) this.assertMethodAllowed(subscription.plan, method);
     const startMinute = dto.deliveryWindowStartMinute ?? subscription.deliveryWindowStartMinute;
     const endMinute = dto.deliveryWindowEndMinute ?? subscription.deliveryWindowEndMinute;
     serviceWindow(new Date(), startMinute, endMinute, subscription.deliveryZone?.timezone || 'Asia/Kolkata');
