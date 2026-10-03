@@ -4,6 +4,7 @@ import { prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus 
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 import { isOfflineSubscription } from '@aagam/utils';
+import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 
 export interface GridCell {
   deliveryId: string;
@@ -79,6 +80,8 @@ export interface GridRow {
 
 @Injectable()
 export class StoreMilkGridService {
+  constructor(private readonly funding: SubscriptionCashFundingService) {}
+
   /**
    * Generates a 2D Matrix of all store subscribers across days 1-31 of the requested month.
    */
@@ -564,6 +567,7 @@ export class StoreMilkGridService {
         subscription: {
           include: {
             homeStore: { select: { ownerId: true } },
+            planVersion: { select: { totalDeliveries: true } },
           },
         },
         runStop: { include: { deliveryRun: { select: { riderId: true } } } },
@@ -611,32 +615,57 @@ export class StoreMilkGridService {
         }
       }
 
-      const updated = await prisma.$transaction([
-        prisma.subscriptionDelivery.update({
+      const deliveredAt = isCurrentlyDelivered ? null : new Date();
+      const updated = await prisma.$transaction(async (tx) => {
+        const nextDelivery = await tx.subscriptionDelivery.update({
           where: { id: deliveryId },
           data: {
             status: newStatus,
-            deliveredAt: isCurrentlyDelivered ? null : new Date(),
+            deliveredAt,
             // Field is store-scoped by name, but only records the acting user.
             // A rider marking a stop delivered must not be written as a store user.
             deliveredByStoreUserId: isCurrentlyDelivered ? null : (isAssignedRider ? null : actor.id),
             cashCollectedPaise: updatedCashCollected,
             cashCollectedAt: cashDelta > 0 ? new Date() : (isCurrentlyDelivered ? null : delivery.cashCollectedAt),
           },
-        }),
-        prisma.customerSubscription.update({
-          where: { id: sub.id },
-          data: {
-            completedDeliveries: newCompleted,
-            skippedDeliveries: newSkipped,
-            amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta),
-            amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
-          },
-        }),
-      ]);
+        });
+
+        if (isCurrentlyDelivered) {
+          // Undo: recompute completed count and roll the funding entitlement
+          // back. Status is left untouched — a plan that was activated by an
+          // earlier delivery must not silently regress to "Upcoming".
+          const rolledBackSub = await tx.customerSubscription.update({
+            where: { id: delivery.subscriptionId },
+            data: {
+              completedDeliveries: newCompleted,
+              skippedDeliveries: newSkipped,
+              remainingFundedDeliveries: Math.min(
+                sub.planVersion.totalDeliveries,
+                (sub.remainingFundedDeliveries || 0) + 1,
+              ),
+              amountCollectedPaise: Math.max(0, (sub.amountCollectedPaise || 0) + cashDelta),
+              amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - cashDelta),
+            },
+          });
+          return { nextDelivery, sub: rolledBackSub };
+        }
+
+        // Completion — not cash — advances the plan. The funding service owns
+        // the delivery status, completed count, entitlement and status
+        // transition, and it preserves any outstanding balance as due.
+        const consumed = await this.funding.consumeDeliveredWithinTransaction(
+          tx,
+          deliveryId,
+          { id: actor.id, role: actor.role },
+          `milk-grid-delivered:${deliveryId}:${deliveredAt!.getTime()}`,
+          { deliveryAlreadyCompleted: true },
+        );
+        const advancedSub = await tx.customerSubscription.findUnique({ where: { id: delivery.subscriptionId } });
+        return { nextDelivery: consumed ?? nextDelivery, sub: advancedSub };
+      });
 
       await this.syncRunStopForQuickAction(delivery, isCurrentlyDelivered ? 'UNDO' : 'DELIVERED');
-      return { success: true, delivery: updated[0], subscription: updated[1] };
+      return { success: true, delivery: updated.nextDelivery, subscription: updated.sub };
     }
 
     if (action.type === 'SKIP') {

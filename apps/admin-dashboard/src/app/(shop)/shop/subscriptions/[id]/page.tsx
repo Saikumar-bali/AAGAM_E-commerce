@@ -278,9 +278,11 @@ export default function SubscriptionDetailsPage() {
                   {formatDate(next?.serviceDate || s.nextDeliveryDate)}
                 </h2>
                 <p className="mt-1 text-sm font-bold text-slate-500">
-                  {next?.cashDuePaise > 0
-                    ? `Cash due ${formatPaise(next.cashDuePaise)}`
-                    : "Subscription already funded · Customer amount due ₹0"}
+                  {Number(s.amountDuePaise || 0) > 0
+                    ? `Pending ${formatPaise(s.amountDuePaise)}${
+                        next?.cashDuePaise > 0 ? " · collect on next delivery" : ""
+                      }`
+                    : "All dues cleared"}
                 </p>
               </div>
             </div>
@@ -386,6 +388,11 @@ export default function SubscriptionDetailsPage() {
                 icon={<ReceiptIndianRupee />}
                 label="Amount collected"
                 value={formatPaise(s.amountCollectedPaise)}
+              />
+              <Info
+                icon={<WalletCards />}
+                label="Pending amount"
+                value={formatPaise(s.amountDuePaise)}
               />
             </section>
             {s.fundingAllocations?.length ? (

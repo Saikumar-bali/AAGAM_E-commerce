@@ -56,6 +56,8 @@ const date = (value?: string | null) =>
         month: "short",
       })
     : "—";
+const money = (paise?: number | null) =>
+  `₹${(Number(paise || 0) / 100).toLocaleString("en-IN")}`;
 const tomorrow = () => {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -363,9 +365,9 @@ export const SubscriptionDetailScreen = () => {
               </Text>
             </Text>
             <Text style={styles.heroFact}>
-              Skipped{" "}
+              Pending{" "}
               <Text style={styles.heroFactStrong}>
-                {subscription.skippedDeliveries}
+                {money(subscription.amountDuePaise)}
               </Text>
             </Text>
           </View>
@@ -380,11 +382,13 @@ export const SubscriptionDetailScreen = () => {
               {date(next?.serviceDate || subscription.nextDeliveryDate)}
             </Text>
             <Text style={styles.nextMeta}>
-              {next && next.cashDuePaise > 0
-                ? `Cash due ₹${(next.cashDuePaise / 100).toLocaleString(
-                    "en-IN"
-                  )}`
-                : "Subscription funded · Customer due ₹0"}
+              {subscription.amountDuePaise > 0
+                ? `Pending ${money(subscription.amountDuePaise)}${
+                    next && next.cashDuePaise > 0
+                      ? ` · collect on next delivery`
+                      : ""
+                  }`
+                : "All dues cleared"}
             </Text>
           </View>
           <Pressable

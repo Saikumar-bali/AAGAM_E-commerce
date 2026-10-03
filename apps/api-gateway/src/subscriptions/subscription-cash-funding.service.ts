@@ -131,11 +131,34 @@ export class SubscriptionCashFundingService {
     );
   }
 
+  /**
+   * Advances a subscription after one of its deliveries completes.
+   *
+   * Completion — not cash collection — is the lifecycle trigger: a delivery
+   * that physically happened must move the plan forward even when the funding
+   * cash is still owed. The outstanding `amountDuePaise` is preserved so both
+   * the customer apps and the store keep showing the pending balance.
+   *
+   * Status transitions:
+   *  - last delivery of the plan       → COMPLETED
+   *  - any other completed delivery    → ACTIVE (owed balance stays visible)
+   *  - ACTIVE/GRACE_PERIOD unchanged
+   *  - PAYMENT_DUE is lifted once a delivery completes, but only after the
+   *    funding gap is actually recorded as due (otherwise the next funding
+   *    cycle would lose its outstanding balance).
+   *
+   * `amountDueOverridePaise` lets a caller that just recorded cash hand in the
+   * exact post-cash balance instead of the stored one. `deliveryAlreadyCompleted`
+   * is for callers (store fulfilment) that flip the delivery to DELIVERED before
+   * advancing the subscription; idempotency then rests on the caller's stable
+   * audit key.
+   */
   async consumeDeliveredWithinTransaction(
     tx: TransactionClient,
     subscriptionDeliveryId: string,
     actor: Actor,
     idempotencyKey?: string,
+    options?: { amountDueOverridePaise?: number; deliveryAlreadyCompleted?: boolean },
   ) {
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`subscription-delivered:${subscriptionDeliveryId}`}))`);
     const delivery = await tx.subscriptionDelivery.findUnique({
@@ -143,19 +166,18 @@ export class SubscriptionCashFundingService {
       include: { subscription: { include: { planVersion: true } } },
     });
     if (!delivery) throw new NotFoundException('Subscription delivery not found');
-    if (delivery.status === SubscriptionDeliveryStatus.DELIVERED) return delivery;
+    if (delivery.status === SubscriptionDeliveryStatus.DELIVERED && !options?.deliveryAlreadyCompleted) return delivery;
 
     const subscription = delivery.subscription;
-    if (subscription.remainingFundedDeliveries < 1) {
-      throw new ConflictException('Subscription delivery has no funded entitlement');
-    }
     const key = idempotencyKey || `subscription-delivered:${delivery.id}`;
     const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
     if (existing) return delivery;
 
     const completedDeliveries = subscription.completedDeliveries + 1;
-    const remainingFundedDeliveries = Math.max(0, subscription.remainingFundedDeliveries - 1);
     const completed = completedDeliveries >= subscription.planVersion.totalDeliveries;
+    // A completion always draws down the funded entitlement, even if the plan
+    // is somehow over-delivered, so the counter can never go negative.
+    const remainingFundedDeliveries = Math.max(0, subscription.remainingFundedDeliveries - 1);
     const nextDelivery = await tx.subscriptionDelivery.findFirst({
       where: {
         subscriptionId: subscription.id,
@@ -174,17 +196,39 @@ export class SubscriptionCashFundingService {
       },
       orderBy: { serviceDate: 'asc' },
     });
-    let status: CustomerSubscriptionStatus = CustomerSubscriptionStatus.ACTIVE;
-    let amountDuePaise = 0;
-    if (completed) status = CustomerSubscriptionStatus.COMPLETED;
-    else if (remainingFundedDeliveries === 0) {
-      status = CustomerSubscriptionStatus.PAYMENT_DUE;
-      amountDuePaise = nextCash?.cashDuePaise ?? 0;
+
+    const owedFromFunding = Math.max(0, subscription.amountDuePaise || 0);
+    const nextFundingDue = nextCash?.cashDuePaise ?? 0;
+
+    let status: CustomerSubscriptionStatus = subscription.status;
+    let amountDuePaise = Math.max(0, options?.amountDueOverridePaise ?? owedFromFunding);
+
+    if (completed) {
+      status = CustomerSubscriptionStatus.COMPLETED;
+      amountDuePaise = 0;
+    } else {
+      if (
+        subscription.status === CustomerSubscriptionStatus.PENDING_CASH_COLLECTION ||
+        subscription.status === CustomerSubscriptionStatus.PAYMENT_DUE
+      ) {
+        // Delivery-first activation: the plan is live from the first completed
+        // delivery; any balance the customer still owes stays on the due.
+        status = CustomerSubscriptionStatus.ACTIVE;
+      }
+      // A delivery that exhausts the funded entitlement exposes the next
+      // funding cycle's cash — but only when nothing is already owed, so a real
+      // outstanding balance is never overwritten by a future scheduled amount.
+      if (remainingFundedDeliveries === 0 && amountDuePaise === 0 && nextFundingDue > 0) {
+        amountDuePaise = nextFundingDue;
+      }
     }
-    await tx.subscriptionDelivery.update({
-      where: { id: delivery.id },
-      data: { status: SubscriptionDeliveryStatus.DELIVERED, deliveredAt: new Date() },
-    });
+
+    if (!options?.deliveryAlreadyCompleted) {
+      await tx.subscriptionDelivery.update({
+        where: { id: delivery.id },
+        data: { status: SubscriptionDeliveryStatus.DELIVERED, deliveredAt: new Date() },
+      });
+    }
     await tx.customerSubscription.update({
       where: { id: subscription.id },
       data: {
@@ -206,6 +250,8 @@ export class SubscriptionCashFundingService {
           subscriptionDeliveryId: delivery.id,
           completedDeliveries,
           remainingFundedDeliveries,
+          status,
+          amountDuePaise,
         },
         idempotencyKey: key,
       },
