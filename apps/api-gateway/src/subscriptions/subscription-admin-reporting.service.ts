@@ -17,6 +17,11 @@ import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
 import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
 import { reconcileSubscriptionBalance } from './subscription-balances';
+import {
+  DEFAULT_DELIVERY_TIMEZONE,
+  DELIVERY_SLOT_WINDOWS,
+  zonedServiceWindow,
+} from './subscription-timezone';
 
 function deliveryContact(snapshot: Prisma.JsonValue) {
   const address = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
@@ -789,24 +794,116 @@ export class SubscriptionAdminReportingService {
       updateData.deliveryWindowEndMinute = dto.deliverySlot === 'EVENING' ? 20 * 60 : 9 * 60;
     }
 
-    const updated = await prisma.customerSubscription.update({
-      where: { id },
-      data: updateData,
-    });
+    // A slot change must move the whole remaining plan, not just the window:
+    // every delivery that has not run yet (and the orders already generated
+    // for those days) follows the subscription into its new AM/PM slot.
+    // Delivered history is never rewritten.
+    const targetSlot = dto.deliverySlot === 'EVENING'
+      ? 'PM'
+      : dto.deliverySlot === 'MORNING' ? 'AM' : null;
 
-    await prisma.subscriptionAuditEntry.create({
-      data: {
-        subscriptionId: id,
-        actorUserId: actorId,
-        actorRole: Role.ADMIN,
-        action: 'ADMIN_MANUAL_SUBSCRIPTION_UPDATED',
-        reason: dto.note || 'Admin updated manual subscription parameters',
-        metadata: { changes: updateData },
-        idempotencyKey: `manual-subscription-update:${id}:${randomUUID()}`,
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.customerSubscription.update({
+        where: { id },
+        data: updateData,
+      });
+
+      const slotChange = targetSlot
+        ? await this.applySlotToRemainingDeliveries(tx, updated, targetSlot)
+        : undefined;
+
+      await tx.subscriptionAuditEntry.create({
+        data: {
+          subscriptionId: id,
+          actorUserId: actorId,
+          actorRole: Role.ADMIN,
+          action: 'ADMIN_MANUAL_SUBSCRIPTION_UPDATED',
+          reason: dto.note || 'Admin updated manual subscription parameters',
+          metadata: slotChange ? { changes: updateData, slotChange } : { changes: updateData },
+          idempotencyKey: `manual-subscription-update:${id}:${randomUUID()}`,
+        },
+      });
+
+      return { ...updated, slotChange };
+    });
+  }
+
+  /**
+   * Moves every not-yet-executed delivery of a subscription to `targetSlot`
+   * and re-syncs the delivery window already snapshotted onto its order, so
+   * the milk grid, prep/dispatch, runs and the Orders page all agree after a
+   * slot change.
+   *
+   * Delivered/skipped/failed/cancelled rows keep their recorded slot, and a
+   * date that already holds a row in the target slot (split AM+PM plans) is
+   * skipped because [subscriptionId, serviceDate, deliverySlot] is unique.
+   */
+  private async applySlotToRemainingDeliveries(
+    tx: Prisma.TransactionClient,
+    subscription: { id: string; homeStoreId: string | null },
+    targetSlot: 'AM' | 'PM',
+  ): Promise<{ deliveries: number; orders: number }> {
+    const remaining = await tx.subscriptionDelivery.findMany({
+      where: {
+        subscriptionId: subscription.id,
+        deliverySlot: { not: targetSlot },
+        status: {
+          in: [
+            SubscriptionDeliveryStatus.SCHEDULED,
+            SubscriptionDeliveryStatus.GENERATING,
+            SubscriptionDeliveryStatus.ORDER_GENERATED,
+            SubscriptionDeliveryStatus.PREPARING,
+            SubscriptionDeliveryStatus.PACKED,
+            SubscriptionDeliveryStatus.ASSIGNED,
+            SubscriptionDeliveryStatus.RESCHEDULED,
+          ],
+        },
       },
+      select: { id: true, serviceDate: true },
+      orderBy: { serviceDate: 'asc' },
+    });
+    if (!remaining.length) return { deliveries: 0, orders: 0 };
+
+    const targetDates = new Set(
+      (
+        await tx.subscriptionDelivery.findMany({
+          where: { subscriptionId: subscription.id, deliverySlot: targetSlot },
+          select: { serviceDate: true },
+        })
+      ).map((row) => row.serviceDate.toISOString()),
+    );
+    const flipIds = remaining
+      .filter((row) => !targetDates.has(row.serviceDate.toISOString()))
+      .map((row) => row.id);
+    if (!flipIds.length) return { deliveries: 0, orders: 0 };
+
+    const { count } = await tx.subscriptionDelivery.updateMany({
+      where: { id: { in: flipIds } },
+      data: { deliverySlot: targetSlot },
     });
 
-    return updated;
+    // Orders snapshot their window at creation; without this the Orders page
+    // keeps showing the old slot window for already-generated deliveries.
+    const store = subscription.homeStoreId
+      ? await tx.store.findUnique({ where: { id: subscription.homeStoreId }, select: { timezone: true } })
+      : null;
+    const timezone = store?.timezone || DEFAULT_DELIVERY_TIMEZONE;
+    const slotWindow = DELIVERY_SLOT_WINDOWS[targetSlot];
+    const flipped = await tx.subscriptionDelivery.findMany({
+      where: { id: { in: flipIds }, order: { isNot: null } },
+      select: { serviceDate: true, order: { select: { id: true } } },
+    });
+    let orders = 0;
+    for (const row of flipped) {
+      if (!row.order) continue;
+      const serviceWindow = zonedServiceWindow(row.serviceDate, slotWindow.startMinute, slotWindow.endMinute, timezone);
+      await tx.order.update({
+        where: { id: row.order.id },
+        data: { deliveryWindowStart: serviceWindow.start, deliveryWindowEnd: serviceWindow.end },
+      });
+      orders += 1;
+    }
+    return { deliveries: count, orders };
   }
 
   async createCustomManualSubscription(dto: {
