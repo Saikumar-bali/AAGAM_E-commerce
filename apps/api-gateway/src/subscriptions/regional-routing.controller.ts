@@ -144,6 +144,19 @@ export class AdminRegionalRoutingController {
     return this.operations.cancel(runId, body, request.user);
   }
 
+  /**
+   * Cancels a started route that holds no live stops and no collected cash so a
+   * Rider pinned BUSY by a stale empty run can be freed from the admin console.
+   */
+  @Post('runs/:runId/force-cancel')
+  forceCancel(
+    @Param('runId') runId: string,
+    @Body() body: CancelRegionalRunDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.operations.forceCancelEmptyRun(runId, body, request.user);
+  }
+
   @Post('runs/:runId/interrupt')
   interrupt(
     @Param('runId') runId: string,

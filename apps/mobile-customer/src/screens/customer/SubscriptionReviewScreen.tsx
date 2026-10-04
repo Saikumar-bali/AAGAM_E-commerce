@@ -112,7 +112,7 @@ const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end:
     if (quotePayload && addressId) quote.mutate();
   }, [addressId, method, planId, startDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const canSubmit = Boolean(plan && addressId && /^\d{4}-\d{2}-\d{2}$/.test(startDate));
+  const canSubmit = Boolean(plan && addressId && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && startDate >= today());
 
   if (planQuery.isLoading || addressQuery.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#0F766E" /></View>;
   if (!plan || planQuery.isError) return <View style={styles.center}><Text style={styles.error}>Unable to prepare this subscription.</Text><Pressable onPress={() => navigation.goBack()}><Text style={styles.link}>Go back</Text></Pressable></View>;

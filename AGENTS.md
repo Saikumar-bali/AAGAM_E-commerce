@@ -245,6 +245,11 @@ survives a timeout, and treat 20 minutes as their own deadline.
 - Store subscriptions UI: `RiderAssignmentsDialog` is opened from the header
   button and the "Rider Assignments" tab; the old "Tomorrow Prep" is now the
   "Prep list" tab.
+- A delivery run with no stops (`totalStopCount = 0` and no `DeliveryRunStop`
+  rows) must never pin a rider BUSY. `RiderService` excludes such runs from the
+  admin workload payload, cancels them while releasing a rider, and
+  `POST /admin/subscriptions/regional-routing/runs/:runId/force-cancel` clears a
+  started-but-empty run that the normal `cancel`/`interrupt` paths reject.
 - Test DB is unavailable in the sandbox: jest suites that hit `prisma` fail with
   `Environment variable not found: DATABASE_URL`. Run the full suite from
   `apps/api-gateway` (`npx jest --runInBand`) and treat those as pre-existing.

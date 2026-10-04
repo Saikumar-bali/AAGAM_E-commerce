@@ -608,6 +608,62 @@ export class RegionalRouteOperationsService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  /**
+   * Releases a Rider whose only remaining work is a stale, empty route. A run
+   * that never acquired stops (or whose stops have all reached a terminal state
+   * with no cash collected) carries no operational or financial history, so it
+   * is safe to cancel even after it has been started or picked up. Without this
+   * an IN_PROGRESS run with zero stops pins the Rider BUSY forever: the normal
+   * cancel path refuses started routes and interruptAndRecover refuses runs with
+   * no pending stops.
+   */
+  async forceCancelEmptyRun(runId: string, dto: CancelRegionalRunDto, actor: Actor) {
+    const run = await this.run(runId);
+    this.assertVersion(run, dto.version);
+    if (run.status === DeliveryRunStatus.CANCELLED || run.status === DeliveryRunStatus.COMPLETED) {
+      return run;
+    }
+    const hasLiveStops = run.stops.some((stop) => !TERMINAL_STOP_STATUSES.has(stop.status));
+    if (hasLiveStops) {
+      throw new BadRequestException('Run still has stops awaiting delivery; resolve or reassign them first');
+    }
+    const cashProtected = run.stops.find((stop) => Number(stop.deliveryJob.codLedger?.collectedAmountPaise || 0) > 0);
+    if (cashProtected) {
+      throw new BadRequestException(`Stop ${cashProtected.sequenceNumber} has collected cash and must be settled before the run can be cancelled`);
+    }
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`cancel-run:${run.id}`}))`);
+      for (const stop of run.stops) {
+        await this.resetPendingJobOwnership(tx, stop, null);
+      }
+      await tx.deliveryRunStop.deleteMany({ where: { deliveryRunId: run.id } });
+      const updated = await tx.deliveryRun.update({
+        where: { id: run.id },
+        data: {
+          status: DeliveryRunStatus.CANCELLED,
+          totalStopCount: 0,
+          expectedCashPaise: 0,
+          expectedParcelCount: 0,
+          expectedBagCount: 0,
+          expectedItemCount: 0,
+          manualOverride: true,
+          manualOverrideReason: dto.reason,
+          version: { increment: 1 },
+        },
+      });
+      await this.audit(tx, {
+        runId: run.id,
+        actor,
+        action: 'DELIVERY_RUN_FORCE_CANCELLED',
+        reason: dto.reason,
+        metadata: { previousStatus: run.status, releasedStopIds: run.stops.map((stop) => stop.id) },
+        eventType: DeliveryRouteEventType.DELIVERY_RUN_CANCELLED,
+        dedupeKey: `force-cancel-run:${run.id}:v${run.version}`,
+      });
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   async interruptAndRecover(runId: string, dto: InterruptDeliveryRunDto, actor: Actor) {
     const run = await this.run(runId);
     this.assertVersion(run, dto.version);
