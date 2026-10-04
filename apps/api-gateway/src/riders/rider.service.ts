@@ -97,13 +97,12 @@ export class RiderService {
         where: { currentRiderId: { in: riderIds }, status: { notIn: TERMINAL_JOB_STATUSES } },
         select: { ...OCCUPANCY_JOB_SELECT, currentRiderId: true },
       }),
-      prisma.deliveryRun.groupBy({
-        by: ['riderId'],
+      prisma.deliveryRun.findMany({
         where: {
           riderId: { in: riderIds },
           status: { notIn: ['COMPLETED', 'CANCELLED'] as any },
         },
-        _count: { _all: true },
+        select: { riderId: true, totalStopCount: true, _count: { select: { stops: true } } },
       }),
     ]);
 
@@ -117,7 +116,10 @@ export class RiderService {
     const activeRunsByRider = new Map<string, number>();
     for (const row of runCounts) {
       if (!row.riderId) continue;
-      activeRunsByRider.set(row.riderId, row._count._all);
+      // An empty route (no stop rows and no recorded stops) cannot move a
+      // parcel or collect cash, so it must not pin a Rider BUSY.
+      if (row._count.stops === 0 && row.totalStopCount === 0) continue;
+      activeRunsByRider.set(row.riderId, (activeRunsByRider.get(row.riderId) || 0) + 1);
     }
 
     // Only BUSY riders can be freed; other riders do not need the workload payload.
@@ -533,16 +535,28 @@ export class RiderService {
         where: activeJobWhere(riderProfileId),
         select: OCCUPANCY_JOB_SELECT,
       }),
-      tx.deliveryRun.count({
+      tx.deliveryRun.findMany({
         where: {
           riderId: riderProfileId,
           status: { notIn: ['COMPLETED', 'CANCELLED'] as any },
         },
+        select: { id: true, totalStopCount: true, _count: { select: { stops: true } } },
       }),
     ]);
+    // Stale empty runs (no stops, nothing to deliver or collect) are cancelled
+    // on the spot so they cannot keep a Rider BUSY indefinitely.
+    const emptyRunIds = activeRuns
+      .filter((run) => run._count.stops === 0 && run.totalStopCount === 0)
+      .map((run) => run.id);
+    if (emptyRunIds.length > 0) {
+      await tx.deliveryRun.updateMany({
+        where: { id: { in: emptyRunIds } },
+        data: { status: 'CANCELLED' as any, completedAt: new Date() },
+      });
+    }
     return {
       activeJobs: jobs.filter((job) => isOccupyingDeliveryJob(job)).length,
-      activeRuns,
+      activeRuns: activeRuns.length - emptyRunIds.length,
     };
   }
 
