@@ -217,6 +217,7 @@ export class OfflineCustomerService {
               amountCollectedPaise: true,
               isCustom: true,
               storeDelivery: true,
+              deliveries: { select: { cashCollectedPaise: true } },
               homeStore: { select: { id: true, name: true } },
               _count: { select: { deliveries: true, orders: true } },
             },
@@ -252,12 +253,19 @@ export class OfflineCustomerService {
 
     const enriched = users.map((u) => {
       const activeSubs = u.customerSubscriptions.filter((s) => ['ACTIVE', 'PENDING_CASH_COLLECTION', 'GRACE_PERIOD'].includes(s.status));
-      const totalCollected = u.customerSubscriptions.reduce((sum, s) => sum + s.amountCollectedPaise, 0);
-      const totalDue = u.customerSubscriptions.reduce((sum, s) => sum + s.amountDuePaise, 0);
+      // Reconcile through the shared helper so this "Collected/Due" pair cannot
+      // disagree with the same subscription's day cells in the milk grid; a raw
+      // ledger read shows Rs 0 collected next to cells that already hold cash.
+      const balances = u.customerSubscriptions.map((s) => reconcileSubscriptionBalance(s, s.deliveries));
+      const totalCollected = balances.reduce((sum, b) => sum + b.amountCollectedPaise, 0);
+      const totalDue = balances.reduce((sum, b) => sum + b.amountDuePaise, 0);
       const totalDelivered = u.customerSubscriptions.reduce((sum, s) => sum + s.completedDeliveries, 0);
 
       return {
         ...u,
+        // Drop the cash cells used only for reconciliation so the list payload
+        // stays as lean as it was before.
+        customerSubscriptions: u.customerSubscriptions.map(({ deliveries: _deliveries, ...rest }) => rest),
         summary: {
           activeSubscriptions: activeSubs.length,
           totalSubscriptions: hasStoreScoping ? u.customerSubscriptions.length : u._count.customerSubscriptions,
@@ -329,13 +337,16 @@ export class OfflineCustomerService {
 
       const cycleNumber = (sub.priceSnapshot as any)?.cycleNumber || 1;
       const splitItems = (sub.priceSnapshot as any)?.splitItems || null;
+      const balance = reconcileSubscriptionBalance(sub, sub.deliveries);
 
-      overallCollectedPaise += sub.amountCollectedPaise || 0;
-      overallDuePaise += sub.amountDuePaise || 0;
+      overallCollectedPaise += balance.amountCollectedPaise;
+      overallDuePaise += balance.amountDuePaise;
       overallDeliveredDays += deliveredCount;
 
       return {
         ...sub,
+        amountCollectedPaise: balance.amountCollectedPaise,
+        amountDuePaise: balance.amountDuePaise,
         cycleNumber,
         splitItems,
         stats: {

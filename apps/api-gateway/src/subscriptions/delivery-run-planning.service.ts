@@ -375,6 +375,14 @@ export class DeliveryRunPlanningService {
           SubscriptionDeliveryStatus.PACKED,
           SubscriptionDeliveryStatus.ASSIGNED,
         ] },
+        // Prep demand must match dispatch-summary's definition of milk to pack:
+        // a COMPLETED contract keeps stale SCHEDULED/ORDER_GENERATED rows, and
+        // deactivated (recycle-binned) offline customers keep their rows too.
+        // Counting them over-reported the day's stops (43 vs 37).
+        subscription: {
+          status: { not: 'COMPLETED' },
+          customer: { isActive: true },
+        },
         OR: [{ storeId: { in: storeIds } }, { subscription: { homeStoreId: { in: storeIds } } }],
       },
       include: { subscription: { select: { homeStoreId: true, itemsSnapshot: true } }, order: { include: { items: { include: { product: true } } } } },

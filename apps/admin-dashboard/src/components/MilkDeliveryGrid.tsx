@@ -106,6 +106,7 @@ interface GridRow {
   allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
+  totalActiveDeliveries: number;
   totalExtraLiters: number;
   totalLiters: number;
   totalCollectedPaise: number;
@@ -118,7 +119,7 @@ interface GridData {
   daysInMonth: number;
   totalSubscribers: number;
   rows: GridRow[];
-  dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalLiters: number; cashCollectedPaise: number }>;
+  dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalDeliveries: number; totalLiters: number; cashCollectedPaise: number }>;
 }
 
 type AddonUnitType = 'weight' | 'count' | 'volume' | 'custom';
@@ -1773,7 +1774,9 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                             : 'border-slate-800 text-slate-200 font-bold text-[10px] font-mono'
                         }`}
                       >
-                        {dt && dt.totalLiters > 0 ? `${dt.totalLiters}L` : '—'}
+                        {dt && dt.totalLiters > 0
+                          ? `${dt.totalLiters}L${dt.totalDeliveries > 0 ? ` · ${dt.totalDeliveries}` : ''}`
+                          : '—'}
                       </td>
                     );
                   })}
