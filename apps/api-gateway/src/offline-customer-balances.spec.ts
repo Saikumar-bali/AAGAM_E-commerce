@@ -51,6 +51,10 @@ describe('OfflineCustomerService money reconciliation', () => {
 
     expect(result.customers[0].summary.totalCollectedPaise).toBe(4000);
     expect(result.customers[0].summary.totalDuePaise).toBe(47900);
+    // The row itself must carry the reconciled balance, matching `summary`
+    // and `getCustomerDetail`.
+    expect(result.customers[0].customerSubscriptions[0].amountCollectedPaise).toBe(4000);
+    expect(result.customers[0].customerSubscriptions[0].amountDuePaise).toBe(47900);
     // Reconciliation cells are not leaked into the payload.
     expect(result.customers[0].customerSubscriptions[0]).not.toHaveProperty('deliveries');
   });

@@ -314,23 +314,39 @@ export class SubscriptionAdminReportingService {
     groups: Array<{ status: string; _count: { _all: number }; _sum: { amountCollectedPaise: number | null; amountDuePaise: number | null } }>,
     storeFilter: Record<string, unknown>,
   ) {
-    const drifted = groups.filter((group) => (group._sum?.amountDuePaise || 0) > 0);
-    if (!drifted.length) return groups;
+    if (!groups.length) return groups;
 
-    const statuses = [...new Set(drifted.map((group) => group.status))];
+    const statuses = [...new Set(groups.map((group) => group.status))];
     const rows = await prisma.customerSubscription.findMany({
       where: { ...storeFilter, status: { in: statuses as any } },
       select: {
+        id: true,
         status: true,
         amountCollectedPaise: true,
         amountDuePaise: true,
-        deliveries: { select: { cashCollectedPaise: true } },
       },
     });
 
+    // Sum delivery cash in the database rather than reading every delivery row
+    // into memory: both store and admin analytics call this on normal page
+    // loads, and the nested read scaled as subscriptions × deliveries.
+    const cashBySubscription = new Map<string, number>();
+    if (rows.length) {
+      const cashGroups = await prisma.subscriptionDelivery.groupBy({
+        by: ['subscriptionId'],
+        where: { subscriptionId: { in: rows.map((row) => row.id) } },
+        _sum: { cashCollectedPaise: true },
+      });
+      for (const cashGroup of cashGroups) {
+        cashBySubscription.set(cashGroup.subscriptionId, cashGroup._sum.cashCollectedPaise || 0);
+      }
+    }
+
     const totals = new Map<string, { collected: number; due: number }>();
     for (const row of rows) {
-      const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, row.deliveries);
+      const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, [
+        { cashCollectedPaise: cashBySubscription.get(row.id) || 0 },
+      ]);
       const bucket = totals.get(row.status) || { collected: 0, due: 0 };
       bucket.collected += amountCollectedPaise;
       bucket.due += amountDuePaise;

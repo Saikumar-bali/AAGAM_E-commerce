@@ -58,9 +58,13 @@ describe('SubscriptionAdminReportingService — analytics money reconciliation',
     ]);
     (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
       // Ledger short by 4000, which its day cells already hold.
-      { status: 'PENDING_CASH_COLLECTION', amountCollectedPaise: 1000, amountDuePaise: 50000, deliveries: [{ cashCollectedPaise: 5000 }] },
+      { id: 'sub-1', status: 'PENDING_CASH_COLLECTION', amountCollectedPaise: 1000, amountDuePaise: 50000 },
       // Already in step: untouched by reconciliation.
-      { status: 'PENDING_CASH_COLLECTION', amountCollectedPaise: 1000, amountDuePaise: 50000, deliveries: [{ cashCollectedPaise: 1000 }] },
+      { id: 'sub-2', status: 'PENDING_CASH_COLLECTION', amountCollectedPaise: 1000, amountDuePaise: 50000 },
+    ]);
+    (prisma.subscriptionDelivery.groupBy as jest.Mock).mockResolvedValue([
+      { subscriptionId: 'sub-1', _sum: { cashCollectedPaise: 5000 } },
+      { subscriptionId: 'sub-2', _sum: { cashCollectedPaise: 1000 } },
     ]);
 
     const result = await service.storeAnalytics({ id: 'owner-1', role: Role.STORE_OWNER });
@@ -71,16 +75,48 @@ describe('SubscriptionAdminReportingService — analytics money reconciliation',
     // 50000 + 50000 due, minus the 4000 drift.
     expect(row._sum.amountDuePaise).toBe(96000);
     expect(row._count._all).toBe(2);
+    // Delivery cash is summed in the database, not by reading every delivery.
+    expect(prisma.subscriptionDelivery.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ['subscriptionId'],
+        where: { subscriptionId: { in: ['sub-1', 'sub-2'] } },
+        _sum: { cashCollectedPaise: true },
+      }),
+    );
+  });
+
+  it('reconciles a zero-due group whose day cells hold more cash than the ledger', async () => {
+    (prisma.customerSubscription.groupBy as jest.Mock).mockResolvedValue([
+      { status: 'ACTIVE', _count: { _all: 1 }, _sum: { amountCollectedPaise: 1000, amountDuePaise: 0 } },
+    ]);
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      { id: 'sub-1', status: 'ACTIVE', amountCollectedPaise: 1000, amountDuePaise: 0 },
+    ]);
+    (prisma.subscriptionDelivery.groupBy as jest.Mock).mockResolvedValue([
+      { subscriptionId: 'sub-1', _sum: { cashCollectedPaise: 5000 } },
+    ]);
+
+    const result = await service.storeAnalytics({ id: 'owner-1', role: Role.STORE_OWNER });
+
+    // A zero raw due no longer skips reconciliation: 5000 > 1000 ledger.
+    expect(result.subscriptions[0]._sum.amountCollectedPaise).toBe(5000);
+    expect(result.subscriptions[0]._sum.amountDuePaise).toBe(0);
   });
 
   it('leaves analytics rows untouched when no drift exists', async () => {
     (prisma.customerSubscription.groupBy as jest.Mock).mockResolvedValue([
       { status: 'ACTIVE', _count: { _all: 1 }, _sum: { amountCollectedPaise: 5000, amountDuePaise: 0 } },
     ]);
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      { id: 'sub-1', status: 'ACTIVE', amountCollectedPaise: 5000, amountDuePaise: 0 },
+    ]);
+    (prisma.subscriptionDelivery.groupBy as jest.Mock).mockResolvedValue([
+      { subscriptionId: 'sub-1', _sum: { cashCollectedPaise: 5000 } },
+    ]);
 
     const result = await service.storeAnalytics({ id: 'owner-1', role: Role.STORE_OWNER });
 
-    expect(prisma.customerSubscription.findMany).not.toHaveBeenCalled();
     expect(result.subscriptions[0]._sum.amountCollectedPaise).toBe(5000);
+    expect(result.subscriptions[0]._sum.amountDuePaise).toBe(0);
   });
 });

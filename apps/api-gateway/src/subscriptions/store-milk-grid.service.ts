@@ -1439,7 +1439,7 @@ export class StoreMilkGridService {
         },
         address: addr?.line1 || addr?.street || 'Local Area',
         product: `${baseQty}L ${isBuffalo ? 'BM' : 'CM'}`,
-        liters: d.status === 'SKIPPED' ? 0 : baseQty + extraLiters,
+        liters: baseQty + extraLiters,
         cashDuePaise: d.cashDuePaise || 0,
         cashCollectedPaise: d.cashCollectedPaise || 0,
         orderId: d.order?.id ?? null,
@@ -1482,7 +1482,6 @@ export class StoreMilkGridService {
     const slotCounts: Record<string, number> = { AM: 0, PM: 0 };
 
     for (const d of deliveries) {
-      if (d.status === 'CANCELLED') continue;
       slotCounts[d.deliverySlot] = (slotCounts[d.deliverySlot] || 0) + 1;
       const stop = toStop(d);
       cashToCollectPaise += stop.cashDuePaise;

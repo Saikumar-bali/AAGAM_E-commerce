@@ -263,9 +263,14 @@ export class OfflineCustomerService {
 
       return {
         ...u,
-        // Drop the cash cells used only for reconciliation so the list payload
-        // stays as lean as it was before.
-        customerSubscriptions: u.customerSubscriptions.map(({ deliveries: _deliveries, ...rest }) => rest),
+        // Apply the reconciled balance to each row and drop the cash cells used
+        // only for reconciliation, so the list payload stays as lean as it was
+        // before while agreeing with `summary` and `getCustomerDetail`.
+        customerSubscriptions: u.customerSubscriptions.map(({ deliveries: _deliveries, ...rest }, index) => ({
+          ...rest,
+          amountCollectedPaise: balances[index].amountCollectedPaise,
+          amountDuePaise: balances[index].amountDuePaise,
+        })),
         summary: {
           activeSubscriptions: activeSubs.length,
           totalSubscriptions: hasStoreScoping ? u.customerSubscriptions.length : u._count.customerSubscriptions,
