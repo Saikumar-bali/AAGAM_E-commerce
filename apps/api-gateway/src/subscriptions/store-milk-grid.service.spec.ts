@@ -136,7 +136,7 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
       subscriptionDelivery: { update: jest.fn().mockResolvedValue({}) },
       customerSubscription: { updateMany: jest.fn().mockResolvedValue({}) },
       codLedger: { upsert: jest.fn().mockResolvedValue({}) },
-      deliveryJob: { create: jest.fn().mockResolvedValue({ id: 'job-1' }) },
+      deliveryJob: { create: jest.fn().mockResolvedValue({ id: 'job-1' }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     };
 
     const delivery = {
@@ -187,6 +187,22 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
           where: { id: 'del-1' },
           data: expect.objectContaining({ status: 'ASSIGNED' }),
         }),
+      );
+      // A pre-pickup job must be advanced to the store, otherwise the rider's
+      // route pickup rejects the stop ("not ready for rider receipt").
+      expect(dispatchTx.deliveryJob.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'RIDER_AT_STORE', currentRiderId: 'rider-1' }) }),
+      );
+    });
+
+    it('creates a freshly dispatched job at the store, not already out for delivery', async () => {
+      const noJob = { ...delivery, deliveryJobId: null, deliveryJob: null, order: { id: 'order-1', items: [], payment: null } };
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValue([noJob]);
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.deliveryJob.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'RIDER_AT_STORE' }) }),
       );
     });
 

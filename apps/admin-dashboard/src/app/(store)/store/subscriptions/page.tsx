@@ -908,7 +908,7 @@ export default function StoreSubscriptionOperationsPage() {
         </nav>
 
         {tab === "grid" ? (
-          <MilkDeliveryGrid onReload={() => void load()} storeId={storesList[0]?.id} />
+          <MilkDeliveryGrid onReload={() => void load()} storeId={storesList[0]?.id} storeName={storesList[0]?.name} />
         ) : loading ? (
           <State
             icon={RefreshCw}

@@ -185,6 +185,35 @@ function detectProductUnitType(product?: { name: string; unit?: string; category
   return 'weight';
 }
 
+/**
+ * Volume in litres for a grid quantity label, or null when the label carries
+ * no volume (weights like `250g`, counts like `1 Bowl`). Mirrors the backend
+ * `parseVolumeLiters` so the row/footer totals agree with the day cells.
+ */
+function parseQuantityLiters(label?: string | null): number | null {
+  if (!label) return null;
+  const text = label.toLowerCase();
+  let unitVolume: number | null = null;
+  const ml = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*ml\b/);
+  if (ml) {
+    unitVolume = Number(ml[1]) / 1000;
+  } else {
+    // Read fractions before integers: `1/2 L` must be 0.5, not 2.
+    const fraction = text.match(/(?<!\d)(\d+)\s*\/\s*(\d+)\s*(?:l|lt|ltr|liter|litre)\b/)
+      || text.match(/(?<!\d)(\d+)\s*\/\s*(\d+)\s*\((?:l|lt|ltr|liter|litre)\)/);
+    if (fraction && Number(fraction[2]) > 0) unitVolume = Number(fraction[1]) / Number(fraction[2]);
+    else {
+      const liters = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:l|lt|ltr|liter|litre)\b/);
+      if (liters) unitVolume = Number(liters[1]);
+    }
+  }
+  if (unitVolume !== null) {
+    const counted = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:units?|packets?|packs?|pkts?|bottles?|pouches?|nos?\.?|pieces?|pcs?)\b/);
+    return counted ? Number(counted[1]) * unitVolume : unitVolume;
+  }
+  return null;
+}
+
 function getAddonPresets(unitType: AddonUnitType, product?: CatalogProduct): AddonPreset[] {
   if (unitType === 'weight') {
     return [
@@ -234,7 +263,7 @@ function getAddonPresets(unitType: AddonUnitType, product?: CatalogProduct): Add
   return [];
 }
 
-export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () => void; storeId?: string }) {
+export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onReload?: () => void; storeId?: string; storeName?: string }) {
   const toast = useToast();
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -573,7 +602,8 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Aagam_Milk_Delivery_Bowluwada_${currentYear}_${currentMonth + 1}.csv`);
+      const storeLabel = (storeName || 'Store').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Store';
+      link.setAttribute('download', `Aagam_Milk_Delivery_${storeLabel}_${currentYear}_${currentMonth + 1}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -644,17 +674,21 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
 
     gridData.rows.forEach((r) => {
       const c = r.days[currentDayNum];
-      if (c) {
-        stops++;
-        if (c.status === 'DELIVERED') delivered++;
-        else if (c.status === 'SCHEDULED') pending++;
-        cash += c.cashCollectedPaise;
-        const qty = parseFloat(c.extraMilk || c.baseQuantity) || 1;
-        liters += qty;
-      }
+      // Skipped/cancelled occurrences are not milk to pack; counting them
+      // inflated today's stop and litre totals after a customer skip.
+      if (!c || c.status === 'SKIPPED' || c.status === 'CANCELLED') return;
+      stops++;
+      if (c.status === 'DELIVERED') delivered++;
+      cash += c.cashCollectedPaise;
+      // The cell volume is base + any add-on. The old code read only the
+      // extra (or the base) and defaulted unparseable labels to 1L, so an
+      // add-on of `+1 Unit ... 1/2 (LITER)` collapsed to 1 and `250ml`
+      // parsed as 250. Skip (not guess) labels that carry no volume.
+      liters += (parseQuantityLiters(c.baseQuantity) ?? 0) + (parseQuantityLiters(c.extraMilk) ?? 0);
     });
+    pending = stops - delivered;
 
-    return { totalStops: stops, deliveredStops: delivered, pendingStops: pending, totalLiters: liters, cashCollected: cash };
+    return { totalStops: stops, deliveredStops: delivered, pendingStops: pending, totalLiters: Math.round(liters * 1000) / 1000, cashCollected: cash };
   }, [gridData, currentDayNum]);
 
   // Split into pending deliveries (active route) and completed deliveries (done today)
@@ -1344,7 +1378,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
         <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
           <p className="mt-3 text-sm font-bold text-slate-700">Loading milk delivery data...</p>
-          <p className="text-xs text-slate-400">Reconciling Bowluwada deliveries, extra liters, and cash flow</p>
+          <p className="text-xs text-slate-400">Reconciling {storeName || 'store'} deliveries, extra liters, and cash flow</p>
         </div>
       ) : !gridData || filteredRows.length === 0 ? (
         <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
@@ -1637,7 +1671,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             {/* Extra Milk Badge */}
                             {hasExtra && (
                               <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] font-semibold text-amber-800 bg-amber-100 rounded px-1 border border-amber-200">
-                                +{cell.extraMilk}
+                                {cell.extraMilk?.trim().startsWith('+') ? cell.extraMilk : `+${cell.extraMilk}`}
                               </span>
                             )}
 
@@ -1648,7 +1682,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                                   cell.paymentMode === 'PHONE_PE' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
                                 }`}
                               >
-                                ₹{(cell.cashCollectedPaise / 100).toFixed(0)}
+                                ₹{(cell.cashCollectedPaise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                               </span>
                             ) : cell.cashDuePaise > 0 ? (
                               <span className="mt-0.5 text-[8px] font-semibold text-red-600 bg-red-50 rounded px-1">
@@ -3180,7 +3214,7 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                             </span>
                             {cell.cashDuePaise > 0 && (
                               <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                                ₹{(cell.cashDuePaise / 100).toFixed(0)} COD
+                                ₹{(cell.cashDuePaise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })} COD
                               </span>
                             )}
                             {cell.assignedRider && (
@@ -3215,9 +3249,9 @@ export default function MilkDeliveryGrid({ onReload, storeId }: { onReload?: () 
                 <span>Selected: {selectedDeliveryIds.length} stops</span>
                 <span>
                   Estimated Volume:{' '}
-                  {dispatchEligibleStops
+                  {Math.round(dispatchEligibleStops
                     .filter((s) => selectedDeliveryIds.includes(s.cell.deliveryId))
-                    .reduce((sum, s) => sum + (parseFloat(s.cell.extraMilk || s.cell.baseQuantity) || 1), 0)}{' '}
+                    .reduce((sum, s) => sum + (parseQuantityLiters(s.cell.baseQuantity) ?? 0) + (parseQuantityLiters(s.cell.extraMilk) ?? 0), 0) * 1000) / 1000}{' '}
                   L
                 </span>
                 <span>

@@ -460,7 +460,10 @@ export class OfflineCustomerService {
       pendingDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'SCHEDULED').length,
       failedDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'FAILED').length,
       skippedDays: subscription.deliveries.filter((d: { status: string }) => d.status === 'SKIPPED').length,
-      totalAmountPaise: subscription.deliveries.reduce((sum: number, d: { cashDuePaise: number }) => sum + d.cashDuePaise, 0) + effectiveCollectedPaise,
+      // Contract value is the sum of the day-cell dues; cash already collected
+      // is part of those cells, so adding effectiveCollectedPaise here would
+      // double-count it (a fully-paid 7-day plan reported 2x its price).
+      totalAmountPaise: subscription.deliveries.reduce((sum: number, d: { cashDuePaise: number }) => sum + d.cashDuePaise, 0),
       collectedPaise: effectiveCollectedPaise,
       duePaise: effectiveDuePaise,
     };
@@ -738,6 +741,50 @@ export class OfflineCustomerService {
     return source;
   }
 
+  /**
+   * Removes a purged customer's addresses. Addresses still referenced by a
+   * retained (cancelled) subscription must survive the delete, so their PII is
+   * scrubbed in place; the remaining unreferenced addresses are deleted.
+   */
+  private async scrubRetainedAddresses(tx: Prisma.TransactionClient, customerId: string) {
+    const addresses = await tx.customerAddress.findMany({
+      where: { userId: customerId },
+      select: { id: true },
+    });
+    if (addresses.length === 0) return;
+    const retained = await tx.customerSubscription.findMany({
+      where: { addressId: { in: addresses.map((a) => a.id) } },
+      select: { addressId: true },
+    });
+    const retainedIds = new Set(retained.map((s) => s.addressId));
+    const scrubIds = addresses.map((a) => a.id).filter((id) => retainedIds.has(id));
+    if (scrubIds.length > 0) {
+      await tx.customerAddress.updateMany({
+        where: { id: { in: scrubIds } },
+        data: {
+          label: null,
+          recipientName: 'Purged Offline Customer',
+          phoneE164: '0000000000',
+          alternatePhoneE164: null,
+          line1: 'Purged',
+          line2: null,
+          landmark: null,
+          instructions: null,
+          city: '',
+          state: '',
+          pincode: '',
+          latitude: 0,
+          longitude: 0,
+          isDefault: false,
+        },
+      });
+    }
+    const deleteIds = addresses.map((a) => a.id).filter((id) => !retainedIds.has(id));
+    if (deleteIds.length > 0) {
+      await tx.customerAddress.deleteMany({ where: { id: { in: deleteIds } } });
+    }
+  }
+
   async permanentDeleteCustomer(customerId: string, actor?: OfflineCustomerActor) {
     // Purge is destructive and irreversible: require an offline customer that
     // is owned by the actor, so an arbitrary id cannot be anonymized and
@@ -866,7 +913,10 @@ export class OfflineCustomerService {
           });
         }
 
-        await tx.customerAddress.deleteMany({ where: { userId: customerId } });
+        // A cancelled subscription still holds a Restrict reference to its
+        // address, so addresses that a retained subscription points at cannot
+        // be deleted; scrub their PII in place instead and only drop the rest.
+        await this.scrubRetainedAddresses(tx, customerId);
       });
       return {
         success: true,
