@@ -214,6 +214,18 @@ function parseQuantityLiters(label?: string | null): number | null {
   return null;
 }
 
+/**
+ * Volume for a grid `extraMilk` cell. The server joins every add-on in the cell
+ * with ", ", so `+1L, +2L` must total 3L: summing per label avoids the single
+ * volume that parsing the joined string would return.
+ */
+function addOnLiters(extraMilk?: string | null): number {
+  if (!extraMilk) return 0;
+  return extraMilk
+    .split(',')
+    .reduce((sum, part) => sum + (parseQuantityLiters(part) ?? 0), 0);
+}
+
 function getAddonPresets(unitType: AddonUnitType, product?: CatalogProduct): AddonPreset[] {
   if (unitType === 'weight') {
     return [
@@ -684,7 +696,7 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
       // extra (or the base) and defaulted unparseable labels to 1L, so an
       // add-on of `+1 Unit ... 1/2 (LITER)` collapsed to 1 and `250ml`
       // parsed as 250. Skip (not guess) labels that carry no volume.
-      liters += (parseQuantityLiters(c.baseQuantity) ?? 0) + (parseQuantityLiters(c.extraMilk) ?? 0);
+      liters += (parseQuantityLiters(c.baseQuantity) ?? 0) + addOnLiters(c.extraMilk);
     });
     pending = stops - delivered;
 
@@ -3251,7 +3263,7 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                   Estimated Volume:{' '}
                   {Math.round(dispatchEligibleStops
                     .filter((s) => selectedDeliveryIds.includes(s.cell.deliveryId))
-                    .reduce((sum, s) => sum + (parseQuantityLiters(s.cell.baseQuantity) ?? 0) + (parseQuantityLiters(s.cell.extraMilk) ?? 0), 0) * 1000) / 1000}{' '}
+                    .reduce((sum, s) => sum + (parseQuantityLiters(s.cell.baseQuantity) ?? 0) + addOnLiters(s.cell.extraMilk), 0) * 1000) / 1000}{' '}
                   L
                 </span>
                 <span>
