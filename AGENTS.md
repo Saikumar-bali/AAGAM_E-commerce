@@ -361,4 +361,17 @@ survives a timeout, and treat 20 minutes as their own deadline.
   `SubscriptionReviewScreen` is unchanged: the customer plan catalog
   (`SubscriptionPlan`) has no `storeDelivery`, so a customer-created
   subscription is always rider-delivered and the picker there is genuine.
+- Store-delivery gating must cover every customer surface, not just the mobile
+  app. The web shop subscription detail (`(shop)/shop/subscriptions/[id]`) was
+  still printing the raw `deliveryMethod` for store-delivered subscriptions
+  after the mobile fix; it now shows "Collected at store" when
+  `storeDelivery` is true, and the mobile `TRUSTED_DROP` QR action + sheet are
+  also suppressed for store delivery. Audit new customer views for the same
+  pattern instead of assuming the mobile detail screen is the only surface.
+- Subscription start dates may be today. `validateStartDate` rejects only a
+  start date strictly before the store-local today, so the customer review
+  (mobile) and web-shop subscribe screens default to today and validate
+  against today; the "Today" chip sits before "Tomorrow". Store/admin manual
+  create forms already default to today; the store renewal edit form still
+  defaults to tomorrow.
 
