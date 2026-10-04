@@ -17,7 +17,7 @@ const getLocalDateString = (offsetDays = 0) => {
   return `${year}-${month}-${day}`;
 };
 
-const tomorrow = () => getLocalDateString(1);
+const today = () => getLocalDateString(0);
 
 const clock = (minute: number) => {
   const h = Math.floor(minute / 60);
@@ -35,7 +35,7 @@ export default function SubscribeReviewPage() {
   const [plan, setPlan] = useState<any>();
   const [addresses, setAddresses] = useState<any[]>([]);
   const [addressId, setAddressId] = useState('');
-  const [startDate, setStartDate] = useState(tomorrow());
+  const [startDate, setStartDate] = useState(today());
   const [method, setMethod] = useState('PERSONAL_HANDOVER');
   const [deliverySlot, setDeliverySlot] = useState<'AM' | 'PM'>('AM');
   const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } };
@@ -62,7 +62,7 @@ export default function SubscribeReviewPage() {
 
   const isValidStartDate = useMemo(() => {
     if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return false;
-    return startDate >= tomorrow();
+    return startDate >= today();
   }, [startDate]);
 
   const payload = useMemo(
@@ -95,7 +95,7 @@ export default function SubscribeReviewPage() {
 
   const submit = async () => {
     if (!isValidStartDate) {
-      toast.warning('Please select a valid start date (tomorrow or later).');
+      toast.warning('Please select a valid start date (today or later).');
       return;
     }
     setSubmitting(true);
@@ -191,12 +191,12 @@ export default function SubscribeReviewPage() {
               <Section icon={<CalendarDays />} title="Start date">
                 <input
                   type="date"
-                  min={tomorrow()}
+                  min={today()}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   onBlur={() => {
-                    if (!startDate || startDate < tomorrow()) {
-                      setStartDate(tomorrow());
+                    if (!startDate || startDate < today()) {
+                      setStartDate(today());
                     }
                   }}
                   className={`min-h-[44px] w-full rounded-lg border px-4 font-bold text-slate-800 outline-none transition focus:ring-2 ${
@@ -206,6 +206,17 @@ export default function SubscribeReviewPage() {
                   }`}
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStartDate(getLocalDateString(0))}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                      startDate === getLocalDateString(0)
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Today
+                  </button>
                   <button
                     type="button"
                     onClick={() => setStartDate(getLocalDateString(1))}
@@ -242,8 +253,8 @@ export default function SubscribeReviewPage() {
                 </div>
                 {!startDate ? (
                   <p className="mt-1.5 text-xs font-bold text-rose-600">Please choose a start date</p>
-                ) : startDate < tomorrow() ? (
-                  <p className="mt-1.5 text-xs font-bold text-rose-600">Start date must be tomorrow or later</p>
+                ) : startDate < today() ? (
+                  <p className="mt-1.5 text-xs font-bold text-rose-600">Start date must be today or later</p>
                 ) : null}
               </Section>
 

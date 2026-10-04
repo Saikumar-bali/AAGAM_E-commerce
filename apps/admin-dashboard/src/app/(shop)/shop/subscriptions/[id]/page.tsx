@@ -193,7 +193,10 @@ export default function SubscriptionDetailsPage() {
                 {s.fundingCycle === "WEEKLY"
                   ? "Weekly cash funding"
                   : "Full-plan cash funding"}{" "}
-                · {String(s.deliveryMethod).replaceAll("_", " ")}
+                ·{" "}
+                {s.storeDelivery
+                  ? "Collected at store"
+                  : String(s.deliveryMethod || "").replaceAll("_", " ")}
               </p>
             </div>
             <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full border-[10px] border-emerald-300/60 bg-emerald-900/20">

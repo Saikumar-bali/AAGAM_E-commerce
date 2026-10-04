@@ -16,7 +16,15 @@ import type { CustomerStackParamList } from '../../navigation/customerNavigation
 import { getUserSafeError, notify } from '../../ui/notify';
 
 const money = (paise: number) => `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+const localDate = (offsetDays: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const today = () => localDate(0);
 const time = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 
 type MethodOption = {
@@ -47,7 +55,7 @@ export const SubscriptionReviewScreen = () => {
     },
   });
   const [addressId, setAddressId] = useState('');
-  const [startDate, setStartDate] = useState(tomorrow());
+  const [startDate, setStartDate] = useState(today());
   const [method, setMethod] = useState<SubscriptionDeliveryMethod>('PERSONAL_HANDOVER');
 const [deliverySlot, setDeliverySlot] = useState<'AM' | 'PM'>('AM');
 const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } };

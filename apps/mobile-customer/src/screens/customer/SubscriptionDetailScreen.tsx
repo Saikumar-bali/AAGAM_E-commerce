@@ -438,7 +438,8 @@ export const SubscriptionDetailScreen = () => {
             <TriangleAlert size={20} color="#B96600" />
             <Text style={styles.actionText}>Report</Text>
           </Pressable>
-          {subscription.deliveryMethod === "TRUSTED_DROP" ? (
+          {!subscription.storeDelivery &&
+          subscription.deliveryMethod === "TRUSTED_DROP" ? (
             <Pressable
               disabled={showQr.isPending}
               onPress={() => showQr.mutate(false)}
@@ -632,7 +633,8 @@ export const SubscriptionDetailScreen = () => {
           onPress={() => preferences.mutate()}
         />
       </ActionSheet>
-      {subscription.deliveryMethod === "TRUSTED_DROP" ? (
+      {!subscription.storeDelivery &&
+      subscription.deliveryMethod === "TRUSTED_DROP" ? (
         <ActionSheet
           visible={sheet === "trustedQr"}
           title="Trusted Drop QR"
