@@ -127,6 +127,12 @@ export class OfflineCustomerService {
 
   async listCustomers(params: { search?: string; storeId?: string; storeIds?: string[]; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }) {
     const { search, storeId, storeIds, status, recycleBin = false, page = 1, pageSize = 25 } = params;
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be an integer greater than or equal to 1');
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200) {
+      throw new BadRequestException('pageSize must be an integer between 1 and 200');
+    }
     const skip = (page - 1) * pageSize;
 
     // Compose through AND so the offline-identity predicate survives. The old

@@ -6,6 +6,26 @@ import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscript
 import { isOfflineSubscription } from '@aagam/utils';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
+import { startOfUtcDay } from './subscription-calendar.service';
+
+/**
+ * A month is `0..11` on the wire and in `Date.UTC`. Reject anything outside
+ * that range instead of letting it silently roll into another month (`13`
+ * became Feb 2027) or throw a `RangeError` from `Date.UTC` (`99999`).
+ */
+function normalizeMonth(month: number): number {
+  if (!Number.isInteger(month) || month < 0 || month > 11) {
+    throw new BadRequestException('month must be an integer between 0 and 11');
+  }
+  return month;
+}
+
+function normalizeYear(year: number): number {
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new BadRequestException('year must be an integer between 2000 and 2100');
+  }
+  return year;
+}
 
 export interface GridCell {
   deliveryId: string;
@@ -95,8 +115,8 @@ export class StoreMilkGridService {
    */
   async getGrid(actor: { id: string; role: Role; email?: string }, year?: number, month?: number) {
     const now = new Date();
-    const targetYear = year ?? now.getUTCFullYear();
-    const targetMonth = month !== undefined ? month : now.getUTCMonth(); // 0-indexed
+    const targetYear = year !== undefined ? normalizeYear(year) : now.getUTCFullYear();
+    const targetMonth = month !== undefined ? normalizeMonth(month) : now.getUTCMonth(); // 0-indexed
 
     const startOfMonth = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
@@ -1370,7 +1390,7 @@ export class StoreMilkGridService {
    * unassigned. This is the single source the store uses to audit dispatch.
    */
   async getRiderAssignments(actor: { id: string; role: Role; email?: string }, dateStr?: string) {
-    const base = dateStr ? new Date(dateStr) : new Date();
+    const base = dateStr ? startOfUtcDay(dateStr) : new Date();
     const dayStart = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 0, 0, 0, 0));
     const dayEnd = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 23, 59, 59, 999));
 

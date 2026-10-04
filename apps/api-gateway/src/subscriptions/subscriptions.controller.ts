@@ -28,6 +28,7 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { parseIntQuery } from '../common/query-params';
 import { CashDepositBatchService } from './cash-deposit-batch.service';
 import { CustomerSubscriptionService } from './customer-subscription.service';
 import { DeliveryRunOperationsService } from './delivery-run-operations.service';
@@ -416,7 +417,7 @@ export class StoreSubscriptionOperationsController {
 
   @Get('demand')
   demand(@Req() req: AuthenticatedRequest, @Query('days') days?: string) {
-    return this.planning.storeDemand(req.user, Number(days || 14));
+    return this.planning.storeDemand(req.user, parseIntQuery(days, 'days', { min: 1, max: 90 }) ?? 14);
   }
 
   @Get('runs')
@@ -485,8 +486,8 @@ export class StoreSubscriptionsController {
   ) {
     return this.milkGrid.getGrid(
       req.user,
-      year ? parseInt(year, 10) : undefined,
-      month !== undefined && month !== '' ? parseInt(month, 10) : undefined,
+      parseIntQuery(year, 'year', { min: 2000, max: 2100 }),
+      parseIntQuery(month, 'month', { min: 0, max: 11 }),
     );
   }
 
@@ -577,8 +578,8 @@ export class StoreSubscriptionsController {
   ) {
     const csv = await this.milkGrid.exportCsv(
       req.user,
-      year ? parseInt(year, 10) : undefined,
-      month !== undefined && month !== '' ? parseInt(month, 10) : undefined,
+      parseIntQuery(year, 'year', { min: 2000, max: 2100 }),
+      parseIntQuery(month, 'month', { min: 0, max: 11 }),
     );
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
@@ -760,8 +761,8 @@ export class StoreSubscriptionsController {
       storeIds,
       status,
       recycleBin: recycleBin === 'true',
-      page: page ? parseInt(page, 10) : 1,
-      pageSize: pageSize ? parseInt(pageSize, 10) : 25,
+      page: parseIntQuery(page, 'page', { min: 1 }),
+      pageSize: parseIntQuery(pageSize, 'pageSize', { min: 1, max: 200 }),
     });
   }
 
@@ -1012,8 +1013,8 @@ export class AdminSubscriptionsController {
       storeId,
       status,
       recycleBin: recycleBin === 'true',
-      page: page ? parseInt(page, 10) : 1,
-      pageSize: pageSize ? parseInt(pageSize, 10) : 25,
+      page: parseIntQuery(page, 'page', { min: 1 }),
+      pageSize: parseIntQuery(pageSize, 'pageSize', { min: 1, max: 200 }),
     });
   }
 

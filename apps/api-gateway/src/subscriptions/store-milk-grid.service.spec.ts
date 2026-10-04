@@ -282,3 +282,29 @@ describe('StoreMilkGridService — getGrid litre totals include undelivered plan
     expect(grid.dailyTotals[4]).toMatchObject({ deliveredCount: 0, totalDeliveries: 0, totalLiters: 0 });
   });
 });
+
+describe('StoreMilkGridService — query parameter validation', () => {
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+
+  it('rejects an out-of-range month instead of silently rolling into another month', async () => {
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 13)).rejects.toThrow(
+      /month must be an integer between 0 and 11/,
+    );
+  });
+
+  it('rejects a non-integer year instead of throwing a RangeError', async () => {
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, Number('abc'), 1)).rejects.toThrow(
+      /year must be an integer/,
+    );
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, 99999, 1)).rejects.toThrow(
+      /year must be an integer/,
+    );
+  });
+
+  it('rejects an unparseable rider-assignment date instead of a 500', async () => {
+    await expect(service.getRiderAssignments({ id: 'store-user', role: Role.ADMIN }, 'notadate')).rejects.toThrow(
+      /Invalid service date/,
+    );
+  });
+});
+

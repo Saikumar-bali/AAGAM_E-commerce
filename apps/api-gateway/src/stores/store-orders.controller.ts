@@ -13,6 +13,7 @@ import { OrderStatus, prisma, Role } from '@aagam/database';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { parseIntQuery } from '../common/query-params';
 
 const ORDER_INCLUDE = {
   customer: { select: { id: true, name: true, email: true, phone: true } },
@@ -73,8 +74,8 @@ export class StoreOrdersController {
     @Req() req: any,
   ) {
     await this.assertAccess(storeId, req.user);
-    const page = Math.max(1, Number(rawPage) || 1);
-    const pageSize = Math.min(50, Math.max(1, Number(rawPageSize) || 20));
+    const page = parseIntQuery(rawPage, 'page', { min: 1 }) ?? 1;
+    const pageSize = parseIntQuery(rawPageSize, 'pageSize', { min: 1, max: 50 }) ?? 20;
     const search = String(rawSearch || '').trim();
     const statuses = String(rawStatus || '')
       .split(',')
