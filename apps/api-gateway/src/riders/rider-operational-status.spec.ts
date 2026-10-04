@@ -19,10 +19,13 @@ function decision(overrides: Partial<{ status: string; createdAt: Date; appliedA
 function fakeTx() {
   return {
     deliveryJob: { findMany: jest.fn().mockResolvedValue([]) },
-    deliveryRun: { count: jest.fn().mockResolvedValue(0) },
+    deliveryRun: { findMany: jest.fn().mockResolvedValue([]) },
     riderProfile: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
 }
+
+const activeRun = { totalStopCount: 3, _count: { stops: 3 } };
+const emptyRun = { totalStopCount: 0, _count: { stops: 0 } };
 
 describe('rider operational status reconciliation', () => {
   const original = { ...process.env };
@@ -91,15 +94,26 @@ describe('rider operational status reconciliation', () => {
 
   it('keeps the Rider BUSY for active runs and never downgrades an OFFLINE Rider', async () => {
     const tx = fakeTx();
-    tx.deliveryRun.count.mockResolvedValue(1);
+    tx.deliveryRun.findMany.mockResolvedValue([activeRun]);
     tx.deliveryJob.findMany.mockResolvedValue([]);
     await expect(reconcileRiderOperationalStatus(tx, 'rider-run')).resolves.toBe('BUSY');
 
     tx.riderProfile.updateMany.mockResolvedValue({ count: 0 });
-    tx.deliveryRun.count.mockResolvedValue(0);
+    tx.deliveryRun.findMany.mockResolvedValue([]);
     await expect(reconcileRiderOperationalStatus(tx, 'rider-offline')).resolves.toBe('ONLINE');
     expect(tx.riderProfile.updateMany).toHaveBeenCalledWith({
       where: { id: 'rider-offline', status: { not: 'OFFLINE' } },
+      data: { status: 'ONLINE' },
+    });
+  });
+
+  it('releases a Rider whose only remaining run is a stale empty route', async () => {
+    const tx = fakeTx();
+    tx.deliveryRun.findMany.mockResolvedValue([emptyRun]);
+    tx.deliveryJob.findMany.mockResolvedValue([]);
+    await expect(reconcileRiderOperationalStatus(tx, 'rider-empty-run')).resolves.toBe('ONLINE');
+    expect(tx.riderProfile.updateMany).toHaveBeenCalledWith({
+      where: { id: 'rider-empty-run', status: { not: 'OFFLINE' } },
       data: { status: 'ONLINE' },
     });
   });

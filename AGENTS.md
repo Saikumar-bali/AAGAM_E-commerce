@@ -247,7 +247,9 @@ survives a timeout, and treat 20 minutes as their own deadline.
   "Prep list" tab.
 - A delivery run with no stops (`totalStopCount = 0` and no `DeliveryRunStop`
   rows) must never pin a rider BUSY. `RiderService` excludes such runs from the
-  admin workload payload, cancels them while releasing a rider, and
+  admin workload payload, cancels them while releasing a rider,
+  `reconcileRiderOperationalStatus` (the notification/order reconcile sweep)
+  applies the same `isEmptyDeliveryRun` rule, and
   `POST /admin/subscriptions/regional-routing/runs/:runId/force-cancel` clears a
   started-but-empty run that the normal `cancel`/`interrupt` paths reject.
 - Test DB is unavailable in the sandbox: jest suites that hit `prisma` fail with
