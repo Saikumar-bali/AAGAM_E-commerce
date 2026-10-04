@@ -31,6 +31,25 @@ describe('parseVolumeLiters', () => {
     expect(parseVolumeLiters('6 Pieces')).toBeNull();
     expect(parseVolumeLiters('~350g Bowl')).toBeNull();
   });
+
+  it('reads fractional volumes written as a slash', () => {
+    expect(parseVolumeLiters('1/2 L')).toBe(0.5);
+    expect(parseVolumeLiters('1/4L')).toBe(0.25);
+    expect(parseVolumeLiters('3/4 ltr')).toBe(0.75);
+  });
+
+  it('reads the volume out of a rider-entered unit label', () => {
+    // Live add-on label from the store grid. One unit of half-litre milk is
+    // 0.5L; the old parser read "1" as a bare litre or "2" from "1/2".
+    expect(parseVolumeLiters('+1 Unit AAGAAM BUFFALO MILK 1/2 (LITER)')).toBe(0.5);
+    expect(parseVolumeLiters('2 Packets AAGAAM COW MILK 1 LITER')).toBe(2);
+    expect(parseVolumeLiters('3 Units AAGAAM BUFFALO MILK 500 ML')).toBe(1.5);
+  });
+
+  it('still ignores counts of non-liquid items', () => {
+    expect(parseVolumeLiters('2 Units Fresh Paneer 200g')).toBeNull();
+    expect(parseVolumeLiters('1 Packet Curd 1kg')).toBeNull();
+  });
 });
 
 describe('parseAddOns', () => {

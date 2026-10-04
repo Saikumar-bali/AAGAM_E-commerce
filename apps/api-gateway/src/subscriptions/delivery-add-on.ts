@@ -29,13 +29,33 @@ const ADD_ON_PATTERN = /\[(?:EXTRA|ADD-ON):\s*([^|\]]+)\|?\s*(\d+)?(?:\|([^\]]*)
  */
 export function parseVolumeLiters(label: string): number | null {
   const text = label.toLowerCase();
-  // The `(?<!\d)` guards keep these patterns linear. Without them a long run of
-  // digits (e.g. a client-supplied `extraQuantity`) makes the engine retry the
-  // number from every digit position, so a crafted label could stall a request.
+  // Per-unit volume first. The `(?<!\d)` guards keep these patterns linear;
+  // without them a long run of digits (a client-supplied `extraQuantity`) makes
+  // the engine retry the number from every digit position.
+  let unitVolume: number | null = null;
   const ml = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*ml\b/);
-  if (ml) return Number(ml[1]) / 1000;
-  const liters = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:l|lt|ltr|liter|litre)\b/);
-  if (liters) return Number(liters[1]);
+  if (ml) {
+    unitVolume = Number(ml[1]) / 1000;
+  } else {
+    // Fractions must be read before the integer form: the "1/2 L" in an add-on
+    // like `1 Unit AAGAAM BUFFALO MILK 1/2 (LITER)` is a half litre, not 2.
+    const fraction = text.match(/(?<!\d)(\d+)\s*\/\s*(\d+)\s*(?:l|lt|ltr|liter|litre)\b/)
+      || text.match(/(?<!\d)(\d+)\s*\/\s*(\d+)\s*\((?:l|lt|ltr|liter|litre)\)/);
+    if (fraction && Number(fraction[2]) > 0) {
+      unitVolume = Number(fraction[1]) / Number(fraction[2]);
+    } else {
+      const liters = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:l|lt|ltr|liter|litre)\b/);
+      if (liters) unitVolume = Number(liters[1]);
+    }
+  }
+
+  if (unitVolume !== null) {
+    // A rider-entered "N unit(s)/packet(s)" multiplies the per-unit volume, so
+    // `2 Packets AAGAAM COW MILK 1 LITER` is 2L rather than 1L.
+    const counted = text.match(/(?<!\d)(\d+(?:\.\d+)?)\s*(?:units?|packets?|packs?|pkts?|bottles?|pouches?|nos?\.?|pieces?|pcs?)\b/);
+    return counted ? Number(counted[1]) * unitVolume : unitVolume;
+  }
+
   // Anchored without a trailing `\s*`, which made a run of spaces re-anchor at
   // every position; `trimEnd` gives the same result in linear time.
   const bare = text.trimEnd().match(/(?<!\d)\+?(\d+(?:\.\d+)?)$/);

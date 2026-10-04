@@ -53,9 +53,23 @@ export function isOccupyingDeliveryJob(
   return now.getTime() <= staleAt;
 }
 
+type RunOccupancyCandidate = {
+  totalStopCount: number;
+  _count: { stops: number };
+};
+
+/**
+ * An empty route (no stop rows and no recorded stops) cannot move a parcel or
+ * collect cash, so it must not pin a Rider BUSY. Mirrors the admin workload
+ * payload in RiderService so the admin console and this sweep agree.
+ */
+export function isEmptyDeliveryRun(run: RunOccupancyCandidate): boolean {
+  return run.totalStopCount === 0 && run._count.stops === 0;
+}
+
 /** Keep BUSY derived from all operational work instead of one completed order. */
 export async function reconcileRiderOperationalStatus(tx: any, riderProfileId: string) {
-  const [jobs, activeRuns] = await Promise.all([
+  const [jobs, runCandidates] = await Promise.all([
     tx.deliveryJob.findMany({
       where: {
         currentRiderId: riderProfileId,
@@ -75,15 +89,17 @@ export async function reconcileRiderOperationalStatus(tx: any, riderProfileId: s
         },
       },
     }) as Promise<OccupancyCandidate[]>,
-    tx.deliveryRun.count({
+    tx.deliveryRun.findMany({
       where: {
         riderId: riderProfileId,
         status: { notIn: TERMINAL_RUN_STATUSES as any },
       },
-    }),
+      select: { totalStopCount: true, _count: { select: { stops: true } } },
+    }) as Promise<RunOccupancyCandidate[]>,
   ]);
   const now = new Date();
   const hasActiveJobs = jobs.some((job) => isOccupyingDeliveryJob(job, now));
+  const activeRuns = runCandidates.filter((run) => !isEmptyDeliveryRun(run)).length;
   const status = hasActiveJobs || activeRuns > 0 ? "BUSY" : "ONLINE";
   await tx.riderProfile.updateMany({
     where: { id: riderProfileId, status: { not: "OFFLINE" } },

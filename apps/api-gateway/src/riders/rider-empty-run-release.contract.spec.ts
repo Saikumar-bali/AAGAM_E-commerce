@@ -6,12 +6,19 @@ const read = (relative: string) =>
 
 describe('Stale empty run does not pin a Rider BUSY', () => {
   const riderService = read('rider.service.ts');
+  const sweep = read('rider-operational-status.ts');
   const operations = read('../subscriptions/regional-route-operations.service.ts');
   const controller = read('../subscriptions/regional-routing.controller.ts');
 
   it('excludes empty routes from the admin workload payload', () => {
     expect(riderService).toContain('select: { riderId: true, totalStopCount: true, _count: { select: { stops: true } } }');
     expect(riderService).toContain('if (row._count.stops === 0 && row.totalStopCount === 0) continue;');
+  });
+
+  it('applies the same empty-route rule in the background reconcile sweep', () => {
+    expect(sweep).toContain('export function isEmptyDeliveryRun');
+    expect(sweep).toContain('runCandidates.filter((run) => !isEmptyDeliveryRun(run)).length');
+    expect(sweep).not.toContain('tx.deliveryRun.count');
   });
 
   it('cancels stale empty runs while releasing a BUSY rider', () => {

@@ -1688,6 +1688,7 @@ export class StoreMilkGridService {
         let nextSeq = (highestSeq._max.sequenceNumber ?? 0) + 1;
 
         for (const d of groupDeliveries) {
+          const hadJob = Boolean(d.deliveryJobId);
           let jobId = d.deliveryJobId;
           let orderId = d.order?.id;
           if (!jobId) {
@@ -1747,7 +1748,12 @@ export class StoreMilkGridService {
             const createdJob = await tx.deliveryJob.create({
               data: {
                 orderId,
-                status: 'OUT_FOR_DELIVERY',
+                // The rider's route pickup (confirmPickupReceipt) requires the
+                // job at the store. Creating it OUT_FOR_DELIVERY made every
+                // freshly dispatched subscription undeliverable: pickup threw
+                // "Stop N is not ready for rider receipt" and the run could
+                // never leave READY_FOR_PICKUP.
+                status: 'RIDER_AT_STORE',
                 currentRiderId: rider.id,
               },
             });
@@ -1773,6 +1779,21 @@ export class StoreMilkGridService {
                 riderId: rider.id,
                 expectedAmountPaise: d.cashDuePaise,
               },
+            });
+          }
+
+          if (hadJob) {
+            // Order-generated subscription jobs sit at WAITING_FOR_DISPATCH and
+            // were never advanced to the store, so the rider's route pickup
+            // rejected them ("Stop N is not ready for rider receipt"). Move any
+            // pre-pickup job to RIDER_AT_STORE, matching the store handoff this
+            // dispatch action implies. Terminal/active states are left alone.
+            await tx.deliveryJob.updateMany({
+              where: {
+                id: jobId,
+                status: { in: ['WAITING_FOR_DISPATCH', 'RIDER_ASSIGNED', 'RIDER_EN_ROUTE_TO_STORE'] },
+              },
+              data: { status: 'RIDER_AT_STORE', currentRiderId: rider.id },
             });
           }
 
