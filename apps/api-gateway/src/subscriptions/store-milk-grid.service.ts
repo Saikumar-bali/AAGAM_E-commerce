@@ -1803,22 +1803,29 @@ export class StoreMilkGridService {
               data: { deliveryJobId: jobId },
             });
 
-            await tx.codLedger.upsert({
-              where: { deliveryJobId: jobId },
-              create: {
-                deliveryJobId: jobId,
-                orderId,
-                riderId: rider.id,
-                expectedAmountPaise: d.cashDuePaise,
-                collectedAmountPaise: 0,
-                riderHoldingBalancePaise: 0,
-                status: 'AWAITING_COLLECTION',
-              },
-              update: {
-                riderId: rider.id,
-                expectedAmountPaise: d.cashDuePaise,
-              },
-            });
+            // CodLedger has a CHECK constraint requiring expectedAmountPaise > 0.
+            // A fully-funded/prepaid day has cashDuePaise = 0, so minting a COD
+            // ledger for it violates the constraint and rolls the whole dispatch
+            // back with a 500. COD tracking only applies when there is cash due.
+            const cashDuePaise = d.cashDuePaise || 0;
+            if (cashDuePaise > 0) {
+              await tx.codLedger.upsert({
+                where: { deliveryJobId: jobId },
+                create: {
+                  deliveryJobId: jobId,
+                  orderId,
+                  riderId: rider.id,
+                  expectedAmountPaise: cashDuePaise,
+                  collectedAmountPaise: 0,
+                  riderHoldingBalancePaise: 0,
+                  status: 'AWAITING_COLLECTION',
+                },
+                update: {
+                  riderId: rider.id,
+                  expectedAmountPaise: cashDuePaise,
+                },
+              });
+            }
           }
 
           if (hadJob) {

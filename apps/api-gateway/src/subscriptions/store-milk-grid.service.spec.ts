@@ -217,6 +217,28 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         }),
       );
     });
+
+    it('does not mint a COD ledger for a prepaid day with zero cash due', async () => {
+      // CodLedger has a CHECK(expectedAmountPaise > 0); creating one for a
+      // fully-funded day used to 500 the whole dispatch.
+      const prepaid = { ...delivery, cashDuePaise: 0, deliveryJobId: null, deliveryJob: null, order: { id: 'order-1', items: [], payment: null } };
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValue([prepaid]);
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.codLedger.upsert).not.toHaveBeenCalled();
+    });
+
+    it('mints a COD ledger when cash is due', async () => {
+      const cashDay = { ...delivery, cashDuePaise: 1500, deliveryJobId: null, deliveryJob: null, order: { id: 'order-1', items: [], payment: null } };
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValue([cashDay]);
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.codLedger.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ create: expect.objectContaining({ expectedAmountPaise: 1500 }) }),
+      );
+    });
   });
 });
 
