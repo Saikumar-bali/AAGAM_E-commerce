@@ -103,6 +103,17 @@ keep values scoped the way the row is scoped: the Subscribers tab lists one
 subscription per row, while the grid merges a customer's active and previous
 subscriptions into a single row and must reconcile across all of them.
 
+Any path that *records* cash must guard the collection, not just the read:
+reject when the subscription's `amountDuePaise` is already zero, and reject when
+the amount exceeds the outstanding due. Otherwise the day cell is incremented
+unconditionally while the ledger's due is clamped, and reconciliation then
+surfaces the phantom cell cash as a "Paid" figure the ledger never agreed with.
+Both the rider COD path (`delivery-run-operations.service.ts` `recordPayment`)
+and the store milk-grid path (`store-milk-grid.service.ts` `RECORD_PAYMENT`
+quick action) enforce this. The grid deliberately does *not* cap a payment at a
+single day cell's outstanding, because its payment tab collects against the
+whole subscription (the "Full Due" preset), so a lump sum on one cell is valid.
+
 ## Migrations
 
 New migrations in this repo are written idempotently
