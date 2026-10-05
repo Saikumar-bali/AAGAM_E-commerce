@@ -180,13 +180,13 @@ again indistinguishable from an empty month (P7), and the quick actions
   (`:1709`), teal proof (`:1719`), amber extra (`:1686`), orange plan change
   (`:1663`), red skipped/due (`:1675`, `:1701`), emerald delivered (`:1670`),
   indigo/amber slot (`:1603`). There is no legend.
-- `hover: ring-1` (`:983`, note the space after `hover:`) is not a valid
+- `hover: ring-1` (`:986`, note the space after `hover:`) is not a valid
   Tailwind class, so that hover ring never renders — a latent bug in the card
   border hover.
 - Cards "sink" completed stops to the bottom (`:1444-1495`) and then the list
   is re-indexed, so the visible sequence numbers do not match the printed route
-  sequence; the pending-first sort renumbers via `Seq #` (`:1021`) while the
-  route keeps its original order (`:1361-1366`). The store owner has to guess
+  sequence; the pending-first sort renumbers via `Seq #` (`:1020`) while the
+  route keeps its original order (`:1361-1372`). The store owner has to guess
   which number the rider is actually working.
 
 ### P10 — Six equal-weight primary actions in one row, with no hierarchy.
@@ -209,8 +209,8 @@ from exporting a spreadsheet.
 | P6 | Contrast 2.56:1 / 1.51:1 (`:1586`, `:1541`, `:1272`, `:1394`, `:1447`, `:1479`, `:1566`) | Ink ramp from `#0F172A` → `#334155` → `#5A6B7B`; secondary text ≥4.5:1 on paper; today header uses white-on-green ≥4.5:1; 0 `motion-reduce` → add `@media (prefers-reduced-motion)` | All text meets WCAG AA; motion respects user preference |
 | P7 | No error state; load failure renders the empty state (`:521-522`, `:1391-1403`) | Distinct error panel with the failure reason, a **Retry** button, and a "last updated" timestamp | A network failure is no longer shown as "no customers" |
 | P8 | No offline handling (`grep` finds only the customer-type filter) | Offline banner with last-synced time; quick actions disabled with "will sync when online" copy | The store owner knows why actions are unavailable |
-| P9 | 3 greens, 7-colour badge palette, `hover: ring-1` typo (`:983`), renumbered route (`:1021` vs `:1361`) | Single accent (brand green) + one dues red; status also carries an icon and a word; fix the hover class; keep the rider's route number visible alongside the display index | Colour is no longer the only signal; sequence is unambiguous |
-| P10 | Five equal-weight header buttons (`:1218-1263`) | One filled primary (**Dispatch**), secondary actions in an overflow menu, filters collapsed behind a "Filters" disclosure | Clear next step; header stops wrapping on phone |
+| P9 | 3 greens, 7-colour badge palette, `hover: ring-1` typo (`:986`), renumbered route (`:1020` vs `:1367`) | Single accent (brand green) + one dues red; status also carries an icon and a word; fix the hover class; keep the rider's route number visible alongside the display index | Colour is no longer the only signal; sequence is unambiguous |
+| P10 | Five equal-weight action buttons in one row (`:1218-1263`): Dispatch to Rider, Pack Summary, Export Sheets, Fullscreen, Refresh | One filled primary (**Dispatch route**), secondary actions in an overflow menu, filters collapsed behind a "Filters" disclosure | Clear next step; header stops wrapping on phone |
 
 ## What I would need to verify before shipping this
 
