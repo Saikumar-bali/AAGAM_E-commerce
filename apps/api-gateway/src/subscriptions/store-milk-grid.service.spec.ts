@@ -330,3 +330,87 @@ describe('StoreMilkGridService — query parameter validation', () => {
   });
 });
 
+
+describe('StoreMilkGridService — RECORD_PAYMENT over-collection guards', () => {
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+
+  const delivery = (overrides: Record<string, any> = {}) => ({
+    id: 'del-1',
+    status: 'SCHEDULED',
+    serviceDate: new Date('2026-09-12T00:00:00.000Z'),
+    cashDuePaise: 6000,
+    cashCollectedPaise: 0,
+    cashCollectedAt: null,
+    subscriptionId: 'sub-1',
+    subscription: {
+      id: 'sub-1',
+      status: 'ACTIVE',
+      amountDuePaise: 6000,
+      amountCollectedPaise: 0,
+      homeStore: { ownerId: 'store-user' },
+      planVersion: { totalDeliveries: 30 },
+    },
+    runStop: null,
+    deliveryJob: null,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.subscriptionDelivery.update as jest.Mock).mockResolvedValue({ id: 'del-1' });
+    (prisma.customerSubscription.update as jest.Mock).mockResolvedValue({ id: 'sub-1' });
+    (prisma.$transaction as jest.Mock).mockResolvedValue([{ id: 'del-1' }, { id: 'sub-1' }]);
+  });
+
+  it('rejects collecting more than the subscription still owes', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(delivery());
+
+    await expect(
+      service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+        type: 'RECORD_PAYMENT',
+        amountPaise: 10000,
+      }),
+    ).rejects.toThrow(/cannot exceed the outstanding due balance/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects collecting when the subscription has no outstanding due', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
+      delivery({
+        subscription: {
+          id: 'sub-1',
+          status: 'COMPLETED',
+          amountDuePaise: 0,
+          amountCollectedPaise: 6000,
+          homeStore: { ownerId: 'store-user' },
+          planVersion: { totalDeliveries: 30 },
+        },
+      }),
+    );
+
+    await expect(
+      service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+        type: 'RECORD_PAYMENT',
+        amountPaise: 1000,
+      }),
+    ).rejects.toThrow(/no outstanding due balance/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('records a valid payment up to the day cell outstanding amount', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(delivery());
+
+    const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+      type: 'RECORD_PAYMENT',
+      amountPaise: 6000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ amountCollectedPaise: 6000, amountDuePaise: 0 }),
+      }),
+    );
+  });
+});
+

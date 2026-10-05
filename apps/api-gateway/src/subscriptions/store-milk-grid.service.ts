@@ -888,6 +888,22 @@ export class StoreMilkGridService {
       const amtPaise = action.amountPaise || 0;
       if (amtPaise <= 0) throw new BadRequestException('Payment amount must be greater than 0');
 
+      // Mirror the rider COD path's subscription-level guard: the due is a hard
+      // floor. Without it an over-collection mints phantom collected cash on the
+      // cell (reconciliation then surfaces it as "Paid") while the ledger's due
+      // is silently clamped, so the two disagree. There is deliberately no
+      // per-day cap here: the store's payment tab collects against the whole
+      // subscription (its "Full Due" preset), so a lump sum on one cell is valid.
+      const outstandingDue = Math.max(0, sub.amountDuePaise || 0);
+      if (outstandingDue <= 0) {
+        throw new BadRequestException('This subscription has no outstanding due balance to collect');
+      }
+      if (amtPaise > outstandingDue) {
+        throw new BadRequestException(
+          `Payment amount (₹${(amtPaise / 100).toFixed(2)}) cannot exceed the outstanding due balance of ₹${(outstandingDue / 100).toFixed(2)}`,
+        );
+      }
+
       const modeTag = action.paymentMode === 'PHONE_PE' ? '[PHONE_PE]' : '[CASH]';
       const noteTag = `${modeTag} ${action.note || ''}`.trim();
 
@@ -904,7 +920,7 @@ export class StoreMilkGridService {
           where: { id: sub.id },
           data: {
             amountCollectedPaise: (sub.amountCollectedPaise || 0) + amtPaise,
-            amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - amtPaise),
+            amountDuePaise: Math.max(0, outstandingDue - amtPaise),
           },
         }),
       ]);
