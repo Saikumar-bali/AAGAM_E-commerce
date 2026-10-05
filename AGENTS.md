@@ -382,3 +382,22 @@ survives a timeout, and treat 20 minutes as their own deadline.
   create forms already default to today; the store renewal edit form still
   defaults to tomorrow.
 
+## Offline-customer purge must keep emails unique
+
+`permanentDeleteCustomer` has two branches: with historical orders it anonymizes
+the user row in place (orders are retained for financial records), otherwise it
+hard-deletes. The anonymize branch used to write a fixed `purged@offline.local`
+address, so purging a **second** order-bearing offline customer 500'd on
+`User.email`'s unique constraint. The placeholder is now
+`offline.purged.<customerId>@aagaam.local` — unique per purge and still matching
+the `offline.` prefix in `offlineIdentity`, so the anonymized row stays
+addressable from the store directory. Purged test rows are hard to clean up
+afterwards (the anonymized email no longer contains your seed tag); seed order
+rows with a tag and delete them via the order before asserting.
+
+`CodLedger.expectedAmountPaise` and `CustomerSubscription.amountDuePaise` both
+have CHECK constraints (`> 0` and `>= 0`). Minting a COD ledger for a prepaid
+day (`cashDuePaise = 0`) or decrementing due below zero rolls the transaction
+back as an opaque HTTP 500; guard on the cash actually due rather than assuming
+the invariant holds.
+
