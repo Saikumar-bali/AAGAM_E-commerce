@@ -2,6 +2,15 @@ import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 
 jest.mock('@aagam/database', () => ({
   prisma: {},
+  DeliveryJobStatus: {
+    DELIVERED: 'DELIVERED',
+    RETURNED_TO_STORE: 'RETURNED_TO_STORE',
+    CANCELLED: 'CANCELLED',
+  },
+  DeliveryRunStatus: {
+    COMPLETED: 'COMPLETED',
+    CANCELLED: 'CANCELLED',
+  },
   SubscriptionDeliveryStatus: {
     SCHEDULED: 'SCHEDULED',
     ORDER_GENERATED: 'ORDER_GENERATED',
@@ -26,8 +35,15 @@ describe('SubscriptionLifecycleService', () => {
       count: jest.fn().mockResolvedValue(1),
       findMany: jest.fn(),
     },
-    deliveryRun: { update: jest.fn().mockResolvedValue({}) },
-    deliveryJob: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    deliveryRun: {
+      update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue({ riderId: 'rider-1', status: 'READY_FOR_PICKUP', totalStopCount: 2, _count: { stops: 2 } }),
+    },
+    riderProfile: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    deliveryJob: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     order: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     subscriptionDelivery: {
       findUnique: jest.fn().mockResolvedValue({ deliveryJobId: 'job-1', order: { id: 'order-1' } }),

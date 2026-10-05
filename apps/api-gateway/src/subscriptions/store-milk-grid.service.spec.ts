@@ -13,6 +13,8 @@ jest.mock('@aagam/database', () => ({
     $executeRaw: jest.fn().mockResolvedValue(1),
   },
   Role: { STORE_OWNER: 'STORE_OWNER', ADMIN: 'ADMIN', RIDER: 'RIDER' },
+  DeliveryJobStatus: { DELIVERED: 'DELIVERED', RETURNED_TO_STORE: 'RETURNED_TO_STORE', CANCELLED: 'CANCELLED' },
+  DeliveryRunStatus: { COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED' },
   SubscriptionDeliveryStatus: {
     SCHEDULED: 'SCHEDULED',
     DELIVERED: 'DELIVERED',
@@ -105,7 +107,13 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
     tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: {} }), count: jest.fn().mockResolvedValue(0) };
     tx.deliveryJob = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
     tx.order = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
-    tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
+    tx.deliveryRun = {
+      update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue({ riderId: 'rider-1', status: 'READY_FOR_PICKUP', totalStopCount: 1, _count: { stops: 1 } }),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    tx.riderProfile = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    tx.deliveryJob.findMany = jest.fn().mockResolvedValue([]);
     tx.subscriptionDelivery.findUnique = jest.fn().mockResolvedValue({ deliveryJobId: 'job-1', order: { id: 'order-1' } });
 
     const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'SKIP' });
@@ -115,6 +123,14 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
     );
     expect(tx.deliveryJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    // The last live stop is gone, so the emptied run is cancelled and the
+    // rider released instead of being pinned BUSY by a stop-less run.
+    expect(tx.deliveryRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    expect(tx.riderProfile.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'ONLINE' }) }),
     );
     expect(result.success).toBe(true);
   });

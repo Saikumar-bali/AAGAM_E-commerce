@@ -24,6 +24,7 @@ jest.mock('@aagam/database', () => {
     SubscriptionIssueStatus: anyEnum,
     SubscriptionProofMode: anyEnum,
     DeliveryJobStatus: anyEnum,
+    DeliveryRunStatus: anyEnum,
     CashDepositBatchStatus: anyEnum,
   };
 });

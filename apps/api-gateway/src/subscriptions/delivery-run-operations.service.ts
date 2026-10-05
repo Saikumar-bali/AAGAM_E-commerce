@@ -425,14 +425,23 @@ export class DeliveryRunOperationsService {
           },
         });
 
-        // Update delivery job
+        // Advance the delivery job through the shared workflow so the order, its
+        // status history, inventory finalization and the rider's operational
+        // status stay in sync. A raw job update here left the order stuck at
+        // OUT_FOR_DELIVERY after a rider-photo completion, so the order never
+        // showed as delivered even though the stop, job and delivery had.
         if (stop.deliveryJobId) {
-          await tx.deliveryJob.update({
-            where: { id: stop.deliveryJobId },
-            data: {
-              status: DeliveryJobStatus.DELIVERED,
+          await this.workflow.transitionWithinTransaction(
+            tx,
+            stop.deliveryJobId,
+            DeliveryJobStatus.DELIVERED,
+            actor,
+            {
+              expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
+              skipRoleCheck: true,
+              metadata: { deliveryRunId: runId, deliveryRunStopId: stopId, proofType: 'RIDER_PHOTO_GPS' },
             },
-          });
+          );
         }
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
