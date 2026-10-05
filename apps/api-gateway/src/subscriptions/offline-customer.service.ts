@@ -736,11 +736,14 @@ export class OfflineCustomerService {
   }
 
   /**
-   * Placeholder identity written to purged rows. Must never collide with the
-   * `offline.` prefix used by {@link offlineIdentity}, otherwise the archived
-   * placeholder would itself look like an offline customer.
+   * A purged row must keep a unique email (User.email is unique) while still
+   * matching the offline identity predicate, so the anonymized row stays
+   * addressable from the store's offline directory instead of disappearing.
+   * A fixed address collided on the second purge.
    */
-  private static readonly PURGED_EMAIL = 'purged@offline.local';
+  private static purgedEmail(customerId: string) {
+    return `offline.purged.${customerId}@aagaam.local`;
+  }
 
   /**
    * Strips personal data from a JSON snapshot while preserving the non-personal
@@ -854,7 +857,7 @@ export class OfflineCustomerService {
           data: {
             name: 'Purged Offline Customer',
             phone: null,
-            email: OfflineCustomerService.PURGED_EMAIL,
+            email: OfflineCustomerService.purgedEmail(customerId),
             isActive: false,
             deactivatedAt: user.deactivatedAt ?? new Date(),
             deactivationReason: 'PERMANENTLY_PURGED',
