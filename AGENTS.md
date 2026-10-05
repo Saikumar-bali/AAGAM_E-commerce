@@ -409,6 +409,27 @@ survives a timeout, and treat 20 minutes as their own deadline.
   against today; the "Today" chip sits before "Tomorrow". Store/admin manual
   create forms already default to today; the store renewal edit form still
   defaults to tomorrow.
+- Skipping the **only** delivery on a route used to leave the emptied run at
+  `READY_FOR_PICKUP` with a stale `totalStopCount`, so the admin workload
+  (`RiderService.findAllWithWorkload`) and `reconcileRiderOperationalStatus`
+  both still counted it as rider work and the rider stayed BUSY with nothing
+  to deliver (only a later heartbeat released them). `cancelRiderArtifactsWithinTransaction`
+  now detects that the run has no live stops left, cancels it, and reconciles
+  the rider in the same transaction. Regression:
+  `subscription-skip-frees-rider.e2e.spec.ts`.
+
+## Rider-photo completion must advance the order
+
+The `RIDER_PHOTO_GPS` branch of `delivery-run-operations.service.ts` used to
+mark the delivery job `DELIVERED` with a raw `tx.deliveryJob.update`, which
+bypassed `DeliveryWorkflowService.transitionWithinTransaction`. That helper is
+what advances the linked `Order` to `DELIVERED` and writes its status history
+(it also finalizes inventory and reconciles the rider). The stop, job and
+delivery all read DELIVERED while the customer's order stayed
+`OUT_FOR_DELIVERY` with an `OUT_FOR_DELIVERY->OUT_FOR_DELIVERY` history row.
+Route the job transition through the shared workflow instead. Regression:
+`rider-photo-complete-order-status.e2e.spec.ts`. The inventory finalizer is a
+zero-delta no-op for this path, so routing through the workflow is safe.
 
 ## Offline-customer purge must keep emails unique
 
