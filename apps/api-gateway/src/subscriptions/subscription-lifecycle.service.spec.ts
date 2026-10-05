@@ -143,4 +143,37 @@ describe('SubscriptionLifecycleService', () => {
       expect.objectContaining({ data: { scheduledDeliveryDate: new Date('2026-10-08T00:00:00.000Z') } }),
     );
   });
+
+  it('tears down every non-terminal occurrence of a cancelled subscription', async () => {
+    const t = tx();
+    t.subscriptionDelivery.findMany.mockResolvedValue([{ id: 'del-1' }, { id: 'del-2' }]);
+    t.deliveryRunStop.findUnique
+      .mockResolvedValueOnce({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' })
+      .mockResolvedValueOnce({ id: 'stop-2', deliveryRunId: 'run-1', deliveryJobId: 'job-2' });
+
+    const count = await service.cancelSubscriptionArtifactsWithinTransaction(t as any, 'sub-1', 'cancelled');
+
+    expect(count).toBe(2);
+    expect(t.subscriptionDelivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          subscriptionId: 'sub-1',
+          status: { notIn: ['DELIVERED', 'CANCELLED', 'SKIPPED'] },
+        }),
+      }),
+    );
+    expect(t.order.updateMany).toHaveBeenCalledTimes(2);
+    expect(t.deliveryRun.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves delivered and already-cancelled occurrences untouched on cancel', async () => {
+    const t = tx();
+    t.subscriptionDelivery.findMany.mockResolvedValue([]);
+
+    const count = await service.cancelSubscriptionArtifactsWithinTransaction(t as any, 'sub-1', 'cancelled');
+
+    expect(count).toBe(0);
+    expect(t.deliveryRunStop.findUnique).not.toHaveBeenCalled();
+    expect(t.order.updateMany).not.toHaveBeenCalled();
+  });
 });

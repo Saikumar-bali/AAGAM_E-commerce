@@ -94,6 +94,32 @@ export class SubscriptionLifecycleService {
     return { cancelledStop, cancelledJob, cancelledOrder };
   }
 
+  /**
+   * Cancels the rider-facing artifacts for every non-terminal occurrence of a
+   * subscription. A customer cancel must remove the future deliveries from the
+   * rider network, not only flip the delivery rows to CANCELLED: a generated
+   * order or run stop would otherwise stay live after the plan is cancelled,
+   * the same grid-vs-rider split that skip and pause already guard against.
+   */
+  async cancelSubscriptionArtifactsWithinTransaction(
+    tx: Tx,
+    subscriptionId: string,
+    reason: string,
+  ): Promise<number> {
+    const deliveries = await tx.subscriptionDelivery.findMany({
+      where: {
+        subscriptionId,
+        status: { notIn: ['DELIVERED', 'CANCELLED', 'SKIPPED'] },
+      },
+      select: { id: true },
+    });
+
+    for (const delivery of deliveries) {
+      await this.cancelRiderArtifactsWithinTransaction(tx, delivery.id, reason);
+    }
+    return deliveries.length;
+  }
+
   /** Re-derives a run's stop counters after a stop is added, moved or cancelled. */
   async recomputeRunCounters(tx: Tx, deliveryRunId: string) {
     const [agg, completedStopCount] = await Promise.all([

@@ -631,8 +631,25 @@ export class CustomerSubscriptionService {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: key } });
       if (existing) return tx.customerSubscription.findUnique({ where: { id } });
+      // Remove the plan's deliveries from the rider network (order, delivery
+      // job, run stop) before flipping them, or a cancelled subscription keeps
+      // live stops the grid has already dropped.
+      await this.lifecycle.cancelSubscriptionArtifactsWithinTransaction(
+        tx,
+        id,
+        `Subscription cancelled: ${dto.reason.trim()}`,
+      );
       await tx.subscriptionDelivery.updateMany({
-        where: { subscriptionId: id, status: SubscriptionDeliveryStatus.SCHEDULED },
+        where: {
+          subscriptionId: id,
+          status: {
+            notIn: [
+              SubscriptionDeliveryStatus.DELIVERED,
+              SubscriptionDeliveryStatus.CANCELLED,
+              SubscriptionDeliveryStatus.SKIPPED,
+            ],
+          },
+        },
         data: { status: SubscriptionDeliveryStatus.CANCELLED },
       });
       const updated = await tx.customerSubscription.update({

@@ -13,6 +13,7 @@ import {
 import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
 import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
@@ -53,7 +54,10 @@ const REMAINING_DELIVERY_STATUSES = [
 
 @Injectable()
 export class SubscriptionAdminReportingService {
-  constructor(private readonly funding: SubscriptionCashFundingService) {}
+  constructor(
+    private readonly funding: SubscriptionCashFundingService,
+    private readonly lifecycle: SubscriptionLifecycleService = new SubscriptionLifecycleService(),
+  ) {}
 
   async reconcileDeliveredDelivery(deliveryId: string, actorId: string, idempotencyKey?: string) {
     return prisma.$transaction(async (tx) => {
@@ -1652,11 +1656,27 @@ export class SubscriptionAdminReportingService {
         throw new BadRequestException('Subscription is already cancelled');
       }
 
+      // Remove the plan's deliveries from the rider network first: the teardown
+      // only touches non-terminal rows, so it must run before they are flipped.
+      // The store cancel used to flip the rows alone, so a dispatched day kept a
+      // live run stop and order after the subscription was cancelled.
+      await this.lifecycle.cancelSubscriptionArtifactsWithinTransaction(
+        tx,
+        subscriptionId,
+        reason?.trim() || 'Cancelled by store owner',
+      );
+
       // Cancel all future unfulfilled scheduled deliveries
       const cancelledDeliveries = await tx.subscriptionDelivery.updateMany({
         where: {
           subscriptionId,
-          status: { in: [SubscriptionDeliveryStatus.SCHEDULED, SubscriptionDeliveryStatus.ORDER_GENERATED] },
+          status: {
+            notIn: [
+              SubscriptionDeliveryStatus.DELIVERED,
+              SubscriptionDeliveryStatus.CANCELLED,
+              SubscriptionDeliveryStatus.SKIPPED,
+            ],
+          },
         },
         data: {
           status: SubscriptionDeliveryStatus.CANCELLED,

@@ -114,6 +114,23 @@ quick action) enforce this. The grid deliberately does *not* cap a payment at a
 single day cell's outstanding, because its payment tab collects against the
 whole subscription (the "Full Due" preset), so a lump sum on one cell is valid.
 
+## Subscription cancel lifecycle (fixed on `bugs`)
+
+- Cancelling a subscription must tear down the rider artifacts of its
+  non-terminal deliveries, not only flip the delivery rows.
+  `SubscriptionLifecycleService.cancelSubscriptionArtifactsWithinTransaction`
+  is the shared helper: it cancels each non-terminal occurrence's
+  `DeliveryRunStop`, `DeliveryJob` and `Order`. Both cancel writers call it —
+  customer `cancel()` (`customer-subscription.service.ts`) and store/admin
+  `cancelSubscription` (`subscription-admin-reporting.service.ts`).
+- The helper must run **before** the delivery rows are flipped to `CANCELLED`:
+  it only touches non-terminal rows, so a flip first leaves a live run stop
+  behind. This was the same grid-vs-rider split the skip/pause paths already
+  guard against: the grid dropped the row while the rider board and run prep
+  kept the stop.
+- `customer-cancel-teardown.e2e.spec.ts` covers both the customer and
+  store-owner cancel paths against a dispatched delivery.
+
 ## Migrations
 
 New migrations in this repo are written idempotently
