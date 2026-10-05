@@ -425,14 +425,23 @@ export class DeliveryRunOperationsService {
           },
         });
 
-        // Update delivery job
+        // Advance the delivery job through the shared workflow so the order, its
+        // status history, inventory finalization and the rider's operational
+        // status stay in sync. A raw job update here left the order stuck at
+        // OUT_FOR_DELIVERY after a rider-photo completion, so the order never
+        // showed as delivered even though the stop, job and delivery had.
         if (stop.deliveryJobId) {
-          await tx.deliveryJob.update({
-            where: { id: stop.deliveryJobId },
-            data: {
-              status: DeliveryJobStatus.DELIVERED,
+          await this.workflow.transitionWithinTransaction(
+            tx,
+            stop.deliveryJobId,
+            DeliveryJobStatus.DELIVERED,
+            actor,
+            {
+              expectedStatus: DeliveryJobStatus.RIDER_AT_CUSTOMER,
+              skipRoleCheck: true,
+              metadata: { deliveryRunId: runId, deliveryRunStopId: stopId, proofType: 'RIDER_PHOTO_GPS' },
             },
-          });
+          );
         }
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
@@ -826,6 +835,30 @@ export class DeliveryRunOperationsService {
     const noteTag = `${mode} ${dto.note || ''}`.trim();
 
     return prisma.$transaction(async (tx) => {
+      // The subscription-level due is a hard floor: once the whole plan is
+      // collected there is nothing left to collect on any day, and decrementing
+      // past zero trips the CustomerSubscription_money_check constraint (a 500).
+      // The per-day cell is capped at what that day still owes for the same
+      // reason, so an over-collection is rejected with a clear message.
+      const currentSub = await tx.customerSubscription.findUnique({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        select: { amountDuePaise: true, amountCollectedPaise: true },
+      });
+      const outstandingDue = Math.max(0, currentSub?.amountDuePaise || 0);
+      if (outstandingDue <= 0) {
+        throw new BadRequestException('This subscription has no outstanding due balance to collect');
+      }
+      const cell = await tx.subscriptionDelivery.findUnique({
+        where: { id: stop.subscriptionDeliveryId },
+        select: { cashDuePaise: true, cashCollectedPaise: true },
+      });
+      const cellOutstanding = Math.max(0, (cell?.cashDuePaise || 0) - (cell?.cashCollectedPaise || 0));
+      if (cellOutstanding > 0 && amtPaise > cellOutstanding) {
+        throw new BadRequestException(
+          `Payment amount (₹${(amtPaise / 100).toFixed(2)}) cannot exceed this delivery's outstanding due of ₹${(cellOutstanding / 100).toFixed(2)}`,
+        );
+      }
+
       await tx.subscriptionDelivery.update({
         where: { id: stop.subscriptionDeliveryId },
         data: {
@@ -839,41 +872,51 @@ export class DeliveryRunOperationsService {
         where: { id: stop.subscriptionDelivery.subscriptionId },
         data: {
           amountCollectedPaise: { increment: amtPaise },
-          amountDuePaise: { decrement: amtPaise },
+          amountDuePaise: Math.max(0, outstandingDue - amtPaise),
         },
       });
 
       if (dto.paymentMode !== 'PHONE_PE') {
+        // A COD ledger should have been minted by the order generator / dispatch
+        // path, but store-created or admin-reconciled runs can reach here without
+        // one. Open it on first collection instead of refusing the rider's cash.
         const ledger = await tx.codLedger.findUnique({
           where: { deliveryJobId: stop.deliveryJobId },
+        }) || await tx.codLedger.create({
+          data: {
+            deliveryJobId: stop.deliveryJobId,
+            orderId: stop.deliveryJob.orderId,
+            riderId: rider.id,
+            expectedAmountPaise: Math.max(amtPaise, cell?.cashDuePaise || 0),
+            collectedAmountPaise: 0,
+            riderHoldingBalancePaise: 0,
+            status: 'AWAITING_COLLECTION',
+          },
         });
-        if (ledger) {
-          await tx.codLedger.update({
-            where: { id: ledger.id },
-            data: {
-              riderId: rider.id,
-              collectedAmountPaise: { increment: amtPaise },
-              riderHoldingBalancePaise: { increment: amtPaise },
-              collectionTimestamp: new Date(),
-              status: 'HELD_BY_RIDER',
-            },
-          });
-          await tx.codLedgerEntry.create({
-            data: {
-              codLedgerId: ledger.id,
-              type: 'COLLECTED',
-              amountPaise: amtPaise,
-              holdingAfterPaise: ledger.riderHoldingBalancePaise + amtPaise,
-              depositedAfterPaise: 0,
-              actorUserId: actor.id,
-              actorRole: actor.role,
-              reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}:PAYMENT`,
-              idempotencyKey: `cod-payment:${stop.id}:${ledger.collectedAmountPaise + amtPaise}`,
-            },
-          });
-        } else {
-          throw new ConflictException('Payment recorded for a stop with no COD ledger to hold it');
-        }
+
+        await tx.codLedger.update({
+          where: { id: ledger.id },
+          data: {
+            riderId: rider.id,
+            collectedAmountPaise: { increment: amtPaise },
+            riderHoldingBalancePaise: { increment: amtPaise },
+            collectionTimestamp: new Date(),
+            status: 'HELD_BY_RIDER',
+          },
+        });
+        await tx.codLedgerEntry.create({
+          data: {
+            codLedgerId: ledger.id,
+            type: 'COLLECTED',
+            amountPaise: amtPaise,
+            holdingAfterPaise: ledger.riderHoldingBalancePaise + amtPaise,
+            depositedAfterPaise: 0,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}:PAYMENT`,
+            idempotencyKey: `cod-payment:${stop.id}:${ledger.collectedAmountPaise + amtPaise}`,
+          },
+        });
       }
 
       return { success: true, amountPaise: amtPaise, subscription: sub };

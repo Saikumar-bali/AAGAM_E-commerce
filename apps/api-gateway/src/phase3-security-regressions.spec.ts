@@ -124,6 +124,23 @@ describe('Phase 3 security regression gates', () => {
     expect(orders).not.toContain("io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000')");
   });
 
+  it('connects sockets to the server origin, not the /api namespace', () => {
+    const dashboardRoot = path.resolve(__dirname, '../../admin-dashboard/src');
+    const helper = readFileSync(path.join(dashboardRoot, 'lib/realtimeSocket.ts'), 'utf8');
+    const shopOrder = readFileSync(path.join(dashboardRoot, 'app/(shop)/shop/orders/[id]/page.tsx'), 'utf8');
+
+    // The gateway lives at the origin namespace `/`. Passing the REST base
+    // (`.../api`) to io() makes the client request namespace `/api`, which the
+    // server rejects with "Invalid namespace". The helper must strip it.
+    expect(helper).toContain('REALTIME_SOCKET_URL');
+    expect(helper).toContain('.replace(/\\/api\\/?$/, ');
+    expect(helper).toContain('io(REALTIME_SOCKET_URL');
+    expect(helper).not.toContain('io(REALTIME_API_URL');
+    // The customer order page had the same namespace bug inline.
+    expect(shopOrder).toContain('io(\n      REALTIME_SOCKET_URL');
+    expect(shopOrder).not.toContain('io(\n      process.env.NEXT_PUBLIC_API_URL');
+  });
+
   it('keeps browser source free from localStorage bearer-token persistence', () => {
     const dashboardRoot = path.resolve(__dirname, '../../admin-dashboard/src');
     const login = readFileSync(path.join(dashboardRoot, 'app/(auth)/login/page.tsx'), 'utf8');

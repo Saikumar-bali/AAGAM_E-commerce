@@ -23,6 +23,7 @@ jest.mock('@aagam/database', () => ({
   },
   CashDepositBatchStatus: {},
   DeliveryJobStatus: {},
+  DeliveryRunStatus: {},
   SubscriptionIssueStatus: {},
   SubscriptionProofMode: {},
   Prisma: {},

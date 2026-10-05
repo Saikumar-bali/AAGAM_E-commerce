@@ -6,6 +6,26 @@ import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscript
 import { isOfflineSubscription } from '@aagam/utils';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
+import { startOfUtcDay } from './subscription-calendar.service';
+
+/**
+ * A month is `0..11` on the wire and in `Date.UTC`. Reject anything outside
+ * that range instead of letting it silently roll into another month (`13`
+ * became Feb 2027) or throw a `RangeError` from `Date.UTC` (`99999`).
+ */
+function normalizeMonth(month: number): number {
+  if (!Number.isInteger(month) || month < 0 || month > 11) {
+    throw new BadRequestException('month must be an integer between 0 and 11');
+  }
+  return month;
+}
+
+function normalizeYear(year: number): number {
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new BadRequestException('year must be an integer between 2000 and 2100');
+  }
+  return year;
+}
 
 export interface GridCell {
   deliveryId: string;
@@ -95,8 +115,8 @@ export class StoreMilkGridService {
    */
   async getGrid(actor: { id: string; role: Role; email?: string }, year?: number, month?: number) {
     const now = new Date();
-    const targetYear = year ?? now.getUTCFullYear();
-    const targetMonth = month !== undefined ? month : now.getUTCMonth(); // 0-indexed
+    const targetYear = year !== undefined ? normalizeYear(year) : now.getUTCFullYear();
+    const targetMonth = month !== undefined ? normalizeMonth(month) : now.getUTCMonth(); // 0-indexed
 
     const startOfMonth = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
@@ -868,6 +888,22 @@ export class StoreMilkGridService {
       const amtPaise = action.amountPaise || 0;
       if (amtPaise <= 0) throw new BadRequestException('Payment amount must be greater than 0');
 
+      // Mirror the rider COD path's subscription-level guard: the due is a hard
+      // floor. Without it an over-collection mints phantom collected cash on the
+      // cell (reconciliation then surfaces it as "Paid") while the ledger's due
+      // is silently clamped, so the two disagree. There is deliberately no
+      // per-day cap here: the store's payment tab collects against the whole
+      // subscription (its "Full Due" preset), so a lump sum on one cell is valid.
+      const outstandingDue = Math.max(0, sub.amountDuePaise || 0);
+      if (outstandingDue <= 0) {
+        throw new BadRequestException('This subscription has no outstanding due balance to collect');
+      }
+      if (amtPaise > outstandingDue) {
+        throw new BadRequestException(
+          `Payment amount (₹${(amtPaise / 100).toFixed(2)}) cannot exceed the outstanding due balance of ₹${(outstandingDue / 100).toFixed(2)}`,
+        );
+      }
+
       const modeTag = action.paymentMode === 'PHONE_PE' ? '[PHONE_PE]' : '[CASH]';
       const noteTag = `${modeTag} ${action.note || ''}`.trim();
 
@@ -884,7 +920,7 @@ export class StoreMilkGridService {
           where: { id: sub.id },
           data: {
             amountCollectedPaise: (sub.amountCollectedPaise || 0) + amtPaise,
-            amountDuePaise: Math.max(0, (sub.amountDuePaise || 0) - amtPaise),
+            amountDuePaise: Math.max(0, outstandingDue - amtPaise),
           },
         }),
       ]);
@@ -1370,7 +1406,7 @@ export class StoreMilkGridService {
    * unassigned. This is the single source the store uses to audit dispatch.
    */
   async getRiderAssignments(actor: { id: string; role: Role; email?: string }, dateStr?: string) {
-    const base = dateStr ? new Date(dateStr) : new Date();
+    const base = dateStr ? startOfUtcDay(dateStr) : new Date();
     const dayStart = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 0, 0, 0, 0));
     const dayEnd = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 23, 59, 59, 999));
 
@@ -1783,22 +1819,29 @@ export class StoreMilkGridService {
               data: { deliveryJobId: jobId },
             });
 
-            await tx.codLedger.upsert({
-              where: { deliveryJobId: jobId },
-              create: {
-                deliveryJobId: jobId,
-                orderId,
-                riderId: rider.id,
-                expectedAmountPaise: d.cashDuePaise,
-                collectedAmountPaise: 0,
-                riderHoldingBalancePaise: 0,
-                status: 'AWAITING_COLLECTION',
-              },
-              update: {
-                riderId: rider.id,
-                expectedAmountPaise: d.cashDuePaise,
-              },
-            });
+            // CodLedger has a CHECK constraint requiring expectedAmountPaise > 0.
+            // A fully-funded/prepaid day has cashDuePaise = 0, so minting a COD
+            // ledger for it violates the constraint and rolls the whole dispatch
+            // back with a 500. COD tracking only applies when there is cash due.
+            const cashDuePaise = d.cashDuePaise || 0;
+            if (cashDuePaise > 0) {
+              await tx.codLedger.upsert({
+                where: { deliveryJobId: jobId },
+                create: {
+                  deliveryJobId: jobId,
+                  orderId,
+                  riderId: rider.id,
+                  expectedAmountPaise: cashDuePaise,
+                  collectedAmountPaise: 0,
+                  riderHoldingBalancePaise: 0,
+                  status: 'AWAITING_COLLECTION',
+                },
+                update: {
+                  riderId: rider.id,
+                  expectedAmountPaise: cashDuePaise,
+                },
+              });
+            }
           }
 
           if (hadJob) {

@@ -24,6 +24,7 @@ import {
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { parseIntQuery } from '../common/query-params';
 import {
   collectUserRoles,
   PartnerInboxRole,
@@ -107,8 +108,9 @@ export class NotificationsController {
   @Roles(Role.CUSTOMER, Role.STORE_OWNER, Role.RIDER, Role.ADMIN)
   inbox(@Req() req: any, @Query('limit') limit?: string, @Query('role') role?: string) {
     const partnerRole = this.partnerRole(req.user, role);
-    if (partnerRole) return this.partnerInbox.list(req.user.id, partnerRole, limit);
-    return this.notifications.listInbox(req.user, limit);
+    const parsedLimit = parseIntQuery(limit, 'limit', { min: 1, max: 100 });
+    if (partnerRole) return this.partnerInbox.list(req.user.id, partnerRole, parsedLimit);
+    return this.notifications.listInbox(req.user, parsedLimit);
   }
 
   @Patch(':notificationId/read')
@@ -193,6 +195,6 @@ export class NotificationsController {
   @Get('admin/outbox')
   @Roles(Role.ADMIN)
   listOutbox(@Query('limit') limit?: string) {
-    return this.outbox.listRecent(Number(limit || 100));
+    return this.outbox.listRecent(parseIntQuery(limit, 'limit', { min: 1, max: 500 }) ?? 100);
   }
 }

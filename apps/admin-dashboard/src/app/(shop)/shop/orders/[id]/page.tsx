@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { io, Socket } from "socket.io-client";
+import { REALTIME_SOCKET_URL } from "@/lib/realtimeSocket";
 import DashboardLayout from "@/components/DashboardLayout";
 import OrderTimeline from "@/components/customer/OrderTimeline";
 import BillDetailsCard from "@/components/customer/BillDetailsCard";
@@ -292,7 +293,7 @@ export default function CustomerOrderDetailPage() {
   useEffect(() => {
     if (!orderId) return;
     const socket: Socket = io(
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005",
+      REALTIME_SOCKET_URL,
       {
         withCredentials: true,
         transports: ["websocket", "polling"],

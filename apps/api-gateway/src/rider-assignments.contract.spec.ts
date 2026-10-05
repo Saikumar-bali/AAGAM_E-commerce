@@ -23,8 +23,12 @@ describe('Rider assignment visibility contract', () => {
     expect(service).toContain('unassigned.push(stop)');
     expect(service).toContain('assigned: assignedCount');
     expect(service).toContain('unassigned: unassignedCount');
-    // Cancelled deliveries must never inflate the board.
-    expect(service).toContain("if (d.status === 'CANCELLED') continue;");
+    // Cancelled and skipped deliveries must never inflate the board. The query
+    // filters them out (same notIn as dispatch-summary), so assert the filter
+    // rather than a per-row guard the query already makes unreachable.
+    expect(service).toContain(
+      'status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] }',
+    );
   });
 
   it('surfaces slot timings and cash so the dialog can show real dispatch detail', () => {

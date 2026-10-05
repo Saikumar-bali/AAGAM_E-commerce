@@ -359,6 +359,9 @@ export class DeliveryRunPlanningService {
   }
 
   async storeDemand(actor: Actor, days = 14) {
+    if (!Number.isFinite(days)) {
+      throw new BadRequestException('days must be a number');
+    }
     const stores = actor.role === Role.ADMIN
       ? await prisma.store.findMany({ where: { isActive: true, deletedAt: null }, select: { id: true, name: true } })
       : await prisma.store.findMany({ where: { ownerId: actor.id, isActive: true, deletedAt: null }, select: { id: true, name: true } });

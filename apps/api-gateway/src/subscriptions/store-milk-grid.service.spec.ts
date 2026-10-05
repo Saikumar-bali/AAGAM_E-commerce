@@ -13,6 +13,8 @@ jest.mock('@aagam/database', () => ({
     $executeRaw: jest.fn().mockResolvedValue(1),
   },
   Role: { STORE_OWNER: 'STORE_OWNER', ADMIN: 'ADMIN', RIDER: 'RIDER' },
+  DeliveryJobStatus: { DELIVERED: 'DELIVERED', RETURNED_TO_STORE: 'RETURNED_TO_STORE', CANCELLED: 'CANCELLED' },
+  DeliveryRunStatus: { COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED' },
   SubscriptionDeliveryStatus: {
     SCHEDULED: 'SCHEDULED',
     DELIVERED: 'DELIVERED',
@@ -105,7 +107,13 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
     tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: {} }), count: jest.fn().mockResolvedValue(0) };
     tx.deliveryJob = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
     tx.order = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
-    tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
+    tx.deliveryRun = {
+      update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue({ riderId: 'rider-1', status: 'READY_FOR_PICKUP', totalStopCount: 1, _count: { stops: 1 } }),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    tx.riderProfile = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    tx.deliveryJob.findMany = jest.fn().mockResolvedValue([]);
     tx.subscriptionDelivery.findUnique = jest.fn().mockResolvedValue({ deliveryJobId: 'job-1', order: { id: 'order-1' } });
 
     const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'SKIP' });
@@ -115,6 +123,14 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
     );
     expect(tx.deliveryJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    // The last live stop is gone, so the emptied run is cancelled and the
+    // rider released instead of being pinned BUSY by a stop-less run.
+    expect(tx.deliveryRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELLED' }) }),
+    );
+    expect(tx.riderProfile.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'ONLINE' }) }),
     );
     expect(result.success).toBe(true);
   });
@@ -217,6 +233,28 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         }),
       );
     });
+
+    it('does not mint a COD ledger for a prepaid day with zero cash due', async () => {
+      // CodLedger has a CHECK(expectedAmountPaise > 0); creating one for a
+      // fully-funded day used to 500 the whole dispatch.
+      const prepaid = { ...delivery, cashDuePaise: 0, deliveryJobId: null, deliveryJob: null, order: { id: 'order-1', items: [], payment: null } };
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValue([prepaid]);
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.codLedger.upsert).not.toHaveBeenCalled();
+    });
+
+    it('mints a COD ledger when cash is due', async () => {
+      const cashDay = { ...delivery, cashDuePaise: 1500, deliveryJobId: null, deliveryJob: null, order: { id: 'order-1', items: [], payment: null } };
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValue([cashDay]);
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.codLedger.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ create: expect.objectContaining({ expectedAmountPaise: 1500 }) }),
+      );
+    });
   });
 });
 
@@ -282,3 +320,113 @@ describe('StoreMilkGridService — getGrid litre totals include undelivered plan
     expect(grid.dailyTotals[4]).toMatchObject({ deliveredCount: 0, totalDeliveries: 0, totalLiters: 0 });
   });
 });
+
+describe('StoreMilkGridService — query parameter validation', () => {
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+
+  it('rejects an out-of-range month instead of silently rolling into another month', async () => {
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 13)).rejects.toThrow(
+      /month must be an integer between 0 and 11/,
+    );
+  });
+
+  it('rejects a non-integer year instead of throwing a RangeError', async () => {
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, Number('abc'), 1)).rejects.toThrow(
+      /year must be an integer/,
+    );
+    await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, 99999, 1)).rejects.toThrow(
+      /year must be an integer/,
+    );
+  });
+
+  it('rejects an unparseable rider-assignment date instead of a 500', async () => {
+    await expect(service.getRiderAssignments({ id: 'store-user', role: Role.ADMIN }, 'notadate')).rejects.toThrow(
+      /Invalid service date/,
+    );
+  });
+});
+
+
+describe('StoreMilkGridService — RECORD_PAYMENT over-collection guards', () => {
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+
+  const delivery = (overrides: Record<string, any> = {}) => ({
+    id: 'del-1',
+    status: 'SCHEDULED',
+    serviceDate: new Date('2026-09-12T00:00:00.000Z'),
+    cashDuePaise: 6000,
+    cashCollectedPaise: 0,
+    cashCollectedAt: null,
+    subscriptionId: 'sub-1',
+    subscription: {
+      id: 'sub-1',
+      status: 'ACTIVE',
+      amountDuePaise: 6000,
+      amountCollectedPaise: 0,
+      homeStore: { ownerId: 'store-user' },
+      planVersion: { totalDeliveries: 30 },
+    },
+    runStop: null,
+    deliveryJob: null,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.subscriptionDelivery.update as jest.Mock).mockResolvedValue({ id: 'del-1' });
+    (prisma.customerSubscription.update as jest.Mock).mockResolvedValue({ id: 'sub-1' });
+    (prisma.$transaction as jest.Mock).mockResolvedValue([{ id: 'del-1' }, { id: 'sub-1' }]);
+  });
+
+  it('rejects collecting more than the subscription still owes', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(delivery());
+
+    await expect(
+      service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+        type: 'RECORD_PAYMENT',
+        amountPaise: 10000,
+      }),
+    ).rejects.toThrow(/cannot exceed the outstanding due balance/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects collecting when the subscription has no outstanding due', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
+      delivery({
+        subscription: {
+          id: 'sub-1',
+          status: 'COMPLETED',
+          amountDuePaise: 0,
+          amountCollectedPaise: 6000,
+          homeStore: { ownerId: 'store-user' },
+          planVersion: { totalDeliveries: 30 },
+        },
+      }),
+    );
+
+    await expect(
+      service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+        type: 'RECORD_PAYMENT',
+        amountPaise: 1000,
+      }),
+    ).rejects.toThrow(/no outstanding due balance/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('records a valid payment up to the day cell outstanding amount', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(delivery());
+
+    const result = await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', {
+      type: 'RECORD_PAYMENT',
+      amountPaise: 6000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.customerSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ amountCollectedPaise: 6000, amountDuePaise: 0 }),
+      }),
+    );
+  });
+});
+

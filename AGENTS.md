@@ -103,6 +103,34 @@ keep values scoped the way the row is scoped: the Subscribers tab lists one
 subscription per row, while the grid merges a customer's active and previous
 subscriptions into a single row and must reconcile across all of them.
 
+Any path that *records* cash must guard the collection, not just the read:
+reject when the subscription's `amountDuePaise` is already zero, and reject when
+the amount exceeds the outstanding due. Otherwise the day cell is incremented
+unconditionally while the ledger's due is clamped, and reconciliation then
+surfaces the phantom cell cash as a "Paid" figure the ledger never agreed with.
+Both the rider COD path (`delivery-run-operations.service.ts` `recordPayment`)
+and the store milk-grid path (`store-milk-grid.service.ts` `RECORD_PAYMENT`
+quick action) enforce this. The grid deliberately does *not* cap a payment at a
+single day cell's outstanding, because its payment tab collects against the
+whole subscription (the "Full Due" preset), so a lump sum on one cell is valid.
+
+## Subscription cancel lifecycle (fixed on `bugs`)
+
+- Cancelling a subscription must tear down the rider artifacts of its
+  non-terminal deliveries, not only flip the delivery rows.
+  `SubscriptionLifecycleService.cancelSubscriptionArtifactsWithinTransaction`
+  is the shared helper: it cancels each non-terminal occurrence's
+  `DeliveryRunStop`, `DeliveryJob` and `Order`. Both cancel writers call it —
+  customer `cancel()` (`customer-subscription.service.ts`) and store/admin
+  `cancelSubscription` (`subscription-admin-reporting.service.ts`).
+- The helper must run **before** the delivery rows are flipped to `CANCELLED`:
+  it only touches non-terminal rows, so a flip first leaves a live run stop
+  behind. This was the same grid-vs-rider split the skip/pause paths already
+  guard against: the grid dropped the row while the rider board and run prep
+  kept the stop.
+- `customer-cancel-teardown.e2e.spec.ts` covers both the customer and
+  store-owner cancel paths against a dispatched delivery.
+
 ## Migrations
 
 New migrations in this repo are written idempotently
@@ -381,4 +409,44 @@ survives a timeout, and treat 20 minutes as their own deadline.
   against today; the "Today" chip sits before "Tomorrow". Store/admin manual
   create forms already default to today; the store renewal edit form still
   defaults to tomorrow.
+- Skipping the **only** delivery on a route used to leave the emptied run at
+  `READY_FOR_PICKUP` with a stale `totalStopCount`, so the admin workload
+  (`RiderService.findAllWithWorkload`) and `reconcileRiderOperationalStatus`
+  both still counted it as rider work and the rider stayed BUSY with nothing
+  to deliver (only a later heartbeat released them). `cancelRiderArtifactsWithinTransaction`
+  now detects that the run has no live stops left, cancels it, and reconciles
+  the rider in the same transaction. Regression:
+  `subscription-skip-frees-rider.e2e.spec.ts`.
+
+## Rider-photo completion must advance the order
+
+The `RIDER_PHOTO_GPS` branch of `delivery-run-operations.service.ts` used to
+mark the delivery job `DELIVERED` with a raw `tx.deliveryJob.update`, which
+bypassed `DeliveryWorkflowService.transitionWithinTransaction`. That helper is
+what advances the linked `Order` to `DELIVERED` and writes its status history
+(it also finalizes inventory and reconciles the rider). The stop, job and
+delivery all read DELIVERED while the customer's order stayed
+`OUT_FOR_DELIVERY` with an `OUT_FOR_DELIVERY->OUT_FOR_DELIVERY` history row.
+Route the job transition through the shared workflow instead. Regression:
+`rider-photo-complete-order-status.e2e.spec.ts`. The inventory finalizer is a
+zero-delta no-op for this path, so routing through the workflow is safe.
+
+## Offline-customer purge must keep emails unique
+
+`permanentDeleteCustomer` has two branches: with historical orders it anonymizes
+the user row in place (orders are retained for financial records), otherwise it
+hard-deletes. The anonymize branch used to write a fixed `purged@offline.local`
+address, so purging a **second** order-bearing offline customer 500'd on
+`User.email`'s unique constraint. The placeholder is now
+`offline.purged.<customerId>@aagaam.local` — unique per purge and still matching
+the `offline.` prefix in `offlineIdentity`, so the anonymized row stays
+addressable from the store directory. Purged test rows are hard to clean up
+afterwards (the anonymized email no longer contains your seed tag); seed order
+rows with a tag and delete them via the order before asserting.
+
+`CodLedger.expectedAmountPaise` and `CustomerSubscription.amountDuePaise` both
+have CHECK constraints (`> 0` and `>= 0`). Minting a COD ledger for a prepaid
+day (`cashDuePaise = 0`) or decrementing due below zero rolls the transaction
+back as an opaque HTTP 500; guard on the cash actually due rather than assuming
+the invariant holds.
 

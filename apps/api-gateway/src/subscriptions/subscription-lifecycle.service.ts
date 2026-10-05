@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SubscriptionDeliveryStatus } from '@aagam/database';
+import { reconcileRiderOperationalStatus } from '../riders/rider-operational-status';
 
 type Tx = Prisma.TransactionClient;
 
@@ -68,6 +69,29 @@ export class SubscriptionLifecycleService {
         data: { status: 'CANCELLED', version: { increment: 1 } },
       });
       cancelledJob = true;
+
+      // The skip/pause that pulled the last live stop off this run empties it.
+      // An empty non-terminal run still counts as rider work, so it would pin
+      // the rider BUSY forever; cancel it and reconcile the rider here, where
+      // the run is known, rather than relying on the rider's later heartbeat.
+      if (stop.deliveryRunId) {
+        const run = await tx.deliveryRun.findUnique({
+          where: { id: stop.deliveryRunId },
+          select: { riderId: true, status: true, totalStopCount: true, _count: { select: { stops: true } } },
+        });
+        const liveStops = await tx.deliveryRunStop.count({
+          where: { deliveryRunId: stop.deliveryRunId, status: { notIn: ['DELIVERED', 'RETURNED', 'CANCELLED'] } },
+        });
+        if (run && liveStops === 0 && run.status !== 'COMPLETED' && run.status !== 'CANCELLED') {
+          await tx.deliveryRun.update({
+            where: { id: stop.deliveryRunId },
+            data: { status: 'CANCELLED', completedAt: new Date(), version: { increment: 1 } },
+          });
+          if (run.riderId) {
+            await reconcileRiderOperationalStatus(tx, run.riderId);
+          }
+        }
+      }
     }
 
     const delivery = await tx.subscriptionDelivery.findUnique({
@@ -92,6 +116,32 @@ export class SubscriptionLifecycleService {
     }
 
     return { cancelledStop, cancelledJob, cancelledOrder };
+  }
+
+  /**
+   * Cancels the rider-facing artifacts for every non-terminal occurrence of a
+   * subscription. A customer cancel must remove the future deliveries from the
+   * rider network, not only flip the delivery rows to CANCELLED: a generated
+   * order or run stop would otherwise stay live after the plan is cancelled,
+   * the same grid-vs-rider split that skip and pause already guard against.
+   */
+  async cancelSubscriptionArtifactsWithinTransaction(
+    tx: Tx,
+    subscriptionId: string,
+    reason: string,
+  ): Promise<number> {
+    const deliveries = await tx.subscriptionDelivery.findMany({
+      where: {
+        subscriptionId,
+        status: { notIn: ['DELIVERED', 'CANCELLED', 'SKIPPED'] },
+      },
+      select: { id: true },
+    });
+
+    for (const delivery of deliveries) {
+      await this.cancelRiderArtifactsWithinTransaction(tx, delivery.id, reason);
+    }
+    return deliveries.length;
   }
 
   /** Re-derives a run's stop counters after a stop is added, moved or cancelled. */

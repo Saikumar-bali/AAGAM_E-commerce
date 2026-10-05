@@ -13,6 +13,7 @@ import {
 import { randomUUID } from 'crypto';
 import { AdminSubscriptionCorrectionDto, ResolveSubscriptionIssueDto } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { isOneOf } from '../common/enum-membership';
 import { normalizePhoneE164 } from '../contact-verification/contact-otp.service';
@@ -53,7 +54,10 @@ const REMAINING_DELIVERY_STATUSES = [
 
 @Injectable()
 export class SubscriptionAdminReportingService {
-  constructor(private readonly funding: SubscriptionCashFundingService) {}
+  constructor(
+    private readonly funding: SubscriptionCashFundingService,
+    private readonly lifecycle: SubscriptionLifecycleService = new SubscriptionLifecycleService(),
+  ) {}
 
   async reconcileDeliveredDelivery(deliveryId: string, actorId: string, idempotencyKey?: string) {
     return prisma.$transaction(async (tx) => {
@@ -645,31 +649,49 @@ export class SubscriptionAdminReportingService {
     const fallbackLat = typeof dto.latitude === 'number' && Number.isFinite(dto.latitude) ? dto.latitude : 17.6913;
     const fallbackLng = typeof dto.longitude === 'number' && Number.isFinite(dto.longitude) ? dto.longitude : 83.0039;
 
-    // Clear any existing default addresses before creating a new one to avoid
-    // multiple defaults on the same customer (which could cause stale prefill).
+    const addressData = {
+      label: 'Home',
+      recipientName: dto.name.trim(),
+      phoneE164: compactPhone,
+      line1: dto.line1.trim(),
+      line2: dto.line2?.trim() || null,
+      landmark: dto.landmark?.trim() || null,
+      city: dto.city.trim(),
+      state: dto.state.trim(),
+      pincode: dto.pincode.trim(),
+      country: 'IN',
+      latitude: fallbackLat,
+      longitude: fallbackLng,
+    };
+
+    // Reuse an identical address instead of appending another copy. A double
+    // submit / retry of the same form resolves to the same customer by phone,
+    // and the old code unconditionally created a new CustomerAddress, leaving
+    // the customer with two identical "Home" rows and shifting defaults.
+    const existingAddress = await prisma.customerAddress.findFirst({
+      where: {
+        userId: customer.id,
+        line1: addressData.line1,
+        line2: addressData.line2,
+        city: addressData.city,
+        pincode: addressData.pincode,
+      },
+    });
+
+    // Clear any existing default addresses so the resulting default is unique.
     await prisma.customerAddress.updateMany({
       where: { userId: customer.id, isDefault: true },
       data: { isDefault: false },
     });
 
-    const address = await prisma.customerAddress.create({
-      data: {
-        userId: customer.id,
-        label: 'Home',
-        recipientName: dto.name.trim(),
-        phoneE164: compactPhone,
-        line1: dto.line1.trim(),
-        line2: dto.line2?.trim() || null,
-        landmark: dto.landmark?.trim() || null,
-        city: dto.city.trim(),
-        state: dto.state.trim(),
-        pincode: dto.pincode.trim(),
-        country: 'IN',
-        latitude: fallbackLat,
-        longitude: fallbackLng,
-        isDefault: true,
-      },
-    });
+    const address = existingAddress
+      ? await prisma.customerAddress.update({
+          where: { id: existingAddress.id },
+          data: { ...addressData, isDefault: true },
+        })
+      : await prisma.customerAddress.create({
+          data: { userId: customer.id, ...addressData, isDefault: true },
+        });
 
     return { customer, address };
   }
@@ -1634,11 +1656,27 @@ export class SubscriptionAdminReportingService {
         throw new BadRequestException('Subscription is already cancelled');
       }
 
+      // Remove the plan's deliveries from the rider network first: the teardown
+      // only touches non-terminal rows, so it must run before they are flipped.
+      // The store cancel used to flip the rows alone, so a dispatched day kept a
+      // live run stop and order after the subscription was cancelled.
+      await this.lifecycle.cancelSubscriptionArtifactsWithinTransaction(
+        tx,
+        subscriptionId,
+        reason?.trim() || 'Cancelled by store owner',
+      );
+
       // Cancel all future unfulfilled scheduled deliveries
       const cancelledDeliveries = await tx.subscriptionDelivery.updateMany({
         where: {
           subscriptionId,
-          status: { in: [SubscriptionDeliveryStatus.SCHEDULED, SubscriptionDeliveryStatus.ORDER_GENERATED] },
+          status: {
+            notIn: [
+              SubscriptionDeliveryStatus.DELIVERED,
+              SubscriptionDeliveryStatus.CANCELLED,
+              SubscriptionDeliveryStatus.SKIPPED,
+            ],
+          },
         },
         data: {
           status: SubscriptionDeliveryStatus.CANCELLED,

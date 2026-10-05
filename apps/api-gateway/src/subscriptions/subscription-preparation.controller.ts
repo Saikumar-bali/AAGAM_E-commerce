@@ -3,6 +3,7 @@ import { Role } from '@aagam/database';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { parseIntQuery } from '../common/query-params';
 import { StoreStockReadinessDto, UpdateSubscriptionPreparationPolicyDto } from './subscription-preparation.dto';
 import { SubscriptionPreparationService } from './subscription-preparation.service';
 
@@ -16,7 +17,7 @@ export class StoreSubscriptionPreparationController {
 
   @Get()
   list(@Req() request: AuthenticatedRequest, @Query('days') days?: string) {
-    return this.preparation.list(request.user, Number(days || 3));
+    return this.preparation.list(request.user, parseIntQuery(days, 'days', { min: 1, max: 14 }) ?? 3);
   }
 
   @Post('deliveries/:deliveryId/readiness')
@@ -38,7 +39,7 @@ export class AdminSubscriptionPreparationController {
 
   @Get()
   overview(@Query('days') days?: string) {
-    return this.preparation.adminOverview(Number(days || 3));
+    return this.preparation.adminOverview(parseIntQuery(days, 'days', { min: 1, max: 14 }) ?? 3);
   }
 
   @Patch('plans/:planId/policy')
