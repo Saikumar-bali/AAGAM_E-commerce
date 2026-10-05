@@ -5,7 +5,7 @@ import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 jest.mock('@aagam/database', () => ({
   prisma: {
     subscriptionDelivery: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    customerSubscription: { findUnique: jest.fn(), update: jest.fn() },
+    customerSubscription: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     riderProfile: { findFirst: jest.fn() },
     deliveryRunStop: { update: jest.fn(), aggregate: jest.fn(), count: jest.fn() },
     deliveryRun: { update: jest.fn() },
@@ -217,5 +217,68 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         }),
       );
     });
+  });
+});
+
+describe('StoreMilkGridService — getGrid litre totals include undelivered plan milk', () => {
+  const funding: any = { consumeDeliveredWithinTransaction: jest.fn() };
+  const lifecycle = new SubscriptionLifecycleService();
+  const service = new StoreMilkGridService(funding, lifecycle);
+
+  const delivery = (id: string, day: number, status: string, cash = 0) => ({
+    id,
+    status,
+    serviceDate: new Date(Date.UTC(2026, 9, day)),
+    cashCollectedPaise: cash,
+    cashDuePaise: 0,
+    deliverySlot: 'AM',
+    deferredReason: null,
+    failureReason: null,
+    sequenceNumber: day,
+    runStop: null,
+    riderPhotoProof: null,
+  });
+
+  beforeEach(() => {
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'sub-1',
+        status: 'ACTIVE',
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        addressSnapshot: { line1: 'Street 1' },
+        priceSnapshot: {},
+        itemsSnapshot: [],
+        homeStore: { id: 'store-1', name: 'Store' },
+        defaultRider: null,
+        temporaryRider: null,
+        pauseEffectiveFrom: null,
+        amountCollectedPaise: 5000,
+        amountDuePaise: 25000,
+        customer: { id: 'cust-1', name: 'Cust', phone: '999', email: 'c@example.com', acquisitionSource: 'MANUAL' },
+        plan: { id: 'plan-1', name: 'Cow Milk 1L', code: 'CM1' },
+        deliveries: [
+          delivery('d1', 1, 'DELIVERED', 5000),
+          delivery('d2', 2, 'SCHEDULED'),
+          delivery('d3', 3, 'ORDER_GENERATED'),
+          delivery('d4', 4, 'SKIPPED'),
+        ],
+      },
+    ]);
+  });
+
+  it('sums every non-skipped/cancelled cell so future days are not shown as 0L', async () => {
+    const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
+
+    expect(grid.rows).toHaveLength(1);
+    const row = grid.rows[0];
+    // 1L delivered + 1L scheduled + 1L order-generated; skipped day excluded.
+    expect(row.totalLiters).toBe(3);
+    expect(row.totalDeliveredDays).toBe(1);
+    expect(row.totalActiveDeliveries).toBe(3);
+
+    expect(grid.dailyTotals[1]).toMatchObject({ deliveredCount: 1, totalDeliveries: 1, totalLiters: 1, cashCollectedPaise: 5000 });
+    expect(grid.dailyTotals[2]).toMatchObject({ scheduledCount: 1, totalDeliveries: 1, totalLiters: 1 });
+    expect(grid.dailyTotals[3]).toMatchObject({ deliveredCount: 0, totalDeliveries: 1, totalLiters: 1 });
+    expect(grid.dailyTotals[4]).toMatchObject({ deliveredCount: 0, totalDeliveries: 0, totalLiters: 0 });
   });
 });

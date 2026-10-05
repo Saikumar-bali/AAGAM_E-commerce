@@ -288,14 +288,79 @@ export class SubscriptionAdminReportingService {
         _sum: { cashCollectedPaise: true },
       }),
     ]);
+    // The groupBy above reads the raw ledger columns. Any cash evidenced on day
+    // cells but not yet absorbed by the ledger makes these "Collected"/"Due"
+    // KPIs disagree with the Subscribers tab and the milk grid, which reconcile
+    // through `reconcileSubscriptionBalance`. Reconcile per contract so all
+    // three money surfaces show the same figure.
+    const reconciledSubscriptions = await this.reconcileAnalyticsSubscriptions(subscriptions, storeFilter);
     return {
-      subscriptions,
+      subscriptions: reconciledSubscriptions,
       deliveries,
       cash,
       upcomingSevenDayDemand: demand,
       todayStoreCashPaise: todayStoreDeliveries._sum.cashCollectedPaise || 0,
       generatedAt: new Date(),
     };
+  }
+
+  /**
+   * Rewrites the analytics subscription rows so each status group's `_sum`
+   * reflects the reconciled ledger (ledger as a floor, absorbing day-cell
+   * cash), matching `storeSubscribers` and the milk grid. Raw columns are
+   * returned unchanged when no drift exists, so the common case is a no-op.
+   */
+  private async reconcileAnalyticsSubscriptions(
+    groups: Array<{ status: string; _count: { _all: number }; _sum: { amountCollectedPaise: number | null; amountDuePaise: number | null } }>,
+    storeFilter: Record<string, unknown>,
+  ) {
+    if (!groups.length) return groups;
+
+    const statuses = [...new Set(groups.map((group) => group.status))];
+    const rows = await prisma.customerSubscription.findMany({
+      where: { ...storeFilter, status: { in: statuses as any } },
+      select: {
+        id: true,
+        status: true,
+        amountCollectedPaise: true,
+        amountDuePaise: true,
+      },
+    });
+
+    // Sum delivery cash in the database rather than reading every delivery row
+    // into memory: both store and admin analytics call this on normal page
+    // loads, and the nested read scaled as subscriptions × deliveries.
+    const cashBySubscription = new Map<string, number>();
+    if (rows.length) {
+      const cashGroups = await prisma.subscriptionDelivery.groupBy({
+        by: ['subscriptionId'],
+        where: { subscriptionId: { in: rows.map((row) => row.id) } },
+        _sum: { cashCollectedPaise: true },
+      });
+      for (const cashGroup of cashGroups) {
+        cashBySubscription.set(cashGroup.subscriptionId, cashGroup._sum.cashCollectedPaise || 0);
+      }
+    }
+
+    const totals = new Map<string, { collected: number; due: number }>();
+    for (const row of rows) {
+      const { amountCollectedPaise, amountDuePaise } = reconcileSubscriptionBalance(row, [
+        { cashCollectedPaise: cashBySubscription.get(row.id) || 0 },
+      ]);
+      const bucket = totals.get(row.status) || { collected: 0, due: 0 };
+      bucket.collected += amountCollectedPaise;
+      bucket.due += amountDuePaise;
+      totals.set(row.status, bucket);
+    }
+
+    return groups.map((group) => {
+      const bucket = totals.get(group.status);
+      if (!bucket) return group;
+      return {
+        ...group,
+        _sum: { ...group._sum, amountCollectedPaise: bucket.collected, amountDuePaise: bucket.due },
+      };
+    });
   }
 
   async subscription(id: string) {
@@ -416,7 +481,10 @@ export class SubscriptionAdminReportingService {
       prisma.cashDepositBatch.groupBy({ by: ['status'], _count: { _all: true }, _sum: { expectedAmountPaise: true, verifiedAmountPaise: true, variancePaise: true } }),
       prisma.subscriptionDelivery.count({ where: { serviceDate: { gte: new Date(), lte: new Date(Date.now() + 7 * 86_400_000) }, status: SubscriptionDeliveryStatus.SCHEDULED } }),
     ]);
-    return { subscriptions, deliveries, cash, upcomingSevenDayDemand: demand, generatedAt: new Date() };
+    // Same drift as the store view: reconcile the raw ledger columns against
+    // day-cell cash so the admin KPIs match the Subscribers tab and the grid.
+    const reconciledSubscriptions = await this.reconcileAnalyticsSubscriptions(subscriptions, {});
+    return { subscriptions: reconciledSubscriptions, deliveries, cash, upcomingSevenDayDemand: demand, generatedAt: new Date() };
   }
 
   async correctSubscription(id: string, dto: AdminSubscriptionCorrectionDto, actorId: string, idempotencyKey?: string) {

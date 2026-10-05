@@ -76,6 +76,7 @@ export interface GridRow {
   allPlans: PlanInfo[];
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
+  totalActiveDeliveries: number;
   totalExtraLiters: number;
   totalLiters: number;
   totalCollectedPaise: number;
@@ -181,9 +182,9 @@ export class StoreMilkGridService {
     }
 
     const rows: GridRow[] = [];
-    const dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalLiters: number; cashCollectedPaise: number }> = {};
+    const dailyTotals: Record<number, { deliveredCount: number; scheduledCount: number; totalDeliveries: number; totalLiters: number; cashCollectedPaise: number }> = {};
     for (let day = 1; day <= daysInMonth; day++) {
-      dailyTotals[day] = { deliveredCount: 0, scheduledCount: 0, totalLiters: 0, cashCollectedPaise: 0 };
+      dailyTotals[day] = { deliveredCount: 0, scheduledCount: 0, totalDeliveries: 0, totalLiters: 0, cashCollectedPaise: 0 };
     }
 
     for (const [_customerId, custSubs] of customerSubsMap) {
@@ -200,8 +201,9 @@ export class StoreMilkGridService {
 
       const daysMap: Record<number, GridCell | null> = {};
       let totalDeliveredDays = 0;
+      let totalActiveDeliveries = 0;
       let totalExtraLiters = 0;
-      let calculatedDeliveredLiters = 0;
+      let calculatedLiters = 0;
 
       for (const sub of custSubs) {
         const subPlanName = sub.plan.name || 'Milk Plan';
@@ -303,13 +305,25 @@ export class StoreMilkGridService {
           }
           planDayMap.get(planKey)!.days.add(dayNum);
 
+          // Only delivered milk counts as "delivered" cash; skipped/cancelled
+          // occurrences are not milk at all. Everything else is milk still on
+          // the plan for that day, so the row and daily litre totals must
+          // include it (previously they summed delivered cells only, which
+          // showed 0L for every future/undelivered day).
+          if (d.status !== 'SKIPPED' && d.status !== 'CANCELLED') {
+            calculatedLiters += deliveryBaseMultiplier + extraLiters;
+            totalActiveDeliveries++;
+            if (dailyTotals[dayNum]) {
+              dailyTotals[dayNum].totalDeliveries++;
+              dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
+            }
+          }
+
           if (d.status === 'DELIVERED') {
             totalDeliveredDays++;
             totalExtraLiters += extraLiters;
-            calculatedDeliveredLiters += deliveryBaseMultiplier + extraLiters;
             if (dailyTotals[dayNum]) {
               dailyTotals[dayNum].deliveredCount++;
-              dailyTotals[dayNum].totalLiters += deliveryBaseMultiplier + extraLiters;
               dailyTotals[dayNum].cashCollectedPaise += d.cashCollectedPaise || 0;
             }
           } else if (d.status === 'SCHEDULED') {
@@ -320,7 +334,7 @@ export class StoreMilkGridService {
         }
       }
 
-      const totalLiters = calculatedDeliveredLiters;
+      const totalLiters = calculatedLiters;
 
       // Money columns must agree with the day cells rendered in the same row.
       // The ledger can lag the cash evidenced on deliveries, so reconcile the
@@ -391,6 +405,7 @@ export class StoreMilkGridService {
         allPlans,
         days: daysMap,
         totalDeliveredDays,
+        totalActiveDeliveries,
         totalExtraLiters,
         totalLiters,
         totalCollectedPaise: reconciled.amountCollectedPaise,
@@ -1365,7 +1380,12 @@ export class StoreMilkGridService {
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
         serviceDate: { gte: dayStart, lte: dayEnd },
-        subscription: { ...storeFilter, customer: { isActive: true } },
+        subscription: { ...storeFilter, customer: { isActive: true }, status: { not: 'COMPLETED' } },
+        // Mirror dispatch-summary: a COMPLETED contract keeps its old
+        // SCHEDULED/ORDER_GENERATED rows in the DB, and counting them made the
+        // rider board report one more stop than the dispatch summary (e.g.
+        // Nookalamma's final day lingering on a completed contract).
+        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
       },
       include: {
         subscription: {
@@ -1419,7 +1439,7 @@ export class StoreMilkGridService {
         },
         address: addr?.line1 || addr?.street || 'Local Area',
         product: `${baseQty}L ${isBuffalo ? 'BM' : 'CM'}`,
-        liters: d.status === 'SKIPPED' ? 0 : baseQty + extraLiters,
+        liters: baseQty + extraLiters,
         cashDuePaise: d.cashDuePaise || 0,
         cashCollectedPaise: d.cashCollectedPaise || 0,
         orderId: d.order?.id ?? null,
@@ -1462,7 +1482,6 @@ export class StoreMilkGridService {
     const slotCounts: Record<string, number> = { AM: 0, PM: 0 };
 
     for (const d of deliveries) {
-      if (d.status === 'CANCELLED') continue;
       slotCounts[d.deliverySlot] = (slotCounts[d.deliverySlot] || 0) + 1;
       const stop = toStop(d);
       cashToCollectPaise += stop.cashDuePaise;
