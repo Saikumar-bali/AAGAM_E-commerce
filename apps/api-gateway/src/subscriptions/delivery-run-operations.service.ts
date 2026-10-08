@@ -715,6 +715,7 @@ export class DeliveryRunOperationsService {
     stopId: string,
     dto: RiderExtraMilkDto,
     actor: Actor,
+    idempotencyKey?: string,
   ) {
     const { run } = await this.ownedRun(runId, actor);
     const stop = run.stops.find((candidate) => candidate.id === stopId);
@@ -722,11 +723,36 @@ export class DeliveryRunOperationsService {
 
     const extraQty = dto.extraQuantity?.trim() || '+1L';
     const extraPaise = dto.extraPaise !== undefined ? dto.extraPaise : 8000;
-    const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
-    const fullNote = `${notePrefix} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
     const count = Math.max(1, Math.min(30, dto.consecutiveDays || 1));
+    // A recurring add-on must record the slot the rider promised. The base
+    // delivery keeps its own slot; only the marker carries the target, so the
+    // grid reads the add-on without rerouting the customer's delivery.
+    const targetSlot = dto.targetSlot === 'AM' || dto.targetSlot === 'PM' ? dto.targetSlot : 'PM';
+    const marker = count > 1
+      ? `[ADD-ON: ${extraQty}|${extraPaise}|${targetSlot}]`
+      : `[EXTRA: ${extraQty}|${extraPaise}]`;
+    const fullNote = `${marker} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
+    const subscriptionId = stop.subscriptionDelivery.subscriptionId;
+    const auditKey = idempotencyKey ? `subscription-extra-milk:${idempotencyKey}` : null;
 
     return prisma.$transaction(async (tx) => {
+      if (auditKey) {
+        const prior = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: auditKey } });
+        if (prior) {
+          const meta = (prior.metadata ?? {}) as Record<string, unknown>;
+          const subscription = await tx.customerSubscription.findUnique({ where: { id: subscriptionId } });
+          return {
+            success: true,
+            replayed: true,
+            extraPaise,
+            extraQuantity: extraQty,
+            scheduledDays: Number(meta.scheduledDays ?? 1),
+            totalExtraPaise: Number(meta.totalExtraPaise ?? extraPaise),
+            subscription,
+          };
+        }
+      }
+
       await tx.subscriptionDelivery.update({
         where: { id: stop.subscriptionDeliveryId },
         data: {
@@ -784,11 +810,34 @@ export class DeliveryRunOperationsService {
       const totalExtraPaise = extraPaise * totalScheduledDays;
 
       const sub = await tx.customerSubscription.update({
-        where: { id: stop.subscriptionDelivery.subscriptionId },
+        where: { id: subscriptionId },
         data: {
           amountDuePaise: { increment: totalExtraPaise },
         },
       });
+
+      if (auditKey) {
+        await tx.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            action: 'RIDER_EXTRA_MILK',
+            reason: marker,
+            metadata: {
+              extraQuantity: extraQty,
+              extraPaise,
+              scheduledDays: totalScheduledDays,
+              totalExtraPaise,
+              targetSlot: count > 1 ? targetSlot : null,
+              stopId: stop.id,
+              runId: run.id,
+            },
+            idempotencyKey: auditKey,
+          },
+        });
+      }
+
       return {
         success: true,
         extraPaise,
