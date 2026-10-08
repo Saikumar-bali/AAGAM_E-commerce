@@ -284,3 +284,12 @@ human), what changed, why.
   - Its "navigate remaining stops" button is the intended fix for **BUG-016**:
     it hands the run's remaining stops to Google Maps as `waypoints=`, matching
     the web rider runs page.
+
+- **2026-10-08 · v1.4.5 · aagam-testing (Run Console v2 — map-first)**
+  - Rebuilt the rider Run Console prototype as a map-first, Rapido-style surface:
+    the map fills the viewport with floating top chips + tool buttons, and a
+    draggable bottom sheet (mobile) / fixed right panel (web, >=1024px) holds the
+    hero action and the full delivery-sequence list — no per-stop tab-hopping.
+  - Responsive verified in-browser: 360x640, 390x844, 414x896 and 1366x834; all
+    stop pins stay clear of the sheet/panel, and the floating tools never
+    overlap the panel. Prototype only (mock data), served from the work host.
