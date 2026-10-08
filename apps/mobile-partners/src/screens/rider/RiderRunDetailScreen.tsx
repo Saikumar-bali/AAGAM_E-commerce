@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -244,9 +244,11 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [extraDays, setExtraDays] = useState(1);
   const [extraSlot, setExtraSlot] = useState<'AM' | 'PM'>('PM');
   const [extraNote, setExtraNote] = useState('');
-  // Bumped each time the dialog opens so a double-tap replays one key instead
-  // of charging the add-on twice, while a deliberate second add-on gets a new key.
-  const [extraKeyNonce, setExtraKeyNonce] = useState(0);
+  // A ref, not component state: a counter that resets on remount would hand a
+  // reopened screen the same key for a different add-on. The ref stays stable
+  // across retries of one submission (the in-flight request keeps its key) and
+  // is bumped only when a fresh add-on is started.
+  const extraKeyRef = useRef(0);
   // "today" attaches one extra to this delivery; "next" schedules the coming
   // days as a recurring add-on (mirrors the store grid's ATTACH_EVENING_MILK).
   const extraWhen: 'today' | 'next' = extraDays > 1 ? 'next' : 'today';
@@ -521,16 +523,21 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
         note,
       }, idempotencyKey);
     },
-    onSuccess: async (_result, vars) => {
+    onSuccess: async (result, vars) => {
       setExtraMilkOpen(false);
       setExtraNote('');
       await refresh();
+      // Report what the API actually scheduled and charged: a request near the
+      // end of a plan is applied to fewer days than asked for, so the recorded
+      // scheduledDays/totalExtraPaise can differ from the requested values.
+      const scheduledDays = Number(result?.scheduledDays ?? vars.days);
+      const totalPaise = Number(result?.totalExtraPaise ?? vars.paise * vars.days);
       Toast.show({
         type: 'success',
         text1: `Extra milk attached! (${vars.quantity})`,
-        text2: vars.days > 1
-          ? `Scheduled ${vars.slot} for ${vars.days} days (+₹${((vars.paise / 100) * vars.days).toFixed(0)}). Cash due updated.`
-          : `Added to today (+₹${(vars.paise / 100).toFixed(0)}). Cash due updated.`,
+        text2: scheduledDays > 1
+          ? `Scheduled ${vars.slot} for ${scheduledDays} day${scheduledDays > 1 ? 's' : ''} (+₹${(totalPaise / 100).toFixed(0)}). Cash due updated.`
+          : `Added to today (+₹${(totalPaise / 100).toFixed(0)}). Cash due updated.`,
       });
     },
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not add extra milk', text2: errorMessage(error) }),
@@ -610,7 +617,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                   {!extraMilkOpen ? (
                     <TouchableOpacity
                       style={styles.extraTriggerButton}
-                      onPress={() => { setExtraKeyNonce((n) => n + 1); setExtraMilkOpen(true); }}
+                      onPress={() => { extraKeyRef.current += 1; setExtraMilkOpen(true); }}
                     >
                       <Plus size={16} color="#0F766E" />
                       <Text style={styles.extraTriggerText}>+ Extra Milk / Schedule Further Orders</Text>
@@ -771,7 +778,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                             days: extraDays,
                             slot: extraSlot,
                             note: extraNote.trim() || undefined,
-                            idempotencyKey: `${selectedStop.id}:${extraKeyNonce}`,
+                            idempotencyKey: `${selectedStop.id}:${extraKeyRef.current}`,
                           });
                         }}
                       >

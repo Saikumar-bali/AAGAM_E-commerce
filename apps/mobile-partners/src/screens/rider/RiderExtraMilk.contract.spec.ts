@@ -31,8 +31,16 @@ describe('rider extra-milk / add-on dialog', () => {
   });
 
   it('replays a double-tap under one idempotency key', () => {
-    expect(screen).toContain('idempotencyKey: `${selectedStop.id}:${extraKeyNonce}`');
+    expect(screen).toContain('idempotencyKey: `${selectedStop.id}:${extraKeyRef.current}`');
     expect(service).toContain("headers: { 'idempotency-key': idempotencyKey }");
+  });
+
+  it('keeps the idempotency key remount-safe via a ref', () => {
+    // A state counter resets on remount, so a reopened screen would reuse an
+    // already-consumed key for a different add-on. A ref survives remounts.
+    expect(screen).toContain('const extraKeyRef = useRef(0)');
+    expect(screen).toContain('extraKeyRef.current += 1');
+    expect(screen).not.toContain('extraKeyNonce');
   });
 
   it('surfaces an existing recurring add-on, not only a one-day extra', () => {

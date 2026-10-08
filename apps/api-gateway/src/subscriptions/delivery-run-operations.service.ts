@@ -737,15 +737,27 @@ export class DeliveryRunOperationsService {
 
     return prisma.$transaction(async (tx) => {
       if (auditKey) {
+        // Serialize keyed requests: a concurrent retry must wait for the first
+        // insert to commit, then read it back as a replay, rather than losing
+        // the race on the SubscriptionAuditEntry.idempotencyKey unique index.
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`extra-milk:${auditKey}`}))`);
         const prior = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: auditKey } });
         if (prior) {
           const meta = (prior.metadata ?? {}) as Record<string, unknown>;
+          // The key is scoped to the request that first used it; reusing it for
+          // a different subscription/stop must fail loudly instead of reporting
+          // success without applying anything.
+          if (prior.subscriptionId !== subscriptionId || meta.stopId !== stop.id) {
+            throw new ConflictException('This idempotency key was already used for a different add-on request');
+          }
           const subscription = await tx.customerSubscription.findUnique({ where: { id: subscriptionId } });
           return {
             success: true,
             replayed: true,
-            extraPaise,
-            extraQuantity: extraQty,
+            // Report exactly what the original request recorded, so a replay
+            // never mixes the prior schedule totals with this request's values.
+            extraPaise: Number(meta.extraPaise ?? extraPaise),
+            extraQuantity: String(meta.extraQuantity ?? extraQty),
             scheduledDays: Number(meta.scheduledDays ?? 1),
             totalExtraPaise: Number(meta.totalExtraPaise ?? extraPaise),
             subscription,

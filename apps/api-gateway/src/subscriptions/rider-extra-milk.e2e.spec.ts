@@ -207,6 +207,28 @@ describe('rider extra milk — field add-on', () => {
     expect(after?.amountDuePaise).toBe(16000);
   });
 
+  test('concurrent requests with the same idempotency key collapse to one charge', async () => {
+    const { riderUser, sub, run, stop, days } = await seed();
+    const dto = { extraQuantity: '+1L', extraPaise: 8000, consecutiveDays: 2, targetSlot: 'PM' as const };
+    const actor = { id: riderUser.id, role: Role.RIDER };
+
+    const [first, second] = await Promise.all([
+      service.extraMilk(run.id, stop.id, dto, actor, 'rider-addon-race'),
+      service.extraMilk(run.id, stop.id, dto, actor, 'rider-addon-race'),
+    ]);
+
+    expect(first.scheduledDays).toBe(2);
+    expect(second.scheduledDays).toBe(2);
+
+    const day1 = await prisma.subscriptionDelivery.findUnique({ where: { id: days[0].id } });
+    const day2 = await prisma.subscriptionDelivery.findUnique({ where: { id: days[1].id } });
+    expect(day1?.cashDuePaise).toBe(8000);
+    expect(day2?.cashDuePaise).toBe(8000);
+
+    const after = await prisma.customerSubscription.findUnique({ where: { id: sub.id } });
+    expect(after?.amountDuePaise).toBe(16000);
+  });
+
   test('rejects a non-rider actor', async () => {
     const { riderUser, run, stop } = await seed();
     await expect(
