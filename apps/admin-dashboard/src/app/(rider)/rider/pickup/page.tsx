@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { apiClient } from "@aagam/utils";
 import { AlertTriangle, CheckCircle2, PackageCheck } from "lucide-react";
@@ -10,8 +10,13 @@ import {
   RefreshButton,
   RiderPageHeader,
 } from "@/components/rider/RiderPortalUi";
+
+/** Rider-facing short code for an order, matching the store and admin cards. */
+const orderCode = (job: any) => String(job?.order?.id ?? "").slice(-8).toUpperCase();
+
 export default function PickupPage() {
-  const [data, setData] = useState<any>(null),
+  const [tasks, setTasks] = useState<any[]>([]),
+    [selectedJobId, setSelectedJobId] = useState(""),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [qty, setQty] = useState<Record<string, number>>({}),
@@ -26,43 +31,49 @@ export default function PickupPage() {
     setLoading(true);
     setError("");
     try {
-      const d = (await apiClient.get("/riders/portal/pickup")).data;
-      setData(d);
-      if (d?.job?.order?.items)
-        setQty(
-          Object.fromEntries(
-            d.job.order.items.map((i: any) => [i.id, i.quantity])
-          )
-        );
+      const payload = (await apiClient.get("/riders/portal/pickups")).data;
+      setTasks(Array.isArray(payload) ? payload : payload ? [payload] : []);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Could not load pickup task.");
+      setTasks([]);
     } finally {
       setLoading(false);
     }
   }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // A rider may hold several parcels at the same store. Every one of them has
+  // its own checklist, and the store cannot hand off any parcel until the
+  // matching task is VERIFIED, so each task has to stay individually reachable.
+  const data = useMemo(
+    () => tasks.find((entry) => entry.job.id === selectedJobId) || tasks[0] || null,
+    [tasks, selectedJobId]
+  );
+  const checked = (itemId: string, expected: number) =>
+    qty[itemId] ?? expected;
   const verify = async () => {
+    if (!data) return;
     try {
       await apiClient.post(`/riders/portal/pickup/${data.job.id}/verify`, {
         parcelCode: parcel || undefined,
         lines: data.job.order.items.map((i: any) => ({
           orderItemId: i.id,
-          checkedQuantity: Number(qty[i.id] || 0),
+          checkedQuantity: Number(checked(i.id, i.quantity)),
         })),
       });
+      setQty({});
+      setParcel("");
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Pickup verification failed.");
     }
   };
   const report = async () => {
+    if (!data) return;
     try {
       await apiClient.post(`/riders/portal/pickup/${data.job.id}/problem`, {
         problemType: problem,
         note,
       });
+      setNote("");
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Problem report failed.");
@@ -82,6 +93,7 @@ export default function PickupPage() {
     );
   };
   const verifyHandoff = async () => {
+    if (!data) return;
     try {
       await apiClient.post(
         `/orders/delivery-operations/jobs/${data.job.id}/pickup/verify`,
@@ -92,6 +104,7 @@ export default function PickupPage() {
           ...(coordinates || {}),
         }
       );
+      setHandoffCode("");
       await load();
     } catch (e: any) {
       setError(e?.response?.data?.message || "Store handoff proof failed.");
@@ -116,6 +129,64 @@ export default function PickupPage() {
           />
         ) : (
           <>
+            {tasks.length > 1 && (
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Parcels waiting at this store
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  {tasks.length} parcels are assigned to you. Each one needs its
+                  own checklist before the store can hand it over.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {tasks.map((entry: any) => {
+                    const active = entry.job.id === data.job.id;
+                    const verified = entry.task.status === "VERIFIED";
+                    return (
+                      <button
+                        key={entry.job.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedJobId(entry.job.id);
+                          setQty({});
+                          setParcel("");
+                          setNote("");
+                          setHandoffCode("");
+                          setCoordinates(null);
+                        }}
+                        aria-current={active ? "true" : undefined}
+                        className={[
+                          "rounded-xl border px-4 py-2.5 text-left text-sm font-semibold transition",
+                          active
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
+                        ].join(" ")}
+                      >
+                        <span className="font-mono">
+                          #{orderCode(entry.job)}
+                        </span>
+                        <span
+                          className={[
+                            "ml-2 rounded-md px-2 py-0.5 text-[11px] uppercase",
+                            verified
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800",
+                          ].join(" ")}
+                        >
+                          {verified ? "Verified" : "Pending"}
+                        </span>
+                        <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                          {entry.job.order?.customer?.name || "Customer"} ·{" "}
+                          {(entry.job.order?.items || [])
+                            .map((i: any) => `${i.quantity}× ${i.product?.name || "item"}`)
+                            .join(", ")}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -123,7 +194,7 @@ export default function PickupPage() {
                     Parcel
                   </p>
                   <p className="font-mono text-xl font-semibold">
-                    #{data.job.order.id.slice(-8).toUpperCase()}
+                    #{orderCode(data.job)}
                   </p>
                 </div>
                 <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
@@ -157,7 +228,7 @@ export default function PickupPage() {
                       type="number"
                       min="0"
                       max={item.quantity}
-                      value={qty[item.id] ?? 0}
+                      value={checked(item.id, item.quantity)}
                       onChange={(e) =>
                         setQty({ ...qty, [item.id]: Number(e.target.value) })
                       }
@@ -260,7 +331,7 @@ export default function PickupPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       onClick={captureCoordinates}
-                      className="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-800"
+                      className="rounded-xl border border-indigo-300 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-800"
                     >
                       {coordinates
                         ? "Coordinates captured"
