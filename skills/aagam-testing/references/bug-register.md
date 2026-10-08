@@ -690,3 +690,51 @@ area, and treat a recurrence as a **major** finding.
   second rider); both share the rider-scoped-run-lookup / unique-index collision.
   Do not merge.
 
+
+### BUG-015 - Rider "Mark Delivered" quick action completes the stop but leaves the linked Order stuck at `OUT_FOR_DELIVERY`
+
+- **Found:** 2026-10-08 by aagam-testing (rider delivery pass)
+- **Severity:** major (the customer's order never shows delivered even though the
+  stop, delivery row and run all read DELIVERED; this is a regression of the
+  "order stuck OUT_FOR_DELIVERY" hot-spot on a writer the earlier fix did not
+  cover)
+- **Surface:** Rider portal -> `/rider/runs` -> open a run -> open a stop ->
+  **In-Flight Stop Actions** -> **Mark Delivered** -> `POST
+  /api/store/subscriptions/deliveries/:deliveryId/quick-action` (`TOGGLE_DELIVERED`).
+  The same button/endpoint also backs the store milk grid's "Mark delivered".
+- **Role:** rider (and store - same endpoint via the grid)
+- **Status:** OPEN
+- **Repro:**
+  1. Rider run is `IN_PROGRESS` and a stop is `READY`/`PLANNED`.
+  2. Open the stop modal and press **Mark Delivered** (no arrival, no OTP, no
+     photo required - the quick action bypasses the proof flow by design).
+  3. Read the linked order for that stop.
+- **Observed:** `DeliveryRunStop.status = DELIVERED`,
+  `SubscriptionDelivery.status = DELIVERED`, and
+  `DeliveryRun.completedStopCount` increments - but the linked
+  `DeliveryJob.status` stays `RIDER_AT_CUSTOMER` and `Order.status` stays
+  `OUT_FOR_DELIVERY`. The customer never sees the order as delivered.
+- **Expected:** the quick action advances the order (and delivery job) through
+  the shared delivery workflow to `DELIVERED`, exactly as the rider-photo path
+  does, or it should be disabled for a stop that still needs proof.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `executeQuickAction()` `TOGGLE_DELIVERED` branch (~line 644) calls
+  `syncRunStopForQuickAction()` (~line 1003), which only updates the
+  `deliveryRunStop`, the run aggregates and (via
+  `funding.consumeDeliveredWithinTransaction`) the subscription. It never calls
+  `DeliveryWorkflowService.transitionWithinTransaction` on the `deliveryJobId`,
+  so the Order status history is never written.
+- **Evidence:** live revision `f4af4a9` (main), 2026-10-08. Run
+  `cmuyuu8ikzilxdo7hc5el89k5` stop 4 (`sequenceNumber 4`, funded, no cash due):
+  after pressing **Mark Delivered** the read-back was
+  `stop DELIVERED / delivery DELIVERED / job RIDER_AT_CUSTOMER / order
+  OUT_FOR_DELIVERY`. Undoing with the same endpoint set the stop back to
+  `ARRIVED`; completing the stop through the proper **Verify and complete this
+  stop** flow (`POST /rider/delivery-runs/:id/stops/:stopId/complete`) then set
+  `job DELIVERED / order DELIVERED`, proving the divergence is the quick-action
+  path.
+- **Fix:** - (route the quick action through `transitionWithinTransaction` for
+  the stop's `deliveryJobId`, mirroring the rider-photo completion fix).
+- **Notes:** Same class as the existing "Order status" regression hot-spot
+  (rider photo completion bypassed the workflow); BUG-002 also touched this
+  area (rider home vs store block). Distinct writer path, so its own entry.

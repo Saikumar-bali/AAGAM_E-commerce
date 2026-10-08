@@ -220,3 +220,23 @@ human), what changed, why.
     to any store owner (its `user` sub-select is fixed, the bank columns are
     not). Same class as BUG-006 but a different endpoint, so its own entry.
   - **BUG-004** (dependency gate) left `OPEN` — not in this pass's scope.
+
+- **2026-10-08 · v1.4.1 · aagam-testing (rider delivery pass)**
+  - Completed one subscription delivery end to end on live `aagaam.in`
+    (revision `f4af4a9`): rider `RUN-AAGA-AM-2026-10-08-f2ce` -> confirm bag
+    receipt (`POST /rider/delivery-runs/:id/pickup`) -> start (`/start`) -> for
+    the remaining funded stop: arrive (`/stops/:id/arrive`) -> upload photo
+    (`/upload/evidence`) -> **Verify and complete this stop**
+    (`/stops/:id/complete`). Read-back: `DeliveryRunStop`, `DeliveryJob` and
+    `Order` all `DELIVERED`.
+  - **BUG-015 opened (major, OPEN)** - the rider stop modal's **Mark Delivered**
+    in-flight quick action (`POST /store/subscriptions/deliveries/:id/quick-action`
+    `TOGGLE_DELIVERED`, same endpoint as the store milk grid) completes the stop
+    and the delivery row but never advances the DeliveryJob/Order, so the order
+    stays `OUT_FOR_DELIVERY`. `syncRunStopForQuickAction` does not call
+    `transitionWithinTransaction`. Regression of the "order stuck
+    `OUT_FOR_DELIVERY`" hot-spot on a writer the earlier rider-photo fix missed.
+  - Noted (not recorded): `/riders/portal/runs`, `/rider/delivery-runs` and
+    `/riders/portal/current` return 404, but the app never calls those paths, so
+    a 404 there is not a defect. The rider list/detail flows use
+    `/rider/delivery-runs/today` and `/rider/delivery-runs/:id`.
