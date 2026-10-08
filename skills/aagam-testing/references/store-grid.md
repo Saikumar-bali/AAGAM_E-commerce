@@ -233,3 +233,46 @@ On a grid cell the store can run: `TOGGLE_DELIVERED`, `SKIP`, `EXTRA_MILK`,
 
 Each of these is a mutation with money or volume side effects — confirm scope
 with the user before firing one during a read-only test pass.
+
+---
+
+## 9. Where this appears in the UI (and what it does *not* show)
+
+Two surfaces, both on `/store/subscriptions`:
+
+1. **Today's Route Checklist bar** (green) — `Completed: <deliveredStops> /
+   <totalStops>` and `Total Pack: <totalLiters> L`.
+2. **Pack Summary** button → *Morning Packing & Dispatch Sheet* modal —
+   `BUFFALO MILK (BM)`, `COW MILK (CM)`, `TOTAL PACK LITERS`, then
+   `Route Delivery Stops (N)` / `Completed: M`, then the per-stop list with
+   each stop's `product` and `status`.
+
+Both agree with `dispatch-summary` exactly. **Neither shows sold litres or
+remaining litres** — `todayStats` sums volume over *all* non-skipped stops
+(packed) and counts delivered stops without summing their volume. See
+`bug-register.md` BUG-005. Until it is fixed, compute sold/left yourself with
+the recipe in §7.
+
+**Pack Summary is intentionally today-only:** it calls
+`/store/subscriptions/dispatch-summary` with no `date` parameter, so it always
+summarises today regardless of the month the grid is showing. Not a bug.
+
+### Last verified
+
+- **2026-10-08**, live revision `2be0cfb6`.
+- `2026-10-08` — packed `20.25 L` (BM `19.25` + CM `1.00`), stops `37`,
+  completed `0`, sold `0 L`, left `20.25 L`, cash due `₹225.00` / collected
+  `₹0`.
+- `2026-10-07` — packed `20.00 L` (BM `19.25` + CM `0.75`), stops `36`,
+  completed `0`, sold `0 L`, left `20.00 L`.
+- `2026-10-06` — packed `18.50 L` (BM `18.25` + CM `0.25`), stops `33`,
+  completed `0`, sold `0 L`, left `18.50 L`.
+- `2026-10-05` — packed `18.75 L` (BM `18.25` + CM `0.50`), stops `34`,
+  completed `1`, sold `0.25 L`, left `18.50 L`.
+- `2026-10-04` — packed `18.50 L` (BM `18.25` + CM `0.25`), stops `33`,
+  completed `0`, sold `0 L`, left `18.50 L`.
+- **G1, G2, G4 and G7 passed on all five dates.** G3 holds trivially
+  (`0 ≤ sold ≤ packed`). G5, G6, G8 and G9 were not exercised in this pass —
+  no skip, completed plan, prep-demand or delivered-order mutation was run.
+- Report any date here when you assert it, and strike through nothing: keep
+  the history.

@@ -69,3 +69,20 @@ human), what changed, why.
     it is not a dot-directory.
   - Content unchanged: flows, assertions G1–G9, endpoint map and BUG-001…
     BUG-004 are identical to v1.0.0.
+
+- **2026-10-08 · v1.1.1 · first real test pass: packed/sold/left in the store grid**
+  - Ran the store-grid assertions against live revision `2be0cfb6` for five
+    dates. **G1, G2, G4 and G7 passed** on all five; G3 holds trivially;
+    G5/G6/G8/G9 were not exercised (no mutation run). Values recorded in
+    `references/store-grid.md` §9 *Last verified*.
+  - **BUG-005 opened (minor, `OPEN`)** — the store grid answers *"how much did
+    the rider leave with"* (`Total Pack: 20.25 L`) but never answers *"how much
+    sold"* or *"how much is left"*. `todayStats` sums volume over all
+    non-skipped stops and counts delivered stops without summing their volume;
+    a repo-wide grep for `soldLitres|leftLitres|remainingLitres` returns
+    nothing. The API already returns per-stop `totalLiters` **and** `status`,
+    so only the aggregation and labels are missing.
+  - Also documented in `store-grid.md` §9: where the two pack surfaces live
+    (checklist bar + **Pack Summary** modal), that both agree with
+    `dispatch-summary` exactly, and that **Pack Summary is intentionally
+    today-only** (no `date` parameter) — recorded so nobody files it as a bug.

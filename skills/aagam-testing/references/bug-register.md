@@ -170,6 +170,65 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 
 ---
 
+### BUG-005 — Store grid shows packed litres but never shows sold or remaining litres
+
+- **Found:** 2026-10-08
+- **Severity:** minor (a routine operator question has no UI answer, though the
+  data to answer it is already on the wire)
+- **Surface:** `/store/subscriptions` — the *Today's Route Checklist* bar and the
+  **Pack Summary** modal
+- **Role:** store
+- **Status:** `OPEN`
+- **Repro:**
+  1. Log in as the store → `/store/subscriptions`.
+  2. Read the green *Today's Route Checklist* bar: it shows
+     `Completed: 0 / 37` and `Total Pack: 20.25 L`.
+  3. Click **Pack Summary** → *Morning Packing & Dispatch Sheet*.
+  4. Look for "sold" and "left/remaining" litres.
+- **Observed:** the grid answers *"how much did the rider leave with"* but not
+  *"how much sold"* or *"how much is left"*:
+  - Pack Summary modal: `BUFFALO MILK (BM) 19.25 L`, `COW MILK (CM) 1 L`,
+    `TOTAL PACK LITERS 20.25 L`, `Route Delivery Stops (37)`,
+    `Completed: 0`, then a per-stop list carrying `product` + `status`.
+  - The checklist bar gives `Completed` as a **stop count** (`0 / 37`) next to
+    `Total Pack` as a **volume** (`20.25 L`) — so the two headline numbers are
+    in different units and cannot be combined.
+  - `todayStats` accumulates `liters` over **every** non-skipped stop (i.e.
+    packed) and increments `delivered` only as a counter; there is no
+    delivered-volume or remaining-volume accumulator.
+  - A repo-wide grep for `soldLitres|leftLiters|packedLiters|remainingLitres`
+    returns zero matches — no surface computes either number.
+- **Expected:** three figures side by side, since that is the end-of-day
+  question —
+  `packed = totalMilkLiters` · `sold = Σ stop.totalLiters where status == DELIVERED` ·
+  `left = packed − sold`. Worked example for `2026-10-05`:
+  packed `18.75 L`, sold `0.25 L`, left `18.50 L`, `1/34` stops delivered.
+- **Code path:**
+  - `apps/admin-dashboard/src/components/MilkDeliveryGrid.tsx:680-705` —
+    `todayStats` has no `deliveredLiters` / `remainingLiters`.
+  - `:1414-1423` — checklist bar renders only `deliveredStops / totalStops`
+    and `totalLiters`.
+  - `:2745-2765` — Pack Summary metric cards and `Completed: {completedStops}`.
+  - Data source is already sufficient:
+    `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts:1203-1216`
+    returns per-stop `totalLiters` **and** `status`, so **the API needs no
+    change** — only the aggregation and the labels are missing.
+- **Evidence:** live revision `2be0cfb6` (deploy of `cb1e85fc` was in progress
+  during the test). Values read from
+  `GET /api/store/subscriptions/dispatch-summary?date=2026-10-08` and matched
+  the modal exactly: BM `19.25`, CM `1`, total `20.25`, stops `37`,
+  completed `0`, cash due `22500` paise, collected `0`.
+- **Fix:** — (candidate: accumulate `deliveredLiters` in `todayStats`, add
+  `soldLiters`/`leftLiters` to the `dispatch-summary` `summary` object for
+  non-today dates, then render *Packed / Sold / Left* as three equal cards.)
+- **Notes:** **Pack Summary is deliberately today-only** — it calls
+  `/store/subscriptions/dispatch-summary` with no `date` parameter and the
+  loading copy says *"Calculating today's milk procurement demand"*. It
+  therefore ignores which month the grid is navigated to. That is intended;
+  do **not** file it as a separate bug.
+
+---
+
 ## Regression hot-spots
 
 Defects that have already bitten once; re-check these whenever you touch the
