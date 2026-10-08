@@ -229,6 +229,81 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 
 ---
 
+### BUG-006 — Delivery-job summary leaks the assigned rider's bcrypt password hash and bank ciphertext to the customer
+
+- **Found:** 2026-10-08 by aagam-testing (delivery completion pass)
+- **Severity:** major (sensitive-data exposure on a shared endpoint; cross-role, not just the rider's own data)
+- **Surface:** `GET /api/orders/delivery-operations/jobs/:deliveryJobId/summary`
+- **Role:** api (customer, store, rider, admin all reach it)
+- **Status:** OPEN
+- **Repro:**
+  1. Log in as any role (customer, store, rider or admin) with any cookie jar.
+  2. `GET /api/orders/delivery-operations/jobs/:id/summary` for a job whose
+     order `customerId` equals the caller.
+  3. Read `job.currentRider.user`.
+- **Observed:** `job.currentRider.user` is the **entire** `User` row (`include: { user: true }`),
+  including `password` (a live bcrypt hash, `$2b$10$…`), `fcmToken`, `googleSub`,
+  `deactivatedAt`, `deactivationReason`. `job.currentRider` on the *same* response
+  also carries `bankAccountCiphertext` and `bankIfscCiphertext`.
+- **Expected:** only fields the caller needs (id, name, phone/avatar). A rider's
+  password hash must never be serialised. The queue endpoint
+  (`getQueue`) already does this correctly — it uses
+  `currentRider: { include: { user: { select: {id,name,email,phone} } } }`.
+- **Code path:** `apps/api-gateway/src/orders/delivery-operations.service.ts`
+  `private async job()` (~line 313) —
+  `include: { currentRider: { include: { user: true } }, … }`. The sibling
+  `getQueue()` (~line 535) uses a `select`, proving the intended shape.
+- **Evidence:** live revision `41daf15c` (app code == `cb1e85fc`; only `skills/`
+  changed between them). A `GET .../summary` as the customer whose order it was
+  returned HTTP 200 with `"$2b$"` and `bankAccountCiphertext` present in the body.
+  Beyond this job, `getQueue()` is store/admin-only and its 48 rows already expose
+  the same ciphertexts, so any store owner can decrypt rider bank details offline
+  once they hold the key — this entry covers the `summary` leak specifically.
+- **Fix:** — (candidate: replace `include: { user: true }` on `currentRider` with
+  an explicit `select` mirroring `getQueue()`, and drop or `select`-scope the
+  bank columns.)
+- **Notes:** Not in `skills/` scope; recorded here because it surfaced while
+  asserting the delivery summary. Do not paste the hash anywhere.
+
+### BUG-007 — Delivery-job summary reports `cod.collected: false` after a rider-photo COD delivery already collected the cash
+
+- **Found:** 2026-10-08 by aagam-testing (delivery completion pass)
+- **Severity:** minor
+- **Surface:** `GET /api/orders/delivery-operations/jobs/:id/summary` → `cod.collected`
+- **Role:** rider (mobile partner app) / store / admin
+- **Status:** OPEN
+- **Repro:**
+  1. Complete a subscription delivery whose stop proof mode is `RIDER_PHOTO_GPS`
+     with `cashCollectedPaise = cashDuePaise` (the run-stop complete path, e.g.
+     `POST /api/rider/delivery-runs/:runId/stops/:stopId/complete`).
+  2. `GET .../jobs/:id/summary`.
+- **Observed:** `cod.collected: false` even though the ledger shows the cash is in
+  hand — `cod.ledger.collectedAmountPaise = 500`, `riderHoldingBalancePaise = 500`,
+  `status: HELD_BY_RIDER`, and `rider/delivery-runs` `collectedCashPaise = 500`.
+  `requirements.codCollectionRequired` is still `true`.
+- **Expected:** `cod.collected` mirrors the ledger once the cash is collected.
+- **Code path:** `apps/api-gateway/src/orders/delivery-operations.service.ts`
+  `getSummary()` (~line 452) derives `collected` only from an `operations` row of
+  type `COD_COLLECTED` + `COMPLETED`, which is written exclusively by
+  `completeCodDelivery()` (`collectCod` / the OTP branch of run-stop complete).
+  The `RIDER_PHOTO_GPS` branch of `delivery-run-operations.service.ts` `complete()`
+  (~line 335-400) updates `codLedger` + writes a `CodLedgerEntry(COLLECTED)` but
+  never creates the `DeliveryOperation(COD_COLLECTED)`, so the summary's
+  operation-derived flag stays false.
+- **Evidence:** live revision `41daf15c`. Completed run
+  `RUN-AAGA-AM-2026-10-08-f2ce` (run `cmuyuu8ik…`, stop `cmuyuu8kr…`,
+  job `cmuyuu8ke…`, order `…jfs8m0re`); the run `finish` → `AWAITING_SETTLEMENT`,
+  both stops `DELIVERED`, `collectedCashPaise 500`. Rider app consumes this flag:
+  `apps/mobile-partners/src/domain/riderDeliveryFlow.ts:78` (`customerPaid` null
+  when `collected` false) and `apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx:331`
+  (the "COD collection recorded" strip never renders).
+- **Fix:** — (candidate: have the photo/trusted-drop completion path also write the
+  `COD_COLLECTED` operation, or make `getSummary()` fall back to
+  `codLedger.collectedAmountPaise > 0`.)
+- **Notes:** The money itself is correct; this is a status-flag/UI divergence, not
+  a cash discrepancy. Distinct from BUG-003 (`inQueue` vs page filter).
+
+
 ## Regression hot-spots
 
 Defects that have already bitten once; re-check these whenever you touch the

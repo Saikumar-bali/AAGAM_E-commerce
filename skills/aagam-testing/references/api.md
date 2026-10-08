@@ -115,6 +115,20 @@ Login is email → password → a separate **Continue** button. Two traps:
 |---|---|---|
 | GET | `/api/rider/delivery-runs/route-board?date=` | rider-scoped runs, `expectedBagCount`, `completedStopCount` |
 | GET | `/api/rider/delivery-runs/today` | today's runs |
+| GET | `/api/rider/delivery-runs/:runId` | run + `stops[]` each with `version`/`status`/`cashDuePaise` |
+| POST | `/api/rider/delivery-runs/:runId/pickup` | `{version, expectedBagCount}` → bag receipt |
+| POST | `/api/rider/delivery-runs/:runId/start` | `{version}` → `IN_PROGRESS` |
+| POST | `/api/rider/delivery-runs/:runId/finish` | `{version}` → `AWAITING_SETTLEMENT` |
+| POST | `/api/rider/delivery-runs/:runId/stops/:stopId/arrive` | `{version, latitude, longitude, accuracyMetres}` |
+| POST | `/api/rider/delivery-runs/:runId/stops/:stopId/complete` | `{version, riderConfirmed, evidenceId, latitude, longitude, cashCollectedPaise?, otpCode?}` |
+| POST | `/api/rider/delivery-runs/:runId/stops/:stopId/otp` | issue customer OTP (only needed by the OTP branch) |
+
+### Store run operations (`subscriptions.controller.ts`, prefix `store/subscription-operations`)
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/store/subscription-operations/runs/:runId/packing` | `{version, expectedBagCount, packedBagCount}` |
+| POST | `/api/store/subscription-operations/runs/:runId/pickup` | `{version}` confirm store handoff |
+| POST | `/api/upload/evidence` | multipart `file` (rider/admin/store) → `{storageKey}` |
 
 ### Admin
 | Method | Path | Notes |
@@ -142,6 +156,17 @@ Login is email → password → a separate **Continue** button. Two traps:
   `CodLedger.expectedAmountPaise > 0` and
   `CustomerSubscription.amountDuePaise >= 0` both roll back the transaction; a
   500 on a money path means "guard the amount", not "server bug".
+- **`cod.collected` on the delivery-job summary is operation-derived, not
+  ledger-derived** (BUG-007). A `RIDER_PHOTO_GPS` completion credits
+  `codLedger.collectedAmountPaise` but never writes a `COD_COLLECTED`
+  `DeliveryOperation`, so `summary.cod.collected` stays `false` even though the
+  cash is in hand. Trust `cod.ledger` / the run's `collectedCashPaise`, not the
+  flag, when asserting collection.
+- **Do not print `job.currentRider` / `currentRider.user` wholesale** (BUG-006):
+  both the summary and the store/admin queue serialize the rider's full `User`
+  row (bcrypt `password`, `fcmToken`) and the `bankAccountCiphertext`
+  /`bankIfscCiphertext` columns. Read only the fields you need; never paste the
+  hash or ciphertext anywhere.
 
 ---
 

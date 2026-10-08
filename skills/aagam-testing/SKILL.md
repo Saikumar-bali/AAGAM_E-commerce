@@ -2,7 +2,7 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.1.1"
+  version: "1.2.0"
   last-verified: "2026-10-08"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."

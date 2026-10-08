@@ -307,6 +307,74 @@ The rider must always have a way to hand a failed parcel back; a rider calling
 `RETURN_TO_STORE` override decision instead of a permission refusal. Admin calls
 keep the strict policy check.
 
+
+---
+
+## Flow G — Route run: store packing → rider bag receipt → per-stop completion
+
+This is the **run-scoped** path (`DeliveryRun`), distinct from Flow A's
+job-scoped handoff. Nightly generation (and the store's `dispatch-to-rider` quick
+action, `store-milk-grid.service.ts`) create a `DeliveryRun` in
+`READY_FOR_PICKUP` with `riderId` set and `storeHandoffConfirmedAt` already
+stamped, plus one `DeliveryRunStop` per `SubscriptionDelivery` (each with
+`proofMode = RIDER_PHOTO_GPS` by default) and a linked `DeliveryJob`. Complete
+one delivery this way:
+
+```text
+store   POST /api/store/subscription-operations/runs/:runId/packing
+          { version, expectedBagCount, packedBagCount }   -> run.packedBagCount == expectedBagCount,
+                                                              stops READY, orders PACKED,
+                                                              SubscriptionDelivery PACKED
+          (skipped/no-op when the run is already packed; needs run.version)
+store   POST /api/store/subscription-operations/runs/:runId/pickup    { version }
+          -> confirmStoreHandoff; usually an idempotent no-op because
+             storeHandoffConfirmedAt is already set
+rider   POST /api/rider/delivery-runs/:runId/pickup
+          { version, expectedBagCount }                   -> run PICKED_UP; every stop job
+                                                              RIDER_AT_STORE -> PICKUP_VERIFIED
+rider   POST /api/rider/delivery-runs/:runId/start       { version }
+          -> run IN_PROGRESS; stop jobs -> OUT_FOR_DELIVERY; deliveries OUT_FOR_DELIVERY
+rider   POST /api/upload/evidence  (multipart file)      -> { storageKey }  (proof photo)
+rider   POST /api/rider/delivery-runs/:runId/stops/:stopId/arrive
+          { version, latitude, longitude, accuracyMetres }->_stop ARRIVED; job -> RIDER_AT_CUSTOMER
+rider   POST /api/rider/delivery-runs/:runId/stops/:stopId/complete
+          { version, riderConfirmed, latitude, longitude, evidenceId,
+            cashCollectedPaise?, otpCode? }               -> stop DELIVERED, job+order DELIVERED,
+                                                              ledger credited, entitlement consumed
+rider   POST /api/rider/delivery-runs/:runId/finish      { version }
+          -> run AWAITING_SETTLEMENT (not COMPLETED)
+```
+
+Guards worth knowing:
+
+- `packing` requires `dto.expectedBagCount === run.expectedBagCount` **and**
+  `dto.packedBagCount === run.expectedBagCount`, and a matching `run.version`,
+  else 409. Every stop's order must be in CONFIRMED/PICKING/PACKED/RIDER_ASSIGNED.
+- Every run-scoped call takes `run.version` (or `stop.version`) and 409s
+  `"… changed; refresh and try again"` on a stale value — re-read `details`
+  before each step.
+- Each stop's version starts at 0 and increments per mutation, so re-read after
+  `arrive` before `complete`.
+- `RIDER_PHOTO_GPS` completion requires `evidenceId` (the uploaded `storageKey`)
+  plus finite lat/lng, and **does not need OTP**: with `cashCollectedPaise` equal
+  to the stop's `cashDuePaise` the cash is credited straight to the COD ledger.
+- `finish` leaves the run in `AWAITING_SETTLEMENT`; settling rider cash is a
+  separate step (rider cash batch → store/admin verify).
+- A run whose stops are all `DELIVERED` but never `finish`ed stays
+  `IN_PROGRESS`.
+- `AAGAM_CUSTOMER_*` / `AAGAM_STORE_*` logins rate-limit (HTTP 429
+  `ThrottlerException`) after a handful of attempts in quick succession; space
+  logins out or reuse the same cookie jar.
+
+**Verified 2026-10-08** on live revision `41daf15c`: run `cmuyuu8ik…`
+(`RUN-AAGA-AM-2026-10-08-f2ce`) taken `READY_FOR_PICKUP` → `IN_PROGRESS` →
+2/2 stops `DELIVERED`, `collectedCashPaise 500` = `expectedCashPaise`, then
+`AWAITING_SETTLEMENT`. Assertions: both orders `DELIVERED`, the cash
+subscription `ACTIVE` with `amountDuePaise 0`, day cell `cashCollectedPaise 500`,
+day cell status `DELIVERED`, and `dispatch-summary` `completedStops 2 / 37`,
+`cashCollectedPaise 500`. Two findings surfaced (BUG-006, BUG-007).
+
+
 ---
 
 ## Known stall points

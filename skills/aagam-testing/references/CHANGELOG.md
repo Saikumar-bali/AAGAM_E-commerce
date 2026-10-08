@@ -86,3 +86,38 @@ human), what changed, why.
     (checklist bar + **Pack Summary** modal), that both agree with
     `dispatch-summary` exactly, and that **Pack Summary is intentionally
     today-only** (no `date` parameter) — recorded so nobody files it as a bug.
+
+- **2026-10-08 · v1.3.0 · first delivery-completion pass (Flow G)**
+  - Actually completed one subscription delivery end-to-end on live revision
+    `41daf15c` (`RUN-AAGA-AM-2026-10-08-f2ce`, run `cmuyuu8ik…`): store
+    `packing` → store `pickup` → rider bag receipt → `start` → per-stop
+    `arrive`/`complete` (the Rs 5 COD stop via upload-evidence + photo proof,
+    the zero stop free) → `finish`. Final: 2/2 stops `DELIVERED`,
+    `collectedCashPaise` 500 = `expectedCashPaise`, run `AWAITING_SETTLEMENT`.
+    Assertions held: both orders `DELIVERED`, the cash subscription `ACTIVE`
+    with `amountDuePaise` 0, day cell `cashCollectedPaise` 500/`DELIVERED`,
+    `dispatch-summary` `completedStops` 2 / 37, `cashCollectedPaise` 500.
+  - **`references/flows.md` — added Flow G** (route-run packing → bag receipt →
+    per-stop completion). The skill had no run-scoped delivery flow; it is now
+    documented with the exact version-guarded requests and the
+    `RIDER_PHOTO_GPS`-needs-evidence-but-not-OTP rule.
+  - **`references/api.md`** — added the `rider/delivery-runs/:runId` and
+    `store/subscription-operations/runs/:runId` mutation endpoints and
+    `/api/upload/evidence`; added two response traps.
+  - **BUG-006 opened (major, `OPEN`)** — `GET
+    /orders/delivery-operations/jobs/:id/summary` serializes the assigned
+    rider's **full `User` row** (`include: { user: true }`), leaking the bcrypt
+    `password` hash and `fcmToken`, and the same response carries
+    `bankAccountCiphertext`. Reachable by every role that can read the job;
+    `getQueue()` already `select`s a safe shape. Flagged, not fixed (code change
+    is out of testing scope).
+  - **BUG-007 opened (minor, `OPEN`)** — the same summary reports
+    `cod.collected: false` after a `RIDER_PHOTO_GPS` completion has already
+    credited the COD ledger (`riderHoldingBalancePaise` 500, `HELD_BY_RIDER`).
+    The flag is operation-derived and the photo path never writes a
+    `COD_COLLECTED` operation; the rider mobile app gates its "COD collection
+    recorded" strip and `customerPaid` on it. Money is correct; the flag/UI
+    diverges.
+  - Noted a mid-session deploy (`cb1e85fc` → `41daf15c`, a `skills/`-only tree
+    change) that briefly 502'd the gateway — live revision must be re-checked
+    after any 5xx burst.
