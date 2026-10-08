@@ -36,6 +36,7 @@ import { SubscriptionCashFundingService } from './subscription-cash-funding.serv
 import { startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TrustedDropService } from './trusted-drop.service';
+import { TERMINAL_RUN_STOP_STATUSES } from './run-stop-status';
 
 type Actor = { id: string; role: Role };
 
@@ -116,6 +117,7 @@ export class DeliveryRunOperationsService {
         throw new BadRequestException('Route crate code does not match the packed run');
       }
       for (const stop of run.stops) {
+        if (TERMINAL_RUN_STOP_STATUSES.has(stop.status)) continue;
         if (stop.deliveryJob.status === DeliveryJobStatus.RIDER_AT_STORE) {
           await this.workflow.transitionWithinTransaction(
             tx,
@@ -154,6 +156,7 @@ export class DeliveryRunOperationsService {
       if (run.status === DeliveryRunStatus.IN_PROGRESS) return run;
       if (run.status !== DeliveryRunStatus.PICKED_UP) throw new BadRequestException('Store pickup must be confirmed before starting the run');
       for (const stop of run.stops) {
+        if (TERMINAL_RUN_STOP_STATUSES.has(stop.status)) continue;
         if (stop.deliveryJob.status === DeliveryJobStatus.PICKUP_VERIFIED) {
           await this.workflow.transitionWithinTransaction(
             tx,

@@ -172,3 +172,14 @@ human), what changed, why.
     `c8dc8a0c` job-path delivery verification.
   - Not deployed: the fixes live in the working tree; `aagaam.in` still serves
     `c8dc8a0c`, so none of these are live yet.
+
+- **2026-10-08 · v1.3.2 · aagam-testing (remaining-bug fixes)**
+  - **BUG-010 FIXED (working tree)** — `allocateAfterCodCollectionWithinTransaction`
+    keeps an earlier day-cell under-collection shortfall on `amountDuePaise`
+    instead of zeroing it, without double-counting a fully COD-settled plan.
+    Regression: `subscription-cash-funding.service.spec.ts`.
+  - **BUG-011 FIXED (working tree)** — run-level packing / store handoff / rider
+    receipt / run start now skip terminal stops via the shared `TERMINAL_RUN_STOP_STATUSES`
+    set, so a partially-delivered route still packs and hands off its survivors.
+    Regression: `delivery-run-planning-partial.e2e.spec.ts`.
+  - `references/flows.md` — the BUG-011 stall point is annotated as fixed.

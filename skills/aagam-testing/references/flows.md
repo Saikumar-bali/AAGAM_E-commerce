@@ -406,7 +406,10 @@ job + order `DELIVERED`, payment `CAPTURED`, ledger `HELD_BY_RIDER`,
 subscription `amountDuePaise` decremented by 10500, day cell `DELIVERED`.
 Assertions held: job/order/DELIVERED coherent, no money disagreement.
 New finding this session: BUG-011 (run-level packing rejects a
-route-partial run).
+route-partial run). **BUG-011 fixed in the working tree** (not deployed):
+the four run-level loops (`confirmPacking`, `confirmStoreHandoff`,
+`confirmPickupReceipt`, `start`) now skip terminal stops, so a partially
+delivered route still packs and hands off its survivors.
 
 
 ---

@@ -23,10 +23,10 @@ jest.mock('@aagam/database', () => ({
   PaymentMethod: { COD: 'COD', CASH: 'CASH' },
   PaymentStatus: { CAPTURED: 'CAPTURED', PENDING_COD: 'PENDING_COD' },
   SubscriptionFundingCycle: { FULL_PLAN: 'FULL_PLAN', WEEKLY: 'WEEKLY' },
-  CodSettlementStatus: { PENDING: 'PENDING' },
+  CodSettlementStatus: { PENDING: 'PENDING', HELD_BY_RIDER: 'HELD_BY_RIDER' },
   prisma: {
     $transaction: jest.fn(),
-    subscriptionDelivery: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    subscriptionDelivery: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     customerSubscription: { findUnique: jest.fn(), update: jest.fn() },
     subscriptionAuditEntry: { findUnique: jest.fn(), create: jest.fn() },
     $executeRaw: jest.fn().mockResolvedValue(1),
@@ -56,6 +56,7 @@ describe('SubscriptionCashFundingService — delivery-first completion', () => {
     tx.subscriptionAuditEntry.create.mockResolvedValue({});
     tx.subscriptionDelivery.update.mockResolvedValue({});
     tx.subscriptionDelivery.findFirst.mockResolvedValue(null);
+    tx.subscriptionDelivery.findMany.mockResolvedValue([]);
     tx.customerSubscription.update.mockResolvedValue({});
   });
 
@@ -114,5 +115,79 @@ describe('SubscriptionCashFundingService — delivery-first completion', () => {
 
     expect(tx.customerSubscription.update).not.toHaveBeenCalled();
     expect(tx.subscriptionAuditEntry.create).not.toHaveBeenCalled();
+  });
+
+  describe('allocateAfterCodCollectionWithinTransaction — under-collection carry-forward (BUG-010)', () => {
+    // The allocation is triggered by a fully-collected day; the day-cell
+    // shortfall that must survive comes from an *earlier* delivered day whose
+    // cash was recorded short on its own cell.
+    const allocationDelivery = (overrides: Record<string, any> = {}) => ({
+      id: 'del-trigger',
+      subscriptionId: 'sub-1',
+      sequenceNumber: 4,
+      serviceDate: new Date('2026-10-08T00:00:00.000Z'),
+      cashDuePaise: 10500,
+      cashCollectedPaise: 0,
+      status: 'DELIVERED',
+      subscription: subscription({
+        id: 'sub-1',
+        status: 'ACTIVE',
+        completedDeliveries: 3,
+        amountDuePaise: 4500,
+        amountCollectedPaise: 6000,
+        fundingCycle: 'WEEKLY',
+        planVersion: { totalDeliveries: 7 },
+      }),
+      deliveryJob: {
+        codLedger: {
+          id: 'ledger-1',
+          status: 'HELD_BY_RIDER',
+          collectedAmountPaise: 10500,
+          expectedAmountPaise: 10500,
+          depositedAmountPaise: 0,
+          riderHoldingBalancePaise: 10500,
+        },
+        order: {
+          payment: { method: 'COD', status: 'CAPTURED' },
+        },
+      },
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      tx.subscriptionFundingAllocation = { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'alloc-1' }) };
+      (tx as any).subscriptionAuditEntry.findUnique.mockResolvedValue(null);
+    });
+
+    it('carries an earlier day-cell shortfall into the allocation instead of zeroing the due', async () => {
+      tx.subscriptionDelivery.findUnique.mockResolvedValueOnce(allocationDelivery());
+      // An earlier delivered day collected Rs 60 of Rs 105 on its cell: Rs 45 is
+      // still owed and must survive the allocation.
+      tx.subscriptionDelivery.findMany.mockResolvedValueOnce([
+        { cashDuePaise: 10500, cashCollectedPaise: 6000 },
+      ]);
+
+      await service.allocateAfterCodCollectionWithinTransaction(tx, 'job-1', actor, 'key-alloc');
+
+      expect(tx.customerSubscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ amountDuePaise: 4500 }),
+        }),
+      );
+    });
+
+    it('keeps a fully-paid plan at zero due (no phantom residual)', async () => {
+      tx.subscriptionDelivery.findUnique.mockResolvedValueOnce(allocationDelivery());
+      // No cell has recorded cash at all (COD records cash on the ledger).
+      tx.subscriptionDelivery.findMany.mockResolvedValueOnce([]);
+
+      await service.allocateAfterCodCollectionWithinTransaction(tx, 'job-1', actor, 'key-alloc');
+
+      expect(tx.customerSubscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ amountDuePaise: 0 }),
+        }),
+      );
+    });
   });
 });

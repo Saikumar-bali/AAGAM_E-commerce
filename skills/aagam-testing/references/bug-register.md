@@ -452,9 +452,14 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Notes:** Distinct from the collection *guards* (which correctly reject
   over-collection and zero-due). This is the under-collection *carry-forward*
   path. A fully-paid run is unaffected and reconciles cleanly.
-- **Fix:** — (candidate: keep the under-collected residual on
-  `amountDuePaise` and do not zero it on the next allocation, or record a
-  `CashShortfall` row the store can chase.)
+- **Fix:** FIXED in the working tree, **not yet deployed** —
+  `allocateAfterCodCollectionWithinTransaction` no longer zeroes
+  `amountDuePaise`; it recomputes the residual as the summed shortfall over
+  delivered day cells that recorded partial cash (`cashCollectedPaise > 0`),
+  so an under-collected day's shortfall survives the allocation while a
+  fully COD-settled plan (cash lives on the ledger, not the cell) still
+  reaches zero instead of double-counting the window just funded. Regression:
+  `subscription-cash-funding.service.spec.ts` (carry-forward + no-phantom).
 
 
 ### BUG-011 — A route-partial run cannot be packed or handed off: the run-level action rejects a run whose already-delivered stops sit on the same route
@@ -508,10 +513,15 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   (`cmuz9pz8i1zh3672nr6qpjs6x`) where I could complete a stop because it was
   reached through the independent OTP/COD job path. (The PM run packing call
   returned the same 409 for the same reason.)
-- **Fix:** — (candidate: filter the run's stops to non-terminal ones before the
-  per-stop validation in `confirmPacking` / `confirmStoreHandoff` /
-  `confirmPickupReceipt` / `start`, or short-circuit a stop whose stop or job
-  is already terminal.)
+- **Fix:** FIXED in the working tree, **not yet deployed** — the four run-level
+  loops now `continue` past a terminal stop (`DELIVERED`/`FAILED`/`RETURNED`/
+  `CANCELLED`) via the shared `TERMINAL_RUN_STOP_STATUSES` set
+  (`apps/api-gateway/src/subscriptions/run-stop-status.ts`) in
+  `confirmPacking` / `confirmStoreHandoff`
+  (`delivery-run-planning.service.ts`) and `confirmPickupReceipt` / `start`
+  (`delivery-run-operations.service.ts`). A route with a delivered stop now
+  packs and hands off its survivors. Regression:
+  `delivery-run-planning-partial.e2e.spec.ts`.
 - **Notes:** The lane is ambiguous from the store UI (one owner-facing "store"
   vs the two slot runs); this entry is about the run-level action, not the
   lane. Distinct from BUG-001 (rider pickup page renders one parcel) and

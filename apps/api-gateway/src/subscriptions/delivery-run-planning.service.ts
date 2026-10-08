@@ -21,6 +21,7 @@ import { DeliveryOperationsService } from '../orders/delivery-operations.service
 import { AssignDeliveryRunDto, ConfirmRunPackingDto, ConfirmRunStopReturnDto, RunVersionDto } from './subscriptions.dto';
 import { serviceWindow, startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
+import { TERMINAL_RUN_STOP_STATUSES } from './run-stop-status';
 
 type Actor = { id: string; role: Role };
 
@@ -271,6 +272,10 @@ export class DeliveryRunPlanningService {
         throw new BadRequestException('Packed bag count must exactly match the server-calculated route bag count');
       }
       for (const stop of run.stops) {
+        // A stop that already reached a terminal state (e.g. delivered before
+        // the route was re-packed) has no order to pack and must be skipped
+        // rather than abort the whole route (BUG-011).
+        if (TERMINAL_RUN_STOP_STATUSES.has(stop.status)) continue;
         const order = await tx.order.findUnique({ where: { id: stop.deliveryJob.orderId }, select: { status: true } });
         if (!order) throw new ConflictException('Run order is missing');
         if (!isOneOf(order.status, [OrderStatus.CONFIRMED, OrderStatus.PICKING, OrderStatus.PACKED, OrderStatus.RIDER_ASSIGNED])) {
@@ -327,6 +332,9 @@ export class DeliveryRunPlanningService {
         throw new ConflictException('Route bag verification is incomplete');
       }
       for (const stop of run.stops) {
+        // Terminal stops on a partially-completed route are already past the
+        // handoff stage; only the live ones gate the store handoff (BUG-011).
+        if (TERMINAL_RUN_STOP_STATUSES.has(stop.status)) continue;
         let status = stop.deliveryJob.status;
         const transitions = [DeliveryJobStatus.RIDER_EN_ROUTE_TO_STORE, DeliveryJobStatus.RIDER_AT_STORE];
         for (const target of transitions) {

@@ -58,6 +58,25 @@ export class SubscriptionCashFundingService {
     if (existing) return existing;
 
     const subscription = delivery.subscription;
+    // The cash collected on the triggering delivery is this window's contracted
+    // amount and fully settles it, so the allocation must not zero the balance
+    // wholesale: a delivered day whose cash was physically recorded on its day
+    // cell short of that cell's due is still owed and must carry forward.
+    // Day cells that carry no collected cash (the COD path records cash on the
+    // ledger, not the cell) are excluded, so a fully COD-settled plan still
+    // reaches zero instead of double-counting the window just funded (BUG-010).
+    const partlyCollectedCells = await tx.subscriptionDelivery.findMany({
+      where: {
+        subscriptionId: subscription.id,
+        status: SubscriptionDeliveryStatus.DELIVERED,
+        cashCollectedPaise: { gt: 0 },
+      },
+      select: { cashDuePaise: true, cashCollectedPaise: true },
+    });
+    const residualDuePaise = partlyCollectedCells.reduce(
+      (sum, cell) => sum + Math.max(0, (cell.cashDuePaise || 0) - (cell.cashCollectedPaise || 0)),
+      0,
+    );
     const remainingContractDeliveries = Math.max(
       0,
       subscription.planVersion.totalDeliveries - subscription.completedDeliveries,
@@ -99,7 +118,7 @@ export class SubscriptionCashFundingService {
         status: CustomerSubscriptionStatus.ACTIVE,
         fundedDeliveryCount: { increment: fundedDeliveryCount },
         remainingFundedDeliveries: { increment: fundedDeliveryCount },
-        amountDuePaise: 0,
+        amountDuePaise: residualDuePaise,
         amountCollectedPaise: { increment: ledger.collectedAmountPaise },
         nextCashCollectionDate: nextCash?.serviceDate ?? null,
       },
@@ -117,6 +136,7 @@ export class SubscriptionCashFundingService {
           endsAtSequence,
           fundedDeliveryCount,
           amountPaise: ledger.collectedAmountPaise,
+          residualDuePaise,
         },
         idempotencyKey: `audit:${key}`,
       },
