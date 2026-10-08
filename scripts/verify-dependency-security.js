@@ -41,6 +41,13 @@ const ALLOWED_PATCHED_ADVISORIES = new Set([
   // version yet, so there is no in-range fix to pin; the input is not
   // attacker-controlled anywhere in this repo (build/test tooling only).
   'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
+  // sprintf-js (via jest tooling -> argparse): GHSA-hp3w-g68c-fv3c
+  // (unbounded precision specifiers, DoS). Every published release through
+  // 1.1.3 is affected and upstream has published no patched version, so there
+  // is no in-range fix to pin. The value passed as a format string is never
+  // attacker-controlled and the module is reachable only through build/test
+  // tooling (jest, react-native CLI), never the running api-gateway.
+  'https://github.com/advisories/GHSA-hp3w-g68c-fv3c',
 ]);
 
 function run(command, args, options = {}) {

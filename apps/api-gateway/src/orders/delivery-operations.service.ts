@@ -314,7 +314,11 @@ export class DeliveryOperationsService {
     const job = await tx.deliveryJob.findUnique({
       where: { id: deliveryJobId },
       include: {
-        currentRider: { include: { user: true } },
+        currentRider: {
+          include: {
+            user: { select: { id: true, name: true, email: true, phone: true } },
+          },
+        },
         order: {
           include: {
             customer: { select: { id: true, name: true, email: true } },
@@ -453,6 +457,11 @@ export class DeliveryOperationsService {
       (operation: DeliveryOperationRow) =>
         operation.type === "COD_COLLECTED" && operation.status === "COMPLETED"
     );
+    // The photo/GPS completion path credits the COD ledger directly without
+    // writing a COD_COLLECTED operation, so the operation-derived flag would
+    // report `false` even though the cash is in hand. Fall back to the ledger.
+    const ledgerCollectedPaise = job.codLedger?.collectedAmountPaise ?? 0;
+    const codCollectedResolved = Boolean(codCollected) || ledgerCollectedPaise > 0;
     const codSettled = operations.find(
       (operation: DeliveryOperationRow) =>
         operation.type === "COD_SETTLED" && operation.status === "COMPLETED"
@@ -482,7 +491,7 @@ export class DeliveryOperationsService {
         applicable: job.order.payment?.method === PaymentMethod.COD,
         expectedAmountPaise:
           job.order.payment?.amountPaise || job.order.grandTotalPaise,
-        collected: Boolean(codCollected),
+        collected: codCollectedResolved,
         settled: Boolean(codSettled),
         ledger: job.codLedger || null,
       },

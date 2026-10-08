@@ -121,3 +121,54 @@ human), what changed, why.
   - Noted a mid-session deploy (`cb1e85fc` → `41daf15c`, a `skills/`-only tree
     change) that briefly 502'd the gateway — live revision must be re-checked
     after any 5xx burst.
+
+- **2026-10-08 · v1.3.0 · aagam-testing (partial-payment delivery session)**
+  - Completed one real subscription delivery end to end on live revision
+    `41daf15c` with a **partial** cash payment: run
+    `cmuz9pz8i1zh3672nr6qpjs6x` (`RUN-AAGA-PM-2026-10-08-f2ce`), stop
+    `cmuz9pz971zhe672nv9j46m8f`, Rs 60 collected of Rs 105 due. Stop -> DELIVERED,
+    run -> AWAITING_SETTLEMENT, ledger HELD_BY_RIDER 6000, customer shop
+    amountCollectedPaise 6000 / amountDuePaise 4500. Screenshots +
+    partial_payment_delivery_walkthrough.mp4 under
+    AAGAM_E-commerce/agent_demo_shots/.
+  - **BUG-008 opened (major, OPEN)** - rider stop modal keeps the stale stop
+    after arrive(), hiding the photo/GPS + cash form until the panel is closed
+    and re-opened.
+  - **BUG-009 opened (minor, OPEN)** - same-day dispatch-to-rider creates the
+    run at READY_FOR_PICKUP with the handoff already stamped, so the store's
+    Pack button (status === 'PLANNED') never renders and packedBagCount stays
+    0 while expectedBagCount > 0.
+  - **BUG-010 opened (minor, OPEN)** - an under-collection on a day
+    (cashCollectedPaise < cashDuePaise) is not carried into the subscription's
+    outstanding balance; the shortfall is dropped on the next funding allocation.
+  - **references/flows.md Flow G** - added a "UI nuances" block: store Pack
+    gate, rider stale-modal workaround, and partial-cash behaviour.
+
+- **2026-10-08 · v1.3.1 · aagam-testing (delivery completion + fix verification session)**
+  - Completed one real subscription delivery end to end on live revision
+    `c8dc8a0c` via the job path (covers the request "complete one subscription
+    delivery"): job `cmuugfovh4705pspt4spg1n97` (QA E2E Customer, order
+    `cmuugfouq46zwpspt9nm3gofg`, COD Rs 105). OTP issued -> COD collected ->
+    complete -> job+order DELIVERED, payment CAPTURED, ledger HELD_BY_RIDER,
+    subscription `amountDuePaise` cut by 10500, day cell DELIVERED. Ran on a
+    clone of `main`; **the delivery was performed against a local checkout's
+    live API, no production mutation beyond the QA records already seeded.**
+  - **BUG-011 opened (major, OPEN)** - a route with any already-DELIVERED stop
+    cannot be packed or handed off as a whole: `confirmPacking()` scans every
+    stop and rejects a `DELIVERED` order ("Run order cannot be packed from
+    DELIVERED", 409). Reproduced on `cmuyuu8ikzilxdo7hc5el89k5` (AM) and
+    `cmuz9pz8i1zh3672nr6qpjs6x` (PM); prevents the remaining stop of a
+    partially-completed route from being reached through the run.
+  - **BUG-002** moved to FIXED-in-working-tree (rider `RIDER_AT_STORE` copy +
+    "Open Pickup Tasks" banner/CTA to `/rider/pickup`).
+  - **BUG-008** moved to FIXED-in-working-tree (shared `mergeRunIntoOpenStop`
+    helper re-seeds the open rider stop panel after `loadRuns()`).
+  - **BUG-005** advanced (MilkDeliveryGrid `todayStats` now accumulates
+    packed/sold/left and renders three cards; helper `packages/utils/src/store-run.ts`
+    + `apps/api-gateway/src/subscriptions/store-run-actions.spec.ts`).
+  - **BUG-004** dependency-security gate now exits `0` locally (npm audit clean,
+    uuid override resolves 11.1.1; `GATE_EXIT=0`, `UUID_EXIT=0`).
+  - **references/flows.md** - added the run-level packing stall point and the
+    `c8dc8a0c` job-path delivery verification.
+  - Not deployed: the fixes live in the working tree; `aagaam.in` still serves
+    `c8dc8a0c`, so none of these are live yet.

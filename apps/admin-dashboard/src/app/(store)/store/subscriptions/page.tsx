@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
-import { apiClient, isOfflineSubscription } from "@aagam/utils";
+import { apiClient, isOfflineSubscription, resolveRunActions } from "@aagam/utils";
 import {
   AlertTriangle,
   Archive,
@@ -85,6 +85,8 @@ type Run = {
   totalStopCount: number;
   expectedBagCount?: number;
   packedBagCount?: number;
+  packedAt?: string | null;
+  storeHandoffConfirmedAt?: string | null;
   expectedCashPaise: number;
   rider?: {
     user?: { name?: string | null; phone?: string | null } | null;
@@ -1131,7 +1133,22 @@ export default function StoreSubscriptionOperationsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {runs.map((run) => (
+                      {runs.map((run) => {
+                        // A run created by the same-day "Dispatch to Rider"
+                        // quick action is born READY_FOR_PICKUP with the
+                        // handoff already stamped, so `status === 'PLANNED'`
+                        // would hide Pack forever and leave packedBagCount 0.
+                        // The store still owes an independent bag-count
+                        // confirmation, so gate on whether the bags are packed
+                        // yet, not on the run status / implicit handoff.
+                        const { canPack, canHandoff } = resolveRunActions({
+                          status: run.status,
+                          totalStopCount: run.totalStopCount,
+                          expectedBagCount: run.expectedBagCount,
+                          packedBagCount: run.packedBagCount,
+                          stopCount: run.stops.length,
+                        });
+                        return (
                         <tr key={run.id} className="hover:bg-emerald-50/30">
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-900">{run.routeCode}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-700">
@@ -1150,7 +1167,7 @@ export default function StoreSubscriptionOperationsPage() {
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{title(run.status)}</span>
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5">
-                            {run.status === "PLANNED" && (
+                            {canPack && (
                               <button
                                 onClick={() => {
                                   setPackingRun(run);
@@ -1161,7 +1178,7 @@ export default function StoreSubscriptionOperationsPage() {
                                 <PackageCheck className="h-3 w-3" /> Pack
                               </button>
                             )}
-                            {run.status === "READY_FOR_PICKUP" && (
+                            {canHandoff && (
                               <button
                                 disabled={working === `pickup-${run.id}`}
                                 onClick={() => confirmPickup(run)}
@@ -1172,7 +1189,8 @@ export default function StoreSubscriptionOperationsPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 ) : (

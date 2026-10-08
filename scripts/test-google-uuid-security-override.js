@@ -8,8 +8,13 @@ const { createRequire } = require('module');
 const EXPECTED_UUID_VERSION = '11.1.1';
 
 function packageRequire(packageName) {
-  const packageJson = require.resolve(`${packageName}/package.json`, { paths: [process.cwd()] });
-  return createRequire(packageJson);
+  // Resolve the package's entry point, not its package.json: several
+  // transitive dependencies (e.g. gaxios 7.x) ship a restrictive "exports"
+  // map that does not expose "./package.json", so resolving the manifest
+  // throws ERR_PACKAGE_PATH_NOT_EXPORTED. Scoping a require to the entry file
+  // still resolves nested dependencies from the package's own directory.
+  const entry = require.resolve(packageName, { paths: [process.cwd()] });
+  return createRequire(entry);
 }
 
 function verifyUuidFor(packageName) {

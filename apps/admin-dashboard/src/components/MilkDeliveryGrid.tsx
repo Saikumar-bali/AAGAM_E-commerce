@@ -678,10 +678,11 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
 
   // Calculate stats for today's route
   const todayStats = useMemo(() => {
-    if (!gridData?.rows) return { totalStops: 0, deliveredStops: 0, pendingStops: 0, totalLiters: 0, cashCollected: 0 };
+    if (!gridData?.rows) return { totalStops: 0, deliveredStops: 0, pendingStops: 0, totalLiters: 0, soldLiters: 0, leftLiters: 0, cashCollected: 0 };
     let delivered = 0;
     let pending = 0;
     let liters = 0;
+    let sold = 0;
     let cash = 0;
     let stops = 0;
 
@@ -697,11 +698,26 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
       // extra (or the base) and defaulted unparseable labels to 1L, so an
       // add-on of `+1 Unit ... 1/2 (LITER)` collapsed to 1 and `250ml`
       // parsed as 250. Skip (not guess) labels that carry no volume.
-      liters += (parseQuantityLiters(c.baseQuantity) ?? 0) + addOnLiters(c.extraMilk);
+      const cellLiters = (parseQuantityLiters(c.baseQuantity) ?? 0) + addOnLiters(c.extraMilk);
+      liters += cellLiters;
+      // A DELIVERED stop is milk that actually went out (sold). The rest is
+      // still on the van (left). BUG-005: the grid answered "how much did the
+      // rider leave with" but never "how much sold / how much left".
+      if (c.status === 'DELIVERED') sold += cellLiters;
     });
     pending = stops - delivered;
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+    const total = round3(liters);
 
-    return { totalStops: stops, deliveredStops: delivered, pendingStops: pending, totalLiters: Math.round(liters * 1000) / 1000, cashCollected: cash };
+    return {
+      totalStops: stops,
+      deliveredStops: delivered,
+      pendingStops: pending,
+      totalLiters: total,
+      soldLiters: round3(sold),
+      leftLiters: round3(Math.max(0, liters - sold)),
+      cashCollected: cash,
+    };
   }, [gridData, currentDayNum]);
 
   // Split into pending deliveries (active route) and completed deliveries (done today)
@@ -1417,8 +1433,16 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                   <p className="text-lg font-semibold">{todayStats.deliveredStops} / {todayStats.totalStops}</p>
                 </div>
                 <div className="border-l border-emerald-400/60 pl-3">
-                  <p className="text-[10px] font-bold uppercase text-emerald-100">Total Pack</p>
+                  <p className="text-[10px] font-bold uppercase text-emerald-100">Packed</p>
                   <p className="text-lg font-semibold">{todayStats.totalLiters} L</p>
+                </div>
+                <div className="border-l border-emerald-400/60 pl-3">
+                  <p className="text-[10px] font-bold uppercase text-emerald-100">Sold</p>
+                  <p className="text-lg font-semibold">{todayStats.soldLiters} L</p>
+                </div>
+                <div className="border-l border-emerald-400/60 pl-3">
+                  <p className="text-[10px] font-bold uppercase text-emerald-100">Left</p>
+                  <p className="text-lg font-semibold">{todayStats.leftLiters} L</p>
                 </div>
               </div>
             </div>

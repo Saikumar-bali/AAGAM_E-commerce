@@ -3,6 +3,7 @@ export * from './customer-address';
 export * from './customer-source';
 export * from './product-images';
 export * from './order-pricing';
+export * from './store-run';
 
 /**
  * Calculates the distance between two points on the Earth's surface using the Haversine formula.

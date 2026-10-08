@@ -366,6 +366,29 @@ Guards worth knowing:
   `ThrottlerException`) after a handful of attempts in quick succession; space
   logins out or reuse the same cookie jar.
 
+UI nuances (live revision `41daf15c`):
+
+- **Store "Pack" is gated on `status === 'PLANNED'`** (`(store)/store/subscriptions/page.tsx`
+  ~line 1155). A run created by the same-day `dispatch-to-rider` quick action
+  starts at `READY_FOR_PICKUP` with the handoff already stamped, so the Pack
+  button never appears and `packedBagCount` stays `0`. Pack via API if you need
+  the exact bag count for the rider receipt (BUG-009).
+- **Rider stop modal goes stale after `arrive()`** (`(rider)/rider/runs/page.tsx`
+  `arrive()` ~line 452). The photo/GPS + "Cash Collected" completion form does
+  not render in the already-open panel; **close and re-open the stop** to get it
+  (BUG-008).
+- **A partial cash amount** (`cashCollectedPaise < cashDuePaise`) still records
+  the stop `DELIVERED`, credits only what was collected, leaves the run
+  `AWAITING_SETTLEMENT` (rider holds the cash), and the customer shop shows the
+  residual as "Pending". Note the residual is not actually carried forward in
+  the ledger (BUG-010).
+- **A route with any already-DELIVERED stop cannot be packed/handed off as a
+  whole** (`delivery-run-planning.service.ts` `confirmPacking()` scans **every**
+  stop and aborts on a `DELIVERED` order: *"Run order cannot be packed from
+  DELIVERED"*, 409). Its remaining stop therefore cannot be reached through the
+  run — complete it through the independent job OTP/COD path, or pack the whole
+  route before the first stop is delivered (BUG-011).
+
 **Verified 2026-10-08** on live revision `41daf15c`: run `cmuyuu8ik…`
 (`RUN-AAGA-AM-2026-10-08-f2ce`) taken `READY_FOR_PICKUP` → `IN_PROGRESS` →
 2/2 stops `DELIVERED`, `collectedCashPaise 500` = `expectedCashPaise`, then
@@ -373,6 +396,17 @@ Guards worth knowing:
 subscription `ACTIVE` with `amountDuePaise 0`, day cell `cashCollectedPaise 500`,
 day cell status `DELIVERED`, and `dispatch-summary` `completedStops 2 / 37`,
 `cashCollectedPaise 500`. Two findings surfaced (BUG-006, BUG-007).
+
+**Verified 2026-10-08** on live revision `c8dc8a0c`: completed one full
+subscription delivery through the job path — job `cmuugfovh4705…`
+(`QA E2E Customer`, order `cmuugfouq46zw…`, COD Rs 105): OTP issued
+(`getCustomerOtp` returns the live 6-digit code, 5-minute TTL), COD
+collected, `POST /orders/delivery-operations/jobs/:id/complete` →
+job + order `DELIVERED`, payment `CAPTURED`, ledger `HELD_BY_RIDER`,
+subscription `amountDuePaise` decremented by 10500, day cell `DELIVERED`.
+Assertions held: job/order/DELIVERED coherent, no money disagreement.
+New finding this session: BUG-011 (run-level packing rejects a
+route-partial run).
 
 
 ---

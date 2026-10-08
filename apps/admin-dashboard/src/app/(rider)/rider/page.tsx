@@ -107,7 +107,7 @@ const statusMeta: Record<string, { label: string; help: string; cls: string }> =
     },
     RIDER_AT_STORE: {
       label: "At store",
-      help: "Wait for the store to verify parcel handoff.",
+      help: "Open Pickup Tasks and verify the item checklist so the store can hand the parcel over.",
       cls: "bg-amber-50 text-amber-800 ring-amber-200",
     },
     PICKUP_VERIFIED: {
@@ -572,11 +572,18 @@ export default function RiderDashboard() {
               <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold">Store verification required</p>
+                  <p className="text-sm font-semibold">Your action needed — verify the parcel</p>
                   <p className="mt-0.5 text-[11px]">
-                    Do not start delivery until the store verifies the parcel
-                    handoff.
+                    The store cannot hand the parcel over until you verify the
+                    item checklist in Pickup Tasks. Open it and tick off the
+                    items.
                   </p>
+                  <a
+                    href="/rider/pickup"
+                    className="mt-2 inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-700 px-2.5 text-[11px] font-semibold text-white hover:bg-amber-800"
+                  >
+                    <PackageCheck className="h-3.5 w-3.5" /> Open Pickup Tasks
+                  </a>
                 </div>
               </div>
             )}

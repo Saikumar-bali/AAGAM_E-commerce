@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getToastErrorMessage, useToast } from "@/components/ToastProvider";
-import { apiClient } from "@aagam/utils";
+import { apiClient, mergeRunIntoOpenStop } from "@aagam/utils";
 import {
   AlertTriangle,
   Banknote,
@@ -415,6 +415,11 @@ function RiderRunsPage() {
       `/rider/delivery-runs/${encodeURIComponent(activeRun.id)}`
     );
     setActiveRun(response.data);
+    // Keep an open stop panel in sync with the refreshed run. Without this the
+    // panel holds the pre-arrive() snapshot, so a rider who records arrival in
+    // the still-open panel never sees the photo/GPS + cash completion form
+    // (BUG-008).
+    setSelectedStop((current) => mergeRunIntoOpenStop(current, response.data.stops));
     setRuns((current) =>
       current.map((run) =>
         run.id === response.data.id
