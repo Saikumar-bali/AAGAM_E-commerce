@@ -273,3 +273,14 @@ human), what changed, why.
   - Captured four fresh per-portal screen recordings (customer / store / rider /
     admin) from the live site for review; no titles or subtitles are burned into
     the frames.
+
+- **2026-10-08 · v1.4.4 · aagam-testing (rider Run Console prototype)**
+  - Designed and built a single-screen rider "Run Console" prototype (one map +
+    ordered sequence rail + state-driven primary action) as the proposed shape
+    for the bulk-delivery rider UX. Mock data only, provider-agnostic basemap
+    (OpenStreetMap default; Google/Mapbox tiles selectable with a key). It is a
+    design artifact, not a tested app surface, so it is NOT in the repo (served
+    from the work host) and carries no findings.
+  - Its "navigate remaining stops" button is the intended fix for **BUG-016**:
+    it hands the run's remaining stops to Google Maps as `waypoints=`, matching
+    the web rider runs page.
