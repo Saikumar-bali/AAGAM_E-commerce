@@ -27,11 +27,9 @@ packages/*/src/**/*.d.ts.map
 # Turbo
 .turbo/
 
-# CommandCodeBot config (local design reports and tool state)
-# Agent skills ARE tracked — they are the repo's shared, self-updating
-# test/playbook knowledge and must be visible to every agent that clones it.
-.commandcode/*
-!.commandcode/skills/
+# CommandCodeBot config (local tool state — not agent skills; those live in
+# the tracked top-level skills/ directory, see AGENTS.md "Agent skills")
+.commandcode/
 
 # Environment variables
 .env

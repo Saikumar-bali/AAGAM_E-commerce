@@ -2,7 +2,7 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   last-verified: "2026-10-08"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."
@@ -41,9 +41,9 @@ back into the skill** so the next agent starts from current truth.
 2. Check what the site is actually serving. From this skill's directory:
 
    ```powershell
-   # <skill>/.commandcode/skills/aagam-testing/scripts/live-revision.ps1
-   .\scripts\live-revision.ps1            # compares live vs origin/main
-   .\scripts\live-revision.ps1 -NoGit     # just print the served revision
+   # from the repository root: skills/aagam-testing/scripts/live-revision.ps1
+   .\skills\aagam-testing\scripts\live-revision.ps1   # live vs origin/main
+   .\skills\aagam-testing\scripts\live-revision.ps1 -NoGit   # print only
    ```
 
    It reads `GET /api/health` → `{status, service, revision, timestamp,

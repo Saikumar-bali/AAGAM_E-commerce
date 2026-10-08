@@ -152,9 +152,9 @@ Login is email → password → a separate **Continue** button. Two traps:
 `https://aagaam.in` keeps serving whatever `main` last built.
 
 ```powershell
-# from .commandcode/skills/aagam-testing/
-.\scripts\live-revision.ps1          # what the site is serving vs origin/main
-git rev-parse origin/main            # what should be live after CI finishes
+# from the repository root: skills/aagam-testing/
+.\skills\aagam-testing\scripts\live-revision.ps1   # live vs origin/main
+git rev-parse origin/main                           # what should be live
 ```
 
 `GET /api/health` → `{status, service, revision, timestamp, uptimeSeconds}`;

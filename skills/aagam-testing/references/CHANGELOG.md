@@ -50,3 +50,22 @@ human), what changed, why.
     `.commandcode/design/` and other tool state stay local. `AGENTS.md` gained
     an **Agent skills** section so any model reading the repository finds the
     skill without being told where it is.
+
+- **2026-10-08 · v1.1.0 · relocated to a tracked top-level `skills/` directory**
+  - Moved `.commandcode/skills/aagam-testing/` → **`skills/aagam-testing/`**
+    (seven files, `git mv`, history preserved).
+  - Why: `.commandcode/` is this tool's own config/state directory and is
+    gitignored by default, so the v1.0.0 wiring needed a `.gitignore`
+    carve-out just to make the skill committable — and a dot-directory is
+    hidden in a normal file listing, so a human browsing the repository would
+    never find it. A top-level `skills/` is the convention used by public
+    agent-skill repos, is self-advertising, and needs no tool-specific config
+    for another model to read it.
+  - `.gitignore` reverted to a plain `.commandcode/` rule; the carve-out is
+    gone and `.commandcode/design/` stays local as before.
+  - Path references updated in `SKILL.md` (live-revision invocation) and
+    `references/api.md` (script location).
+  - `AGENTS.md` → **Agent skills** now names `skills/<name>/` and explains why
+    it is not a dot-directory.
+  - Content unchanged: flows, assertions G1–G9, endpoint map and BUG-001…
+    BUG-004 are identical to v1.0.0.

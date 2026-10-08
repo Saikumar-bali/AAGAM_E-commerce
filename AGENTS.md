@@ -12,10 +12,11 @@ TypeScript monorepo (npm workspaces):
 
 ## Agent skills
 
-The repo carries its own self-updating agent skills under
-`.commandcode/skills/<name>/` (tracked in git — `.commandcode/*` is ignored
-except `skills/`). Load one when the task matches its description; every file
-is plain Markdown and is readable without loading anything.
+The repo carries its own self-updating agent skills under `skills/<name>/`
+(a tracked, top-level directory — deliberately not a tool-local dot-directory,
+so any model that clones the repo finds them without configuration). Load one
+when the task matches its description; every file is plain Markdown and is
+readable without loading anything.
 
 - **`aagam-testing`** — end-to-end testing of the four role surfaces
   (customer shop, store portal, rider portal, admin dashboard): subscription
