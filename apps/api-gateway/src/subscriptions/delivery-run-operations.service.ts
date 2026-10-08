@@ -361,13 +361,25 @@ export class DeliveryRunOperationsService {
             },
           });
 
-          // Track in COD ledger for rider cash accountability
+          // Track in COD ledger for rider cash accountability. The order
+          // generator usually mints one, but a subscription stop (and any stop
+          // whose order carried no COD payment) can reach here without one —
+          // the rider already has the cash, so open the ledger on first
+          // collection rather than refusing the completion. This is the same
+          // fallback the recordPayment path uses.
           const ledger = await tx.codLedger.findUnique({
             where: { deliveryJobId: stop.deliveryJobId },
+          }) || await tx.codLedger.create({
+            data: {
+              deliveryJobId: stop.deliveryJobId,
+              orderId: stop.deliveryJob.orderId,
+              riderId: rider.id,
+              expectedAmountPaise: Math.max(cashCollected, stop.cashDuePaise || 0),
+              collectedAmountPaise: 0,
+              riderHoldingBalancePaise: 0,
+              status: 'AWAITING_COLLECTION',
+            },
           });
-          if (!ledger) {
-            throw new ConflictException('Cash was collected for a stop with no COD ledger to hold it');
-          }
           const holdingAfterPaise = ledger.riderHoldingBalancePaise + cashCollected;
           await tx.codLedger.update({
             where: { id: ledger.id },
