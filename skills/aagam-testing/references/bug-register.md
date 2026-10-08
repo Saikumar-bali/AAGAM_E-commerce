@@ -606,3 +606,87 @@ area, and treat a recurrence as a **major** finding.
   `getQueue()`, mirroring the `user` select already added to `summary`.)
 - **Notes:** Same class as BUG-006 but a different endpoint/role path, so recorded
   as its own entry rather than merged. Do not paste any ciphertext value.
+
+### BUG-013 — Only one rider can be assigned per store/date/slot: assigning a delivery to a second rider 500s, and "Reassign" to another rider fails the same way
+
+- **Found:** 2026-10-08 by aagam-testing (cross-role walkthrough recording)
+- **Severity:** blocker (the store cannot put two riders on the same morning
+  route, and cannot move a stop from one rider to another — core dispatch work)
+- **Surface:** `POST /api/store/subscriptions/dispatch-to-rider`
+- **Role:** store owner
+- **Status:** OPEN
+- **Repro (fresh, no planner run needed):**
+  1. As the store owner, open `/store/subscriptions` and pick a delivery on a
+     store-local date whose **morning** slot has no rider run yet.
+  2. Assign it to rider A — succeeds (`201`, a `RUN-AAGA-AM-<date>-<riderA>`
+     run is created).
+  3. Assign any other delivery for the **same date and slot** (a different
+     customer, or the same customer's next day) to rider B.
+- **Observed:** HTTP 500 `{"statusCode":500,"message":"Internal server error"}`.
+  Assigning to rider A again (whose run already exists) returns 201, so the
+  failure is exactly "a run for this store/date/slot already exists, owned by a
+  different rider".
+- **Expected:** a second rider's run for the same store/date/slot is created and
+  the delivery is dispatched to them (or the delivery joins the existing run),
+  without a 500.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `dispatchToRider`, line 1695 —
+  `tx.deliveryRun.findFirst({ where: { storeId, serviceDate, deliverySlot, riderId: rider.id, status: { not: 'CANCELLED' } } })`.
+  The lookup is scoped by `riderId`, so it cannot see a run for a *different*
+  rider on the same date/slot. When `rider B` has none it falls through to
+  `tx.deliveryRun.create` (line 1711) with `deliveryCluster: 'LOCAL'` and the
+  05:00Z `slotStart`, which collides with rider A's run on the database unique
+  index `DeliveryRun_storeId_serviceDate_slotStart_deliveryCluster_deliverySlot_key`
+  (`packages/database/prisma/migrations/20260912000000_rider_photo_gps_proof/migration.sql:38`),
+  and the whole transaction rolls back with the 500.
+- **Evidence:** live revision `75f4fb7` (main), 2026-10-08. Clean date `2026-10-09`
+  (no planner run, no prior run): assign to rider `saikumarbali` → `201`
+  (`RUN-AAGA-AM-2026-10-09-f2ce`), then assign the *same day* to rider `Neeraj` →
+  `500`. Clean date `2026-10-10`: assign to `Neeraj` → `201`
+  (`RUN-AAGA-AM-2026-10-10-735f`), then to `saikumarbali` → `500`. A second
+  customer (`Vaddi Venkatesh`) on date `2026-10-11` (which already had
+  `saikumarbali`'s run) → `Neeraj` `500`, → `saikumarbali` `201`.
+- **Fix:** — (candidate: look the run up by `storeId, serviceDate, deliverySlot,
+  status != CANCELLED` **without** `riderId`, and attach/move the stop onto the
+  existing run for that slot, or make the run's rider a field that can be set on
+  an existing same-slot run instead of keying the lookup by rider.)
+- **Notes:** Distinct from BUG-009 (same-day dispatch skips packing) and BUG-011
+  (a route-partial run rejects handoff). The store UI calls this same endpoint
+  from the cell **Reassign** button, so BUG-014 below is the user-visible
+  reassign symptom of this root cause. Do not merge the two.
+
+### BUG-014 — "Reassign" of an already-assigned stop to another rider fails with HTTP 500, so the stop keeps its old rider
+
+- **Found:** 2026-10-08 by aagam-testing (cross-role walkthrough recording)
+- **Severity:** major (the explicit remove-and-reassign store operation cannot
+  complete; the stop silently keeps its previous rider)
+- **Surface:** `/store/subscriptions` → delivery cell → **Reassign** →
+  **Dispatch 1 Stops** → `POST /api/store/subscriptions/dispatch-to-rider`
+- **Role:** store owner
+- **Status:** OPEN
+- **Repro:**
+  1. Assign a scheduled stop to rider A (succeeds).
+  2. Re-open the cell, press **Reassign**, choose rider B, press
+     **Dispatch 1 Stops**.
+- **Observed:** `POST /api/store/subscriptions/dispatch-to-rider` → HTTP 500.
+  Re-reading the cell still shows rider A, so the reassignment silently did not
+  happen and the UI gives no reason.
+- **Expected:** the stop moves from rider A's run to rider B's run and the cell
+  shows rider B.
+- **Code path:** same `dispatchToRider` as BUG-013. For an already-assigned stop
+  the `deliveryRunStop` row is found and the branch
+  `else if (stop.deliveryRunId !== run.id)` moves it, but the *target* run for
+  rider B must first be created — and that create collides on the same
+  `DeliveryRun` unique index because rider A's run already occupies the slot.
+- **Evidence:** live revision `75f4fb7` (main), 2026-10-08. Direct API replay of
+  the exact UI calls: assign unassigned day to `saikumarbali` → `201`; reassign
+  that same delivery to `Neeraj` → `500`; reassign back to `saikumarbali` (same
+  rider, run already exists) → `201`. A UI recording of the **Reassign** button
+  reproduced the `500` on the same cell and the cell still read
+  `Assigned Rider: saikumarbali` afterwards.
+- **Fix:** — (fixed by the same change as BUG-013.)
+- **Notes:** Recorded separately from BUG-013 because the repro and the user
+  action differ (re-assigning an existing assignment vs a first assign to a
+  second rider); both share the rider-scoped-run-lookup / unique-index collision.
+  Do not merge.
+
