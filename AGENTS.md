@@ -483,3 +483,35 @@ day (`cashDuePaise = 0`) or decrementing due below zero rolls the transaction
 back as an opaque HTTP 500; guard on the cash actually due rather than assuming
 the invariant holds.
 
+
+## Every completion writer must advance the order, not just the stop
+
+There are several ways a subscription day gets marked delivered — rider OTP,
+rider-photo/GPS, Trusted Drop, and the store-grid / rider "Mark delivered"
+quick action (`POST /store/subscriptions/deliveries/:id/quick-action`
+`TOGGLE_DELIVERED`, `StoreMilkGridService.executeQuickAction`). Each must route
+the stop's `deliveryJobId` through
+`DeliveryWorkflowService.transitionWithinTransaction`; that is the only thing
+that advances the linked `Order`, writes its status history and finalizes
+inventory. The quick action now does this via `advanceOrderForQuickAction`
+(before that it left the Order at `OUT_FOR_DELIVERY`) and reverses it on undo
+via `revertOrderStatusForQuickAction`. When adding a completion path, do not
+raw-update `deliveryJob.status`.
+
+## DeliveryRun is unique per rider
+
+The `DeliveryRun` unique key is
+`(storeId, serviceDate, slotStart, deliveryCluster, deliverySlot, riderId)`.
+Dropping `riderId` (the pre-`20261008000000` shape) means only one rider can be
+dispatched per store/date/slot: a second rider's `deliveryRun.create` collides
+on the unique index and the whole `dispatchToRider` transaction rolls back with
+an opaque HTTP 500, which is also what broke store "Reassign". Postgres treats a
+NULL rider as distinct, which is why planner runs (riderless) and dispatched
+runs don't collide. `dispatch-second-rider.e2e.spec.ts` is the regression.
+
+## Don't serialise whole Prisma models to a store owner
+
+`GET /orders/delivery-operations/queue` leaked rider `bankAccountCiphertext` /
+`bankIfscCiphertext` because `currentRider` was `include`d whole (its `user`
+sub-select was already scoped). Any store/admin read path that returns a rider
+must `select` only the display fields. Same class as the `.../summary` leak.

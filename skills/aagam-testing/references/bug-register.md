@@ -260,7 +260,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** major (sensitive-data exposure on a shared endpoint; cross-role, not just the rider's own data)
 - **Surface:** `GET /api/orders/delivery-operations/jobs/:deliveryJobId/summary`
 - **Role:** api (customer, store, rider, admin all reach it)
-- **Status:** PARTIALLY-FIXED (password hash gone; bank ciphertext still live)
+- **Status:** FIXED (this branch, not yet deployed)
 - **Repro:**
   1. Log in as any role (customer, store, rider or admin) with any cookie jar.
   2. `GET /api/orders/delivery-operations/jobs/:id/summary` for a job whose
@@ -292,8 +292,11 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   `approvalStatus`, `bankReviewedByUserId`, `bankReviewedAt`,
   `approvalReviewedByUserId`, `approvalReviewedAt` are **still returned to the
   customer and store roles** on the same endpoint (verified live as both roles).
-  Remaining fix: `select`-scope the bank columns on `currentRider` too (or drop
-  them — the summary never renders them).
+  Remaining fix applied on this branch: `private async job()` now
+  `select`-scopes `currentRider` to
+  `{id, userId, status, vehicleType, vehicleNumber, user:{id,name,email,phone}}`,
+  so neither the password hash nor the bank ciphertext is serialised. The same
+  scoping was applied to `getQueue()` (see BUG-012).
 - **Notes:** Not in `skills/` scope; recorded here because it surfaced while
   asserting the delivery summary. Do not paste the hash anywhere.
 
@@ -442,7 +445,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** minor
 - **Surface:** Rider stop completion with a cash amount below the amount due
 - **Role:** rider → customer/store
-- **Status:** OPEN
+- **Status:** FIXED-DEPLOYED (commit `78a8a3f`, pushed to `main`)
 - **Repro:**
   1. Complete a `RIDER_PHOTO_GPS` stop with `cashCollectedPaise` **less than**
      `cashDuePaise` (e.g. collect ₹60 of ₹105; submit `cashCollected: 60`),
@@ -480,7 +483,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Notes:** Distinct from the collection *guards* (which correctly reject
   over-collection and zero-due). This is the under-collection *carry-forward*
   path. A fully-paid run is unaffected and reconciles cleanly.
-- **Fix:** FIXED in the working tree, **not yet deployed** —
+- **Fix:** FIXED-DEPLOYED in `78a8a3f` (pushed to `main`) —
   `allocateAfterCodCollectionWithinTransaction` no longer zeroes
   `amountDuePaise`; it recomputes the residual as the summed shortfall over
   delivered day cells that recorded partial cash (`cashCollectedPaise > 0`),
@@ -583,7 +586,7 @@ area, and treat a recurrence as a **major** finding.
   the store owner holds the field key; cross-role data exposure)
 - **Surface:** `GET /api/orders/delivery-operations/queue`
 - **Role:** store owner (and admin)
-- **Status:** OPEN
+- **Status:** FIXED (this branch, not yet deployed)
 - **Repro:**
   1. Log in as a store owner.
   2. `GET /api/orders/delivery-operations/queue` (51 rows on live 2026-10-08).
@@ -602,8 +605,11 @@ area, and treat a recurrence as a **major** finding.
   `bankIfscCiphertext`. Distinct from BUG-006: that entry is the `.../summary`
   endpoint, whose `user` leak was partially fixed in `a6044c1`; this queue leak is
   a separate endpoint and was untouched by that commit.
-- **Fix:** — (candidate: `select`-scope `currentRider` on the bank columns in
-  `getQueue()`, mirroring the `user` select already added to `summary`.)
+- **Fix:** FIXED — `getQueue()` now `select`-scopes `currentRider` to
+  `{id, userId, status, vehicleType, vehicleNumber, user:{id,name,email,phone}}`,
+  so the bank columns are never serialised. Regression assertion added to
+  `phase3-delivery-operations.spec.ts` (no `bankAccountCiphertext` /
+  `bankIfscCiphertext` on any queue row).
 - **Notes:** Same class as BUG-006 but a different endpoint/role path, so recorded
   as its own entry rather than merged. Do not paste any ciphertext value.
 
@@ -614,7 +620,7 @@ area, and treat a recurrence as a **major** finding.
   route, and cannot move a stop from one rider to another — core dispatch work)
 - **Surface:** `POST /api/store/subscriptions/dispatch-to-rider`
 - **Role:** store owner
-- **Status:** OPEN
+- **Status:** FIXED (this branch, not yet deployed)
 - **Repro (fresh, no planner run needed):**
   1. As the store owner, open `/store/subscriptions` and pick a delivery on a
      store-local date whose **morning** slot has no rider run yet.
@@ -646,10 +652,12 @@ area, and treat a recurrence as a **major** finding.
   (`RUN-AAGA-AM-2026-10-10-735f`), then to `saikumarbali` → `500`. A second
   customer (`Vaddi Venkatesh`) on date `2026-10-11` (which already had
   `saikumarbali`'s run) → `Neeraj` `500`, → `saikumarbali` `201`.
-- **Fix:** — (candidate: look the run up by `storeId, serviceDate, deliverySlot,
-  status != CANCELLED` **without** `riderId`, and attach/move the stop onto the
-  existing run for that slot, or make the run's rider a field that can be set on
-  an existing same-slot run instead of keying the lookup by rider.)
+- **Fix:** FIXED — the `DeliveryRun` unique key now includes `riderId`
+  (`@@unique([storeId, serviceDate, slotStart, deliveryCluster, deliverySlot, riderId])`),
+  so a second rider's run for the same store/date/slot no longer collides with
+  the first's. Migration
+  `20261008000000_delivery_run_rider_scoped_unique`. Regression:
+  `dispatch-second-rider.e2e.spec.ts`.
 - **Notes:** Distinct from BUG-009 (same-day dispatch skips packing) and BUG-011
   (a route-partial run rejects handoff). The store UI calls this same endpoint
   from the cell **Reassign** button, so BUG-014 below is the user-visible
@@ -663,7 +671,7 @@ area, and treat a recurrence as a **major** finding.
 - **Surface:** `/store/subscriptions` → delivery cell → **Reassign** →
   **Dispatch 1 Stops** → `POST /api/store/subscriptions/dispatch-to-rider`
 - **Role:** store owner
-- **Status:** OPEN
+- **Status:** FIXED (this branch, not yet deployed)
 - **Repro:**
   1. Assign a scheduled stop to rider A (succeeds).
   2. Re-open the cell, press **Reassign**, choose rider B, press
@@ -684,7 +692,9 @@ area, and treat a recurrence as a **major** finding.
   rider, run already exists) → `201`. A UI recording of the **Reassign** button
   reproduced the `500` on the same cell and the cell still read
   `Assigned Rider: saikumarbali` afterwards.
-- **Fix:** — (fixed by the same change as BUG-013.)
+- **Fix:** FIXED by the same rider-scoped unique key as BUG-013; the reassign
+  run for the target rider can now be created. Regression:
+  `dispatch-second-rider.e2e.spec.ts` exercises the reassign path explicitly.
 - **Notes:** Recorded separately from BUG-013 because the repro and the user
   action differ (re-assigning an existing assignment vs a first assign to a
   second rider); both share the rider-scoped-run-lookup / unique-index collision.
@@ -703,7 +713,7 @@ area, and treat a recurrence as a **major** finding.
   /api/store/subscriptions/deliveries/:deliveryId/quick-action` (`TOGGLE_DELIVERED`).
   The same button/endpoint also backs the store milk grid's "Mark delivered".
 - **Role:** rider (and store - same endpoint via the grid)
-- **Status:** OPEN
+- **Status:** FIXED (this branch, not yet deployed)
 - **Repro:**
   1. Rider run is `IN_PROGRESS` and a stop is `READY`/`PLANNED`.
   2. Open the stop modal and press **Mark Delivered** (no arrival, no OTP, no
@@ -733,8 +743,14 @@ area, and treat a recurrence as a **major** finding.
   stop** flow (`POST /rider/delivery-runs/:id/stops/:stopId/complete`) then set
   `job DELIVERED / order DELIVERED`, proving the divergence is the quick-action
   path.
-- **Fix:** - (route the quick action through `transitionWithinTransaction` for
-  the stop's `deliveryJobId`, mirroring the rider-photo completion fix).
+- **Fix:** FIXED — `executeQuickAction()` `TOGGLE_DELIVERED` now calls
+  `advanceOrderForQuickAction()`, which routes the stop's `deliveryJobId`
+  through `DeliveryWorkflowService.transitionWithinTransaction` (mirroring the
+  rider-photo completion fix) when the job is in a state that can legally reach
+  `DELIVERED`; the undo branch re-opens it via
+  `revertOrderStatusForQuickAction()`. Regression:
+  `store-quick-action-order-status.e2e.spec.ts` (order + job reach `DELIVERED`)
+  and unit coverage in `store-milk-grid.service.spec.ts`.
 - **Notes:** Same class as the existing "Order status" regression hot-spot
   (rider photo completion bypassed the workflow); BUG-002 also touched this
   area (rider home vs store block). Distinct writer path, so its own entry.

@@ -648,6 +648,13 @@ describe("Phase 3 delivery exceptions, COD, returns, and OTP", () => {
     ).rejects.toThrow("admin and store owners");
     const storeQueue = await api.operations.getQueue(storeActor);
     expect(storeQueue.map((item) => item.id)).toContain(job.id);
+    // BUG-012: the queue must never serialise the rider's bank ciphertext.
+    for (const item of storeQueue as any[]) {
+      if (item.currentRider) {
+        expect(item.currentRider).not.toHaveProperty("bankAccountCiphertext");
+        expect(item.currentRider).not.toHaveProperty("bankIfscCiphertext");
+      }
+    }
     const event = await prisma.outboxEvent.findFirst({
       where: {
         aggregateId: job.id,

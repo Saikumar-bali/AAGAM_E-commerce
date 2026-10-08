@@ -37,7 +37,7 @@ async function cleanup() {
 }
 
 describe('dispatchToRider — no-job delivery regression', () => {
-  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService(), {} as any);
 
   beforeAll(cleanup);
   afterAll(cleanup);

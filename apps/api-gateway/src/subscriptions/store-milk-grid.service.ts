@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { prisma, Prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus } from '@aagam/database';
+import { prisma, Prisma, Role, SubscriptionDeliveryStatus, PaymentMethod, PaymentStatus, DeliveryJobStatus, OrderStatus } from '@aagam/database';
 import { parseAddOns, parseVolumeLiters, sumAddOnLiters } from './delivery-add-on';
 import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 import { isOfflineSubscription } from '@aagam/utils';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import { startOfUtcDay } from './subscription-calendar.service';
+import { DeliveryWorkflowService } from '../orders/delivery-workflow.service';
 
 /**
  * A month is `0..11` on the wire and in `Date.UTC`. Reject anything outside
@@ -108,6 +109,7 @@ export class StoreMilkGridService {
   constructor(
     private readonly funding: SubscriptionCashFundingService,
     private readonly lifecycle: SubscriptionLifecycleService,
+    private readonly workflow: DeliveryWorkflowService,
   ) {}
 
   /**
@@ -705,6 +707,7 @@ export class StoreMilkGridService {
             },
           });
           await this.syncRunStopForQuickAction(delivery, 'UNDO', tx);
+          await this.revertOrderStatusForQuickAction(delivery.deliveryJobId, { id: actor.id, role: actor.role }, tx);
           return { nextDelivery, sub: rolledBackSub };
         }
 
@@ -720,6 +723,7 @@ export class StoreMilkGridService {
         );
         const advancedSub = await tx.customerSubscription.findUnique({ where: { id: delivery.subscriptionId } });
         await this.syncRunStopForQuickAction(delivery, 'DELIVERED', tx);
+        await this.advanceOrderForQuickAction(delivery.deliveryJobId, actor, tx);
         return { nextDelivery: consumed ?? nextDelivery, sub: advancedSub };
       });
 
@@ -1035,6 +1039,84 @@ export class StoreMilkGridService {
         completedStopCount,
         expectedCashPaise: agg._sum.cashDuePaise ?? 0,
         version: { increment: 1 },
+      },
+    });
+  }
+
+  /**
+   * The store-grid / rider "Mark delivered" quick action completes the stop,
+   * delivery and subscription, but the customer's order and the rider's Runs
+   * screen read the DeliveryJob/Order. Without this the Order stayed
+   * OUT_FOR_DELIVERY while the stop read DELIVERED. Route the job through the
+   * shared workflow so the order, its status history, inventory finalization and
+   * the rider's occupancy all move together — mirroring the rider-photo path.
+   */
+  private async advanceOrderForQuickAction(
+    deliveryJobId: string | null | undefined,
+    actor: { id: string; role: Role },
+    tx: Prisma.TransactionClient,
+  ) {
+    if (!deliveryJobId) return;
+    const job = await tx.deliveryJob.findUnique({
+      where: { id: deliveryJobId },
+      select: { status: true, order: { select: { status: true } } },
+    });
+    if (!job || job.status === DeliveryJobStatus.DELIVERED) return;
+    // A closed order must not be reopened by a field action.
+    const closedOrderStatuses: OrderStatus[] = [
+      OrderStatus.DELIVERED,
+      OrderStatus.CANCELLED,
+      OrderStatus.PAYMENT_FAILED,
+      OrderStatus.STORE_DELIVERED,
+    ];
+    if (job.order?.status && closedOrderStatuses.includes(job.order.status as OrderStatus)) return;
+    // Only these statuses can legally reach DELIVERED through the workflow.
+    // An earlier status (e.g. a job still at the store) is left untouched
+    // rather than aborting the completion with a transition conflict.
+    const deliverable = [
+      DeliveryJobStatus.OUT_FOR_DELIVERY,
+      DeliveryJobStatus.RIDER_AT_CUSTOMER,
+      DeliveryJobStatus.STORE_DELIVERING,
+    ];
+    if (!deliverable.includes(job.status as any)) return;
+    await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
+      skipRoleCheck: true,
+      metadata: { source: 'store-grid-quick-action' },
+    });
+  }
+
+  /**
+   * Undo counterpart: re-open a job the quick action had advanced to DELIVERED
+   * so a mistakenly-completed day can be corrected, keeping its order in step.
+   */
+  private async revertOrderStatusForQuickAction(
+    deliveryJobId: string | null | undefined,
+    actor: { id: string; role: Role },
+    tx: Prisma.TransactionClient,
+  ) {
+    if (!deliveryJobId) return;
+    const job = await tx.deliveryJob.findUnique({
+      where: { id: deliveryJobId },
+      select: { status: true, orderId: true, version: true },
+    });
+    if (!job || job.status !== DeliveryJobStatus.DELIVERED) return;
+    await tx.deliveryJob.update({
+      where: { id: deliveryJobId },
+      data: { status: DeliveryJobStatus.OUT_FOR_DELIVERY, version: { increment: 1 } },
+    });
+    await tx.order.updateMany({
+      where: { id: job.orderId, status: OrderStatus.DELIVERED },
+      data: { status: OrderStatus.OUT_FOR_DELIVERY, deliveredAt: null },
+    });
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId: job.orderId,
+        fromStatus: OrderStatus.DELIVERED,
+        toStatus: OrderStatus.OUT_FOR_DELIVERY,
+        actorUserId: actor.id,
+        actorRole: actor.role,
+        note: 'Delivery completion undone from the store/rider quick action.',
+        metadata: { source: 'store-grid-quick-action', deliveryJobId },
       },
     });
   }

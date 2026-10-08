@@ -134,3 +134,6 @@ apps/admin-dashboard/e2e-tmp/
 .playwright-mcp/
 scripts/scratchpad/
 dump.rdb
+# local test-run recordings / screenshots (served, not committed)
+agent_demo_shots/
+.agent_tmp/

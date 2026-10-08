@@ -240,3 +240,24 @@ human), what changed, why.
     `/riders/portal/current` return 404, but the app never calls those paths, so
     a 404 there is not a defect. The rider list/detail flows use
     `/rider/delivery-runs/today` and `/rider/delivery-runs/:id`.
+
+- **2026-10-08 · v1.4.2 · aagam-testing (bug-fix pass)**
+  - **BUG-015 fixed** — `StoreMilkGridService.executeQuickAction()` `TOGGLE_DELIVERED`
+    now routes the stop's `deliveryJobId` through
+    `DeliveryWorkflowService.transitionWithinTransaction` (new
+    `advanceOrderForQuickAction`), so a rider/store "Mark Delivered" advances the
+    Order to `DELIVERED` like the rider-photo path; the undo branch re-opens it
+    (`revertOrderStatusForQuickAction`). Regression:
+    `store-quick-action-order-status.e2e.spec.ts` + unit coverage in
+    `store-milk-grid.service.spec.ts`.
+  - **BUG-006 completed + BUG-012 fixed** — `private job()` and `getQueue()`
+    both `select`-scope `currentRider`, so neither the bcrypt password hash nor
+    the `bankAccountCiphertext` / `bankIfscCiphertext` reach a customer, store
+    owner or admin. Assertion added to `phase3-delivery-operations.spec.ts`.
+  - **BUG-013 + BUG-014 fixed** — the `DeliveryRun` unique key now includes
+    `riderId` (`20261008000000_delivery_run_rider_scoped_unique`), so a second
+    rider's run for the same store/date/slot no longer collides (the 500 on
+    dispatch and on Reassign). Regression: `dispatch-second-rider.e2e.spec.ts`.
+  - **BUG-010 status corrected** — already `FIXED-DEPLOYED` in `78a8a3f`
+    (origin/main); the register still said "working tree, not yet deployed".
+  - Still `OPEN`, out of this pass: **BUG-004** (dependency audit gate).

@@ -13,7 +13,21 @@ jest.mock('@aagam/database', () => ({
     $executeRaw: jest.fn().mockResolvedValue(1),
   },
   Role: { STORE_OWNER: 'STORE_OWNER', ADMIN: 'ADMIN', RIDER: 'RIDER' },
-  DeliveryJobStatus: { DELIVERED: 'DELIVERED', RETURNED_TO_STORE: 'RETURNED_TO_STORE', CANCELLED: 'CANCELLED' },
+  DeliveryJobStatus: {
+    DELIVERED: 'DELIVERED',
+    OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+    RIDER_AT_CUSTOMER: 'RIDER_AT_CUSTOMER',
+    STORE_DELIVERING: 'STORE_DELIVERING',
+    RETURNED_TO_STORE: 'RETURNED_TO_STORE',
+    CANCELLED: 'CANCELLED',
+  },
+  OrderStatus: {
+    DELIVERED: 'DELIVERED',
+    CANCELLED: 'CANCELLED',
+    PAYMENT_FAILED: 'PAYMENT_FAILED',
+    STORE_DELIVERED: 'STORE_DELIVERED',
+    OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+  },
   DeliveryRunStatus: { COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED' },
   SubscriptionDeliveryStatus: {
     SCHEDULED: 'SCHEDULED',
@@ -30,9 +44,11 @@ jest.mock('@aagam/database', () => ({
 
 describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entitlement', () => {
   const consume = jest.fn();
+  const transition = jest.fn();
   const funding: any = { consumeDeliveredWithinTransaction: consume };
+  const workflow: any = { transitionWithinTransaction: transition };
   const lifecycle = new SubscriptionLifecycleService();
-  const service = new StoreMilkGridService(funding, lifecycle);
+  const service = new StoreMilkGridService(funding, lifecycle, workflow);
   const tx: any = {
     subscriptionDelivery: {
       update: jest.fn().mockResolvedValue({ id: 'del-1' }),
@@ -85,6 +101,38 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
       expect.stringContaining('milk-grid-delivered:del-1'),
       { deliveryAlreadyCompleted: true },
     );
+  });
+
+  it('advances the linked order/job through the workflow when the linked job is out for delivery', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
+      delivery({ deliveryJobId: 'job-1', runStop: { id: 'stop-1', deliveryRunId: 'run-1' } }),
+    );
+    tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 1 }, _sum: {} }), count: jest.fn().mockResolvedValue(1) };
+    tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
+    tx.deliveryJob = { findUnique: jest.fn().mockResolvedValue({ status: 'RIDER_AT_CUSTOMER', order: { status: 'OUT_FOR_DELIVERY' } }) };
+
+    await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'TOGGLE_DELIVERED' });
+
+    expect(transition).toHaveBeenCalledWith(
+      tx,
+      'job-1',
+      'DELIVERED',
+      { id: 'store-user', role: Role.ADMIN },
+      expect.objectContaining({ skipRoleCheck: true }),
+    );
+  });
+
+  it('does not advance the order when the job is still at the store (illegal transition)', async () => {
+    (prisma.subscriptionDelivery.findUnique as jest.Mock).mockResolvedValue(
+      delivery({ deliveryJobId: 'job-1', runStop: { id: 'stop-1', deliveryRunId: 'run-1' } }),
+    );
+    tx.deliveryRunStop = { findUnique: jest.fn().mockResolvedValue({ id: 'stop-1', deliveryRunId: 'run-1', deliveryJobId: 'job-1' }), update: jest.fn().mockResolvedValue({}), aggregate: jest.fn().mockResolvedValue({ _count: { _all: 1 }, _sum: {} }), count: jest.fn().mockResolvedValue(1) };
+    tx.deliveryRun = { update: jest.fn().mockResolvedValue({}) };
+    tx.deliveryJob = { findUnique: jest.fn().mockResolvedValue({ status: 'RIDER_AT_STORE', order: { status: 'RIDER_ASSIGNED' } }) };
+
+    await service.executeQuickAction({ id: 'store-user', role: Role.ADMIN }, 'del-1', { type: 'TOGGLE_DELIVERED' });
+
+    expect(transition).not.toHaveBeenCalled();
   });
 
   it('rolls the entitlement back on undo without delegating to the funding service', async () => {
@@ -261,7 +309,7 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
 describe('StoreMilkGridService — getGrid litre totals include undelivered plan milk', () => {
   const funding: any = { consumeDeliveredWithinTransaction: jest.fn() };
   const lifecycle = new SubscriptionLifecycleService();
-  const service = new StoreMilkGridService(funding, lifecycle);
+  const service = new StoreMilkGridService(funding, lifecycle, {} as any);
 
   const delivery = (id: string, day: number, status: string, cash = 0) => ({
     id,
@@ -322,7 +370,7 @@ describe('StoreMilkGridService — getGrid litre totals include undelivered plan
 });
 
 describe('StoreMilkGridService — query parameter validation', () => {
-  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService(), {} as any);
 
   it('rejects an out-of-range month instead of silently rolling into another month', async () => {
     await expect(service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 13)).rejects.toThrow(
@@ -348,7 +396,7 @@ describe('StoreMilkGridService — query parameter validation', () => {
 
 
 describe('StoreMilkGridService — RECORD_PAYMENT over-collection guards', () => {
-  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService());
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService(), {} as any);
 
   const delivery = (overrides: Record<string, any> = {}) => ({
     id: 'del-1',

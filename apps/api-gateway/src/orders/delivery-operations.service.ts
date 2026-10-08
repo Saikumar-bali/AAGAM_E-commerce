@@ -315,7 +315,15 @@ export class DeliveryOperationsService {
       where: { id: deliveryJobId },
       include: {
         currentRider: {
-          include: {
+          // Scope the rider to display fields only — serialising the whole
+          // profile leaked the bank account/IFSC ciphertext to store owners
+          // through the delivery summary and queue (BUG-006 / BUG-012).
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            vehicleType: true,
+            vehicleNumber: true,
             user: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
@@ -542,7 +550,18 @@ export class DeliveryOperationsService {
       } as any,
       include: {
         currentRider: {
-          include: { user: { select: { id: true, name: true, email: true, phone: true } } },
+          // The pickup-proof and delivery-exceptions views read only the rider's
+          // name/phone. Serialising the whole profile leaked the bank
+          // account/IFSC ciphertext (BUG-006 class) to any store owner, so the
+          // selection is scoped to the display fields.
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            vehicleType: true,
+            vehicleNumber: true,
+            user: { select: { id: true, name: true, email: true, phone: true } },
+          },
         },
         pickupProof: true,
         deliveryProof: true,

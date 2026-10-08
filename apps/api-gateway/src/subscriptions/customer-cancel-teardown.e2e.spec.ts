@@ -96,7 +96,7 @@ describe('customer cancel — rider artifact teardown', () => {
     new SubscriptionServiceabilityService(new SubscriptionCalendarService()),
     lifecycle,
   );
-  const grid = new StoreMilkGridService({} as any, lifecycle);
+  const grid = new StoreMilkGridService({} as any, lifecycle, {} as any);
   const reporting = new SubscriptionAdminReportingService(new SubscriptionCashFundingService(new SubscriptionCalendarService()));
 
   beforeAll(cleanup);

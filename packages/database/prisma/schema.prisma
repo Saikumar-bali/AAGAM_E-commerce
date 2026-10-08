@@ -1903,7 +1903,7 @@ model DeliveryRun {
   auditDestinationEntries DeliveryRunAuditEntry[] @relation("DeliveryRunAuditDestination")
   routeEvents             DeliveryRouteEvent[]
 
-  @@unique([storeId, serviceDate, slotStart, deliveryCluster, deliverySlot])
+  @@unique([storeId, serviceDate, slotStart, deliveryCluster, deliverySlot, riderId])
   @@index([riderId, serviceDate, status])
   @@index([storeId, serviceDate, status])
   @@index([deliveryZoneId, serviceDate, status])
