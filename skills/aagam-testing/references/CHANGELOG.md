@@ -304,3 +304,18 @@ human), what changed, why.
     Bricolage Grotesque + Instrument Sans, gradient accent hairline. Verified at
     360x640, 390x844, 414x896 and 1440x834; zero console errors; full flow
     (arrive -> COD/OTP complete -> next) plus filter/undo/milk exercised.
+
+- **2026-10-08 · v1.4.7 · aagam-testing (Store "Today's Route" sheet prototype)**
+  - Second design prototype, same dawn-route system as the rider Run Console:
+    `store-today.html`. A single "Today's Route" sheet that replaces the
+    month-wide grid for the day-of view. Desktop = a real table (sequence,
+    customer, plan, slot, base, extra, total, status, COD, quick actions);
+    mobile = stacked cards. Five KPIs: Packed / Sold / Left / Stops done / Cash.
+  - Modelled on the real grid: statuses SCHEDULED|PACKED|DELIVERED|SKIPPED|FAILED,
+    slots AM/PM, quick actions TOGGLE_DELIVERED / SKIP / TOGGLE_SLOT /
+    RECORD_PAYMENT today; EXTRA_MILK (extra litres on today's cell) via the
+    row + presets (0.5/1/1.5/2L); and a rider-facing add-on dialog for
+    "customer wants extra for tomorrow" that mirrors ATTACH_EVENING_MILK
+    (qty preset, 1/2/3/5/7-day duration, AM/PM target, price/day) and shows the
+    real `[ADD-ON: <qty>|<paise>|<slot>]` encoding it would write.
+  - Prototype only (mock data), served from the work host.
