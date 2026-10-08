@@ -183,3 +183,40 @@ human), what changed, why.
     set, so a partially-delivered route still packs and hands off its survivors.
     Regression: `delivery-run-planning-partial.e2e.spec.ts`.
   - `references/flows.md` — the BUG-011 stall point is annotated as fixed.
+
+- **2026-10-08 · v1.4.0 · aagam-testing (full E2E delivery + live re-verification)**
+  - Completed a **full subscription delivery end to end** on live `78a8a3f`:
+    both AM (`cmuyuu8ikzilxdo7hc5el89k5`) and PM
+    (`cmuz9pz8i1zh3672nr6qpjs6x`) runs now `AWAITING_SETTLEMENT`, 6/6 stops
+    `DELIVERED`, ₹600 total cash collected (AM stop 3 completed through the
+    fixed chain: store packing 201 → handoff → rider pickup → arrive → photo
+    proof + COD collect → DELIVERED; job/order both `DELIVERED`).
+  - **BUG-005 → FIXED-DEPLOYED** — store *Today's Route Checklist* now shows
+    `PACKED 17.25 L · SOLD 0.5 L · LEFT 16.75 L`; `packed = sold + left`.
+  - **BUG-007 → FIXED-DEPLOYED** — `cod.collected` true on all three
+    rider-photo COD stops (ledger 6000 / 10500 / 10500).
+  - **BUG-008 → FIXED-DEPLOYED** — rider stop panel now shows photo/GPS +
+    cash controls immediately after `arrive()` (no close/re-open).
+  - **BUG-011 → FIXED-DEPLOYED** — a route-partial run packs (201) and hands
+    off its surviving stops; proved live by taking AM run stop 3 through the
+    whole chain.
+  - **BUG-009 → FIXED-DEPLOYED** — run buttons now use shared
+    `resolveRunActions`; a dispatch-created `READY_FOR_PICKUP` run renders
+    **Pack** (server still stamps an implicit handoff — noted as follow-up).
+  - **BUG-010 → still OPEN** — partial-COD carry-forward fix is in the working
+    tree but not exercised live in this pass (a fresh funding allocation after a
+    ₹60-of-₹105 day was not observed), so left unverified/OPEN.
+  - **BUG-002 → FIXED-DEPLOYED** — `RIDER_AT_STORE` help copy + **Open Pickup
+    Tasks** banner confirmed present in the deployed rider page bundle.
+  - **BUG-006 → PARTIALLY-FIXED (still live)** — `a6044c1` scoped
+    `job.currentRider.user` so the bcrypt password hash is gone, but
+    `bankAccountCiphertext` / `bankIfscCiphertext` / `bankStatus` /
+    `approvalStatus` (+ audit ids) are **still returned to the customer and
+    store roles** on `.../summary`, and `/orders/delivery-operations/queue`
+    also still leaks the two bank ciphertexts. Entry left open for the
+    remaining `select`-scoping.
+  - **BUG-012 opened (major, OPEN)** — `GET /orders/delivery-operations/queue`
+    still returns every rider's `bankAccountCiphertext` / `bankIfscCiphertext`
+    to any store owner (its `user` sub-select is fixed, the bank columns are
+    not). Same class as BUG-006 but a different endpoint, so its own entry.
+  - **BUG-004** (dependency gate) left `OPEN` — not in this pass's scope.

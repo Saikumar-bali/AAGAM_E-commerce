@@ -84,7 +84,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** major (it is the visible half of BUG-001's deadlock)
 - **Surface:** `/rider`
 - **Role:** rider
-- **Status:** `OPEN`
+- **Status:** `FIXED-DEPLOYED`
 - **Repro:**
   1. Put a job at `RIDER_AT_STORE` with `riderPickupTask.status = PENDING`.
   2. Log in as the rider and view the current delivery card.
@@ -100,13 +100,15 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   `apps/api-gateway/src/riders/rider-portal.service.ts` and the `/rider` page's
   status→instruction map.
 - **Evidence:** revision `2be0cfb6`; observed in the browser alongside BUG-001.
-- **Fix:** FIXED in the working tree, **not yet deployed** — `RIDER_AT_STORE`
+- **Fix:** FIXED-DEPLOYED — `RIDER_AT_STORE`
   help text now reads *"Open Pickup Tasks and verify the item checklist so the
   store can hand the parcel over."* and an amber banner with an **Open Pickup
   Tasks** link to `/rider/pickup` was added
   (`apps/admin-dashboard/src/app/(rider)/rider/page.tsx`, `statusMeta` and the
-  active-job banner). Verified locally (lint + `tsc` clean); live still serves
-  the old copy at revision `c8dc8a0c`, so re-check after the next `main` deploy.
+  active-job banner). Re-verified live 2026-10-08: both the help copy and the
+  **Open Pickup Tasks** banner string are present in the deployed
+  `app/(rider)/rider/page-*.js` chunk (main `78a8a3f`), and the rider portal
+  renders the **Pickup Tasks** nav item.
 - **Notes:** This is a copy/ordering defect, not a state-machine defect. The
   state machine is right; the guidance is wrong. Pair the fix with a link to
   `/rider/pickup`.
@@ -193,7 +195,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Surface:** `/store/subscriptions` — the *Today's Route Checklist* bar and the
   **Pack Summary** modal
 - **Role:** store
-- **Status:** `OPEN`
+- **Status:** `FIXED-DEPLOYED`
 - **Repro:**
   1. Log in as the store → `/store/subscriptions`.
   2. Read the green *Today's Route Checklist* bar: it shows
@@ -233,12 +235,17 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   `GET /api/store/subscriptions/dispatch-summary?date=2026-10-08` and matched
   the modal exactly: BM `19.25`, CM `1`, total `20.25`, stops `37`,
   completed `0`, cash due `22500` paise, collected `0`.
-- **Fix:** FIXED in the working tree, **not yet deployed** — `todayStats` in
-  `apps/admin-dashboard/src/components/MilkDeliveryGrid.tsx` now accumulates
+- **Fix:** FIXED-DEPLOYED — `todayStats` in
+  `apps/admin-dashboard/src/components/MilkDeliveryGrid.tsx` accumulates
   `soldLiters` (Σ litre-count of `DELIVERED` cells) and `leftLiters`
   (`packed − sold`), and the route checklist renders **Packed / Sold / Left**
-  as three equal cards. Unit-tested via `resolveRunActions`/`mergeRunIntoOpenStop`
-  is separate; the grid aggregation is UI-only. Live still serves `c8dc8a0c`.
+  as three cards. Re-verified live 2026-10-08 (`aagaam.in` serves main `78a8a3f`):
+  the store *Today's Route Checklist* reads
+  `PACKED 17.25 L · SOLD 0.5 L · LEFT 16.75 L` (the completed count is a
+  separate grid-scoped figure). The two `DELIVERED` 0.25 L CM stops are the
+  sold figure (2 × 0.25) and `packed = sold + left`. The **Pack Summary** modal
+  remains stop-product oriented (BM/CM split) by design.
+  (BM/CM split) by design.
 - **Notes:** **Pack Summary is deliberately today-only** — it calls
   `/store/subscriptions/dispatch-summary` with no `date` parameter and the
   loading copy says *"Calculating today's milk procurement demand"*. It
@@ -253,7 +260,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** major (sensitive-data exposure on a shared endpoint; cross-role, not just the rider's own data)
 - **Surface:** `GET /api/orders/delivery-operations/jobs/:deliveryJobId/summary`
 - **Role:** api (customer, store, rider, admin all reach it)
-- **Status:** OPEN
+- **Status:** PARTIALLY-FIXED (password hash gone; bank ciphertext still live)
 - **Repro:**
   1. Log in as any role (customer, store, rider or admin) with any cookie jar.
   2. `GET /api/orders/delivery-operations/jobs/:id/summary` for a job whose
@@ -277,9 +284,16 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   Beyond this job, `getQueue()` is store/admin-only and its 48 rows already expose
   the same ciphertexts, so any store owner can decrypt rider bank details offline
   once they hold the key — this entry covers the `summary` leak specifically.
-- **Fix:** — (candidate: replace `include: { user: true }` on `currentRider` with
-  an explicit `select` mirroring `getQueue()`, and drop or `select`-scope the
-  bank columns.)
+- **Fix:** PARTIAL — commit `a6044c1` (main `78a8a3f`, **deployed**)
+  scoped `job.currentRider.user` to `{id,name,email,phone}` via a `select`, so the
+  bcrypt `password` hash is no longer serialised (re-verified live 2026-10-08).
+  But `job.currentRider` itself is still included whole, so
+  `bankAccountCiphertext`, `bankIfscCiphertext`, `bankAccountLast4`, `bankStatus`,
+  `approvalStatus`, `bankReviewedByUserId`, `bankReviewedAt`,
+  `approvalReviewedByUserId`, `approvalReviewedAt` are **still returned to the
+  customer and store roles** on the same endpoint (verified live as both roles).
+  Remaining fix: `select`-scope the bank columns on `currentRider` too (or drop
+  them — the summary never renders them).
 - **Notes:** Not in `skills/` scope; recorded here because it surfaced while
   asserting the delivery summary. Do not paste the hash anywhere.
 
@@ -289,7 +303,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** minor
 - **Surface:** `GET /api/orders/delivery-operations/jobs/:id/summary` → `cod.collected`
 - **Role:** rider (mobile partner app) / store / admin
-- **Status:** OPEN
+- **Status:** FIXED-DEPLOYED
 - **Repro:**
   1. Complete a subscription delivery whose stop proof mode is `RIDER_PHOTO_GPS`
      with `cashCollectedPaise = cashDuePaise` (the run-stop complete path, e.g.
@@ -315,9 +329,11 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   `apps/mobile-partners/src/domain/riderDeliveryFlow.ts:78` (`customerPaid` null
   when `collected` false) and `apps/mobile-partners/src/screens/rider/RiderDeliveryFlowScreen.tsx:331`
   (the "COD collection recorded" strip never renders).
-- **Fix:** — (candidate: have the photo/trusted-drop completion path also write the
-  `COD_COLLECTED` operation, or make `getSummary()` fall back to
-  `codLedger.collectedAmountPaise > 0`.)
+- **Fix:** FIXED-DEPLOYED — `getSummary()` now falls back to
+  `codLedger.collectedAmountPaise > 0` for `cod.collected` (main `78a8a3f`).
+  Re-verified live 2026-10-08: three rider-photo COD stops completed with cash
+  and `cod.collected` returned `true` on every one (ledger
+  `collectedAmountPaise` 6000 / 10500 / 10500).
 - **Notes:** The money itself is correct; this is a status-flag/UI divergence, not
   a cash discrepancy. Distinct from BUG-003 (`inQueue` vs page filter).
 
@@ -327,7 +343,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** major
 - **Surface:** Rider portal, `aagaam.in/rider/runs` → open a stop → "I have arrived"
 - **Role:** rider
-- **Status:** OPEN
+- **Status:** FIXED-DEPLOYED
 - **Repro:**
   1. Open a run that is `IN_PROGRESS` and tap an `ARRIVED`/`READY` stop card to
      open the in-flight stop panel.
@@ -356,15 +372,16 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   is still open when arrival is recorded.
 - **Workaround:** close and re-open the stop panel after arriving (recorded in
   `references/flows.md` Flow G).
-- **Fix:** FIXED in the working tree, **not yet deployed** — `loadRuns()` now
-  re-seeds the open panel via the shared `mergeRunIntoOpenStop` helper
-  (`packages/utils/src/store-run.ts`, consumed by
-  `apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx`), so the fresh
-  `ARRIVED` stop is merged over the snapshot and the photo/GPS + cash form
-  renders without closing the panel. Covered by
+- **Fix:** FIXED-DEPLOYED — `loadRuns()` re-seeds the open panel via the
+  shared `mergeRunIntoOpenStop` helper (`packages/utils/src/store-run.ts`,
+  consumed by `apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx`), so
+  the fresh `ARRIVED` stop is merged over the snapshot and the photo/GPS + cash
+  form renders without closing the panel. Covered by
   `apps/api-gateway/src/subscriptions/store-run-actions.spec.ts`
-  (`rider open stop refresh`). Live still serves the stale-snapshot build at
-  `c8dc8a0c`.
+  (`rider open stop refresh`). Re-verified live 2026-10-08: after `arrive()` on
+  stop 3 of `cmuyuu8ikzilxdo7hc5el89k5` the panel's photo uploader +
+  "Cash Collected" field + "Verify and complete this stop" were present with no
+  close/re-open; the stop then completed via the UI flow.
 - **Notes:** the original candidate fix (set `selectedStop` from the
   `loadRuns()` payload, or re-derive the panel from
   `activeRun.stops.find(s => s.id === selectedStop.id)`) is what the shared
@@ -376,7 +393,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** minor
 - **Surface:** Store portal "Prep list" → route row → buttons
 - **Role:** store owner
-- **Status:** OPEN
+- **Status:** FIXED-DEPLOYED
 - **Repro:**
   1. Create a same-day subscription delivery and dispatch it from the store grid
      ("Dispatch to Rider", `POST /store/subscriptions/dispatch-to-rider`).
@@ -404,9 +421,20 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   `storeHandoffConfirmedAt` set at dispatch. Rider bag receipt then requires an
   exact bag count (`"Verify exactly N route bags before pickup"`), which the
   store was never asked to confirm through the UI.
-- **Fix:** — (candidate: gate the Pack button on `!storeHandoffConfirmedAt`
-  instead of `status === 'PLANNED'`, or have `dispatchToRider` leave the run
-  `PLANNED` until the store confirms both bag count and handoff.)
+- **Fix:** FIXED-DEPLOYED — the run action gating was extracted to the shared
+  `resolveRunActions` helper (`packages/utils/src/store-run.ts`), which sets
+  `canPack` for `["PLANNED", "READY_FOR_PICKUP"]` with
+  `packedBagCount < bagTarget` and `canHandoff = !canPack && READY_FOR_PICKUP`.
+  A dispatch-created run now renders **Pack** (it no longer needs `PLANNED`), and
+  **Handoff** appears once `packedBagCount` reaches the target. Re-verified live
+  2026-10-08: the deployed store-subscriptions page bundle (`page-*.js` on main
+  `78a8a3f`) imports `resolveRunActions` and calls it for the row buttons.
+  Server-side nuance still present: `dispatchToRider`
+  (`store-milk-grid.service.ts` ~line 1726) still creates the run
+  `READY_FOR_PICKUP` + `storeHandoffConfirmedAt: new Date()`, so a dispatch is
+  still an implicit handoff at the data layer — the visible symptom (Pack
+  never rendered, `packedBagCount` stuck at 0) is gone, but tightening the
+  implicit handoff is a separate follow-up.
 
 ### BUG-010 — A partial COD payment on one delivery is not carried into the subscription's outstanding balance
 
@@ -472,7 +500,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   all-stops scan gates `.../runs/:runId/pickup`, rider
   `POST /api/rider/delivery-runs/:runId/pickup` and the dependent `.../start`
 - **Role:** store owner / rider
-- **Status:** OPEN (new)
+- **Status:** FIXED-DEPLOYED
 - **Repro:**
   1. Take a route with more than one stop and complete delivery of any single
      stop (leave at least one other stop un-delivered). On live this is
@@ -513,7 +541,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   (`cmuz9pz8i1zh3672nr6qpjs6x`) where I could complete a stop because it was
   reached through the independent OTP/COD job path. (The PM run packing call
   returned the same 409 for the same reason.)
-- **Fix:** FIXED in the working tree, **not yet deployed** — the four run-level
+- **Fix:** FIXED-DEPLOYED — the four run-level
   loops now `continue` past a terminal stop (`DELIVERED`/`FAILED`/`RETURNED`/
   `CANCELLED`) via the shared `TERMINAL_RUN_STOP_STATUSES` set
   (`apps/api-gateway/src/subscriptions/run-stop-status.ts`) in
@@ -547,3 +575,34 @@ area, and treat a recurrence as a **major** finding.
 | Order status | Rider photo completion bypassed the workflow → order stuck `OUT_FOR_DELIVERY` | `transitionWithinTransaction` |
 | Store subscribers | Raw array inflated the tab to 58 while the grid showed 36 | deduped `{subscribers, counts}` payload |
 | Empty CI | ~604 `PrismaClientInitializationError` failures without `DATABASE_URL` | `AGENTS.md` test setup |
+
+### BUG-012 — Delivery-operations queue returns every rider's bank ciphertext to any store owner
+
+- **Found:** 2026-10-08 by aagam-testing (security re-check during full E2E pass)
+- **Severity:** major (allows offline decryption of rider bank account + IFSC once
+  the store owner holds the field key; cross-role data exposure)
+- **Surface:** `GET /api/orders/delivery-operations/queue`
+- **Role:** store owner (and admin)
+- **Status:** OPEN
+- **Repro:**
+  1. Log in as a store owner.
+  2. `GET /api/orders/delivery-operations/queue` (51 rows on live 2026-10-08).
+  3. Inspect `currentRider` on any row.
+- **Observed:** the rider's `user` sub-object is correctly scoped to
+  `{id,name,email,phone}`, but `currentRider` itself is included whole and carries
+  `bankAccountCiphertext` and `bankIfscCiphertext` for every rider on every row.
+- **Expected:** the queue never serialises bank ciphertext — the store
+  dispatch/queue view does not render it.
+- **Code path:** `apps/api-gateway/src/orders/delivery-operations.service.ts`
+  `getQueue()` — the `currentRider` include is not `select`-scoped on the bank
+  columns (its `user` sub-select was already fixed, which is why the password hash
+  is absent here but the ciphertext is not).
+- **Evidence:** live revision `78a8a3f` (main), 2026-10-08. `GET .../queue` as the
+  store returned HTTP 200; rows 1-3 all carried `bankAccountCiphertext` and
+  `bankIfscCiphertext`. Distinct from BUG-006: that entry is the `.../summary`
+  endpoint, whose `user` leak was partially fixed in `a6044c1`; this queue leak is
+  a separate endpoint and was untouched by that commit.
+- **Fix:** — (candidate: `select`-scope `currentRider` on the bank columns in
+  `getQueue()`, mirroring the `user` select already added to `summary`.)
+- **Notes:** Same class as BUG-006 but a different endpoint/role path, so recorded
+  as its own entry rather than merged. Do not paste any ciphertext value.
