@@ -10,6 +10,38 @@ TypeScript monorepo (npm workspaces):
 - `packages/database` — Prisma schema and migrations
 - `packages/types`, `packages/utils` — shared packages
 
+## Agent skills
+
+The repo carries its own self-updating agent skills under
+`.commandcode/skills/<name>/` (tracked in git — `.commandcode/*` is ignored
+except `skills/`). Load one when the task matches its description; every file
+is plain Markdown and is readable without loading anything.
+
+- **`aagam-testing`** — end-to-end testing of the four role surfaces
+  (customer shop, store portal, rider portal, admin dashboard): subscription
+  request → store assigns rider → rider pickup checklist → store handoff →
+  OTP/COD delivery, plus the store milk grid's packed/sold/left litres.
+  Holds `references/flows.md` (per-role UI flows),
+  `references/api.md` (env-var credentials, cookie login, endpoint map),
+  `references/store-grid.md` (litre math + assertions G1–G9),
+  `references/bug-register.md` (the living defect register),
+  `references/CHANGELOG.md` (append-only skill history) and
+  `scripts/live-revision.ps1` (what `aagaam.in` is serving vs `origin/main`).
+
+Two rules that go with it:
+
+1. **No credentials in the repo.** The skill reads role logins from
+   `AAGAM_CUSTOMER_*` / `AAGAM_STORE_*` / `AAGAM_RIDER_*` / `AAGAM_ADMIN_*`
+   environment variables at runtime and asks the user when they are unset.
+   Never write a password, cookie, token or phone number into a skill file, a
+   spec, a commit or a screenshot.
+2. **Findings must be written back.** After a testing session, record new
+   defects in `references/bug-register.md`, correct any flow the skill got
+   wrong, then bump `metadata.version` / `metadata.last-verified` in the
+   skill's `SKILL.md` and append one line to `references/CHANGELOG.md`.
+   Anyone — human or another model — may update the skill the same way; that
+   is the point of it.
+
 ## Running the api-gateway tests
 
 The suite needs a reachable Postgres. Without `DATABASE_URL` you get ~604
