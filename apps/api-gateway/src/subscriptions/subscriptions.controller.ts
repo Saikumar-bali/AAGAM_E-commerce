@@ -371,8 +371,9 @@ export class RiderDeliveryRunsController {
     @Param('stopId') stopId: string,
     @Body() body: RiderExtraMilkDto,
     @Req() req: AuthenticatedRequest,
+    @Headers('idempotency-key') key?: string,
   ) {
-    return this.runs.extraMilk(runId, stopId, body, req.user);
+    return this.runs.extraMilk(runId, stopId, body, req.user, key);
   }
 
   @Post(':runId/stops/:stopId/toggle-slot')

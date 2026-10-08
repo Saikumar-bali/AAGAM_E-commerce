@@ -361,13 +361,25 @@ export class DeliveryRunOperationsService {
             },
           });
 
-          // Track in COD ledger for rider cash accountability
+          // Track in COD ledger for rider cash accountability. The order
+          // generator usually mints one, but a subscription stop (and any stop
+          // whose order carried no COD payment) can reach here without one —
+          // the rider already has the cash, so open the ledger on first
+          // collection rather than refusing the completion. This is the same
+          // fallback the recordPayment path uses.
           const ledger = await tx.codLedger.findUnique({
             where: { deliveryJobId: stop.deliveryJobId },
+          }) || await tx.codLedger.create({
+            data: {
+              deliveryJobId: stop.deliveryJobId,
+              orderId: stop.deliveryJob.orderId,
+              riderId: rider.id,
+              expectedAmountPaise: Math.max(cashCollected, stop.cashDuePaise || 0),
+              collectedAmountPaise: 0,
+              riderHoldingBalancePaise: 0,
+              status: 'AWAITING_COLLECTION',
+            },
           });
-          if (!ledger) {
-            throw new ConflictException('Cash was collected for a stop with no COD ledger to hold it');
-          }
           const holdingAfterPaise = ledger.riderHoldingBalancePaise + cashCollected;
           await tx.codLedger.update({
             where: { id: ledger.id },
@@ -715,6 +727,7 @@ export class DeliveryRunOperationsService {
     stopId: string,
     dto: RiderExtraMilkDto,
     actor: Actor,
+    idempotencyKey?: string,
   ) {
     const { run } = await this.ownedRun(runId, actor);
     const stop = run.stops.find((candidate) => candidate.id === stopId);
@@ -722,11 +735,48 @@ export class DeliveryRunOperationsService {
 
     const extraQty = dto.extraQuantity?.trim() || '+1L';
     const extraPaise = dto.extraPaise !== undefined ? dto.extraPaise : 8000;
-    const notePrefix = `[EXTRA: ${extraQty}|${extraPaise}]`;
-    const fullNote = `${notePrefix} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
     const count = Math.max(1, Math.min(30, dto.consecutiveDays || 1));
+    // A recurring add-on must record the slot the rider promised. The base
+    // delivery keeps its own slot; only the marker carries the target, so the
+    // grid reads the add-on without rerouting the customer's delivery.
+    const targetSlot = dto.targetSlot === 'AM' || dto.targetSlot === 'PM' ? dto.targetSlot : 'PM';
+    const marker = count > 1
+      ? `[ADD-ON: ${extraQty}|${extraPaise}|${targetSlot}]`
+      : `[EXTRA: ${extraQty}|${extraPaise}]`;
+    const fullNote = `${marker} ${dto.note?.trim() || 'Rider field add-on'}`.trim();
+    const subscriptionId = stop.subscriptionDelivery.subscriptionId;
+    const auditKey = idempotencyKey ? `subscription-extra-milk:${idempotencyKey}` : null;
 
     return prisma.$transaction(async (tx) => {
+      if (auditKey) {
+        // Serialize keyed requests: a concurrent retry must wait for the first
+        // insert to commit, then read it back as a replay, rather than losing
+        // the race on the SubscriptionAuditEntry.idempotencyKey unique index.
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`extra-milk:${auditKey}`}))`);
+        const prior = await tx.subscriptionAuditEntry.findUnique({ where: { idempotencyKey: auditKey } });
+        if (prior) {
+          const meta = (prior.metadata ?? {}) as Record<string, unknown>;
+          // The key is scoped to the request that first used it; reusing it for
+          // a different subscription/stop must fail loudly instead of reporting
+          // success without applying anything.
+          if (prior.subscriptionId !== subscriptionId || meta.stopId !== stop.id) {
+            throw new ConflictException('This idempotency key was already used for a different add-on request');
+          }
+          const subscription = await tx.customerSubscription.findUnique({ where: { id: subscriptionId } });
+          return {
+            success: true,
+            replayed: true,
+            // Report exactly what the original request recorded, so a replay
+            // never mixes the prior schedule totals with this request's values.
+            extraPaise: Number(meta.extraPaise ?? extraPaise),
+            extraQuantity: String(meta.extraQuantity ?? extraQty),
+            scheduledDays: Number(meta.scheduledDays ?? 1),
+            totalExtraPaise: Number(meta.totalExtraPaise ?? extraPaise),
+            subscription,
+          };
+        }
+      }
+
       await tx.subscriptionDelivery.update({
         where: { id: stop.subscriptionDeliveryId },
         data: {
@@ -784,11 +834,34 @@ export class DeliveryRunOperationsService {
       const totalExtraPaise = extraPaise * totalScheduledDays;
 
       const sub = await tx.customerSubscription.update({
-        where: { id: stop.subscriptionDelivery.subscriptionId },
+        where: { id: subscriptionId },
         data: {
           amountDuePaise: { increment: totalExtraPaise },
         },
       });
+
+      if (auditKey) {
+        await tx.subscriptionAuditEntry.create({
+          data: {
+            subscriptionId,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            action: 'RIDER_EXTRA_MILK',
+            reason: marker,
+            metadata: {
+              extraQuantity: extraQty,
+              extraPaise,
+              scheduledDays: totalScheduledDays,
+              totalExtraPaise,
+              targetSlot: count > 1 ? targetSlot : null,
+              stopId: stop.id,
+              runId: run.id,
+            },
+            idempotencyKey: auditKey,
+          },
+        });
+      }
+
       return {
         success: true,
         extraPaise,

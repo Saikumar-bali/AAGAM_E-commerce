@@ -797,3 +797,73 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** Feature gap, not a defect in an existing flow. Recorded so it is not
   mistaken for a regression, and so a future session can implement it against the
   web reference.
+
+### BUG-017 — Rider extra-milk has no idempotency: a double-tap or retried request double-charges the add-on
+
+- **Found:** 2026-10-08 by aagam-testing (code review + new e2e regression)
+- **Severity:** major (money over-charged)
+- **Surface:** `POST /api/rider/delivery-runs/:runId/stops/:stopId/extra-milk`
+  (mobile `RiderRunDetailScreen` "Attach" button)
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Open a subscription stop on the rider run screen and attach an extra
+     (`+1L`, Rs 80) for 2 days.
+  2. Send the same request again (the rider taps "Attach" twice on a laggy
+     connection, or the client retries a timed-out POST).
+- **Observed:** the method took no idempotency key, so both calls ran the whole
+  transaction: `SubscriptionDelivery.cashDuePaise`, `DeliveryRunStop.cashDuePaise`,
+  `DeliveryRun.expectedCashPaise` and `CustomerSubscription.amountDuePaise` were
+  each incremented twice. A 2-day Rs 80 add-on billed Rs 320 instead of Rs 160.
+- **Expected:** a replayed request with the same key must be a no-op that returns
+  the first result, like `complete`/`fail`/`recordPayment` already do.
+- **Code path:** `apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts`
+  `extraMilk()` (previously `:713-801`) had no `idempotencyKey` parameter; the
+  controller route did not forward the header.
+- **Evidence:** new spec `rider-extra-milk.e2e.spec.ts` — third test replays the
+  request under one key and asserts `amountDuePaise === 16000` (not 32000) and
+  each day cell `cashDuePaise === 8000` (not 16000).
+- **Fix:** `extraMilk` now accepts an idempotency key, records a
+  `SubscriptionAuditEntry` (`action: RIDER_EXTRA_MILK`, unique
+  `idempotencyKey`) and short-circuits a replay before any increment; the
+  controller forwards the `idempotency-key` header, and the mobile service
+  sends `${stop.id}:${nonce}` (nonce bumps each time the dialog opens).
+- **Notes:** same class as the existing idempotency coverage on the other run
+  operations; the key is scoped per dialog-open so a deliberate second add-on is
+  not collapsed into the first.
+
+### BUG-018 — Rider recurring add-on loses its delivery slot: stored as `[EXTRA:]`, and the DTO's `targetSlot` is ignored
+
+- **Found:** 2026-10-08 by aagam-testing (code review + new e2e regression)
+- **Severity:** major (operational volume / dispatch slot wrong)
+- **Surface:** `POST /api/rider/delivery-runs/:runId/stops/:stopId/extra-milk`
+  with `consecutiveDays > 1`
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. On a rider stop, attach an extra `+1L` for the coming 3 days and pick the
+     **PM** delivery.
+  2. Read back `SubscriptionDelivery.deferredReason` for today and the next two
+     days.
+- **Observed:** the marker was always `[EXTRA: +1L|8000]` — no slot. The
+  `RiderExtraMilkDto.targetSlot` field exists but the service never read it, so
+  a "customer wants extra for tomorrow **evening**" promise was recorded with no
+  slot. The store `ATTACH_EVENING_MILK` path writes
+  `[ADD-ON: +1L|8000|PM]` for the same intent, so the two writers of the same
+  concept disagreed and the grid could not tell the add-on's slot.
+- **Expected:** a recurring add-on must write `[ADD-ON: <qty>|<paise>|<slot>]`
+  (the shared `delivery-add-on` parser reads both forms + the slot), and the base
+  delivery must keep its own `deliverySlot`.
+- **Code path:** `delivery-run-operations.service.ts` `extraMilk()` built only a
+  `[EXTRA: …]` `fullNote`; `RiderExtraMilkDto.targetSlot` unused.
+- **Evidence:** new spec `rider-extra-milk.e2e.spec.ts` — second test asserts the
+  3-day PM add-on writes `[ADD-ON: +1L|8000|PM]` on days 1-3, day 4 untouched,
+  the base `deliverySlot` stays `AM`, and `parseAddOns()` returns `slot === 'PM'`.
+- **Fix:** `extraMilk` writes the `[ADD-ON: qty|paise|slot]` marker when
+  `consecutiveDays > 1` (defaulting the slot to `PM`, matching the store path),
+  stamps it in the audit metadata, and the mobile dialog gained a Today-only vs
+  Coming-days choice plus an AM/PM selector that is sent only for the recurring
+  case.
+- **Notes:** the base delivery row keeps its slot; only the marker carries the
+  add-on's target, which is why the `ADD-ON_PATTERN` trailing slot group is used
+  rather than overwriting `deliverySlot`.

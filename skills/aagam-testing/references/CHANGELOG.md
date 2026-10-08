@@ -334,3 +334,28 @@ human), what changed, why.
     payload it would send: `[EXTRA: <qty>|<paise>]` or
     `[ADD-ON: <qty>|<paise>|<slot>]`, and the rail card gains a `📅 +xL ×Nd`
     future badge after attaching.
+
+- **2026-10-08 · v1.4.9 · aagam-testing (rider add-on implemented end to end; BUG-017/018)**
+  - Moved the prototype into real code. The store page stays untouched; the
+    capability lives on the rider surface because that is who is at the door:
+    `apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx` gained a
+    **Today only / Coming days** choice and an AM/PM *add-on slot*, and
+    `subscriptionOperationsService.addExtraMilk` now sends `targetSlot` and an
+    `idempotency-key`.
+  - Backend `delivery-run-operations.service.ts` `extraMilk()`: a recurring
+    add-on (`consecutiveDays > 1`) now writes
+    `[ADD-ON: <qty>|<paise>|<slot>]` (the marker the store grid's
+    `ATTACH_EVENING_MILK` already uses and the shared `delivery-add-on` parser
+    reads); a today-only add-on still writes `[EXTRA: <qty>|<paise>]`. The base
+    delivery keeps its own `deliverySlot`. It also takes an idempotency key,
+    records a `RIDER_EXTRA_MILK` audit entry and short-circuits a replay; the
+    controller forwards the `idempotency-key` header.
+  - Two defects recorded: **BUG-017** (no idempotency → double-tap double-charges)
+    and **BUG-018** (recurring add-on lost its slot; DTO `targetSlot` ignored).
+    Both FIXED-NOT-DEPLOYED.
+  - Regression: `apps/api-gateway/src/subscriptions/rider-extra-milk.e2e.spec.ts`
+    (4 DB-backed tests: today marker, recurring slot marker + parser, idempotent
+    replay, non-rider rejected) and the source contract
+    `RiderExtraMilk.contract.spec.ts` (5 assertions). `test:ci` for the two new
+    suites, `tsc --noEmit` for api-gateway + mobile-partners, and `npm run lint`
+    (0 errors) all pass locally against Postgres.
