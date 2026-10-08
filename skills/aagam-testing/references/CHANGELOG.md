@@ -319,3 +319,18 @@ human), what changed, why.
     (qty preset, 1/2/3/5/7-day duration, AM/PM target, price/day) and shows the
     real `[ADD-ON: <qty>|<paise>|<slot>]` encoding it would write.
   - Prototype only (mock data), served from the work host.
+
+- **2026-10-08 · v1.4.8 · aagam-testing (add-on moved to the rider, store page untouched)**
+  - Correction: v1.4.7's `store-today.html` is **reverted/removed**. The store
+    page was not to be redesigned. The rider is the one at the customer's door,
+    updating while on the map, so the extra-milk + "customer wants extra for
+    tomorrow" dialog belongs in the **rider Run Console**, not the store sheet.
+  - Added to `run-console.html`: a `＋` affordance on every rail card and in the
+    top CTA bar (and the `...` actions menu) opening a rider add-on dialog with
+    two modes — **Today only** (`EXTRA_MILK`, writes extra litres to today's
+    stop, mirrors the app's `EXTRA_PRESETS` 0.5/1/1.5/2L at 40/80/120/160) and
+    **Coming days** (`ATTACH_EVENING_MILK` / `addExtraMilk`, mirrors
+    `SCHEDULE_DAYS` 1/2/3/5/7 days + AM/PM target). The dialog shows the real
+    payload it would send: `[EXTRA: <qty>|<paise>]` or
+    `[ADD-ON: <qty>|<paise>|<slot>]`, and the rail card gains a `📅 +xL ×Nd`
+    future badge after attaching.
