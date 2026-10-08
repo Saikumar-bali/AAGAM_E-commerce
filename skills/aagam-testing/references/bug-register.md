@@ -260,7 +260,7 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
 - **Severity:** major (sensitive-data exposure on a shared endpoint; cross-role, not just the rider's own data)
 - **Surface:** `GET /api/orders/delivery-operations/jobs/:deliveryJobId/summary`
 - **Role:** api (customer, store, rider, admin all reach it)
-- **Status:** FIXED (this branch, not yet deployed)
+- **Status:** `FIXED-DEPLOYED` (commit `2f4d1be`, pushed to `main`)
 - **Repro:**
   1. Log in as any role (customer, store, rider or admin) with any cookie jar.
   2. `GET /api/orders/delivery-operations/jobs/:id/summary` for a job whose
@@ -586,7 +586,7 @@ area, and treat a recurrence as a **major** finding.
   the store owner holds the field key; cross-role data exposure)
 - **Surface:** `GET /api/orders/delivery-operations/queue`
 - **Role:** store owner (and admin)
-- **Status:** FIXED (this branch, not yet deployed)
+- **Status:** `FIXED-DEPLOYED` (commit `2f4d1be`, pushed to `main`)
 - **Repro:**
   1. Log in as a store owner.
   2. `GET /api/orders/delivery-operations/queue` (51 rows on live 2026-10-08).
@@ -620,7 +620,7 @@ area, and treat a recurrence as a **major** finding.
   route, and cannot move a stop from one rider to another — core dispatch work)
 - **Surface:** `POST /api/store/subscriptions/dispatch-to-rider`
 - **Role:** store owner
-- **Status:** FIXED (this branch, not yet deployed)
+- **Status:** `FIXED-DEPLOYED` (commit `2f4d1be`, pushed to `main`)
 - **Repro (fresh, no planner run needed):**
   1. As the store owner, open `/store/subscriptions` and pick a delivery on a
      store-local date whose **morning** slot has no rider run yet.
@@ -671,7 +671,7 @@ area, and treat a recurrence as a **major** finding.
 - **Surface:** `/store/subscriptions` → delivery cell → **Reassign** →
   **Dispatch 1 Stops** → `POST /api/store/subscriptions/dispatch-to-rider`
 - **Role:** store owner
-- **Status:** FIXED (this branch, not yet deployed)
+- **Status:** `FIXED-DEPLOYED` (commit `2f4d1be`, pushed to `main`)
 - **Repro:**
   1. Assign a scheduled stop to rider A (succeeds).
   2. Re-open the cell, press **Reassign**, choose rider B, press
@@ -713,7 +713,7 @@ area, and treat a recurrence as a **major** finding.
   /api/store/subscriptions/deliveries/:deliveryId/quick-action` (`TOGGLE_DELIVERED`).
   The same button/endpoint also backs the store milk grid's "Mark delivered".
 - **Role:** rider (and store - same endpoint via the grid)
-- **Status:** FIXED (this branch, not yet deployed)
+- **Status:** `FIXED-DEPLOYED` (commit `2f4d1be`, pushed to `main`)
 - **Repro:**
   1. Rider run is `IN_PROGRESS` and a stop is `READY`/`PLANNED`.
   2. Open the stop modal and press **Mark Delivered** (no arrival, no OTP, no
@@ -754,3 +754,46 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** Same class as the existing "Order status" regression hot-spot
   (rider photo completion bypassed the workflow); BUG-002 also touched this
   area (rider home vs store block). Distinct writer path, so its own entry.
+
+
+### BUG-016 — Mobile rider navigation is single-destination only: no multi-stop "navigate to next order" (no waypoints, straight-line ETA)
+
+- **Found:** 2026-10-08 by aagam-testing (portal walkthrough + code review)
+- **Severity:** minor (capability gap, not a crash)
+- **Surface:** `/rider` → `RiderNavigationPanel` (turn-by-turn hand-off); compare
+  web `/rider/runs`
+- **Role:** rider
+- **Status:** OPEN
+- **Repro:**
+  1. Open a rider run with more than one stop on the mobile partner app.
+  2. Press the **turn-by-turn** button in the navigation strip.
+- **Observed:** the button opens a single-destination Google Maps deep link with
+  no origin and no waypoints:
+  `https://www.google.com/maps/dir/?api=1&destination=<lat,lng>&travelmode=driving`
+  (`RiderNavigationPanel.openTurnByTurn`, same shape in `RiderRouteMap`). The
+  on-panel ETA/distance are straight-line (haversine) at a fixed 24 km/h
+  (`riderNavigationSession.ts` `distanceKmBetween` + `estimateEtaMinutes`), not a
+  routed ETA. The panel only re-targets when the current stop completes and the
+  *next job* becomes the active job — it does not sequence the run's remaining
+  stops.
+- **Expected:** the rider surface should offer "navigate to the next stop/order"
+  that chains the run's remaining stop coordinates. The **web** rider runs page
+  already does exactly this (`apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx`
+  builds `origin` + `waypoints=` from the run's points; also `admin/orders`).
+  The mobile partner app should match it, ideally with a routed (Directions API)
+  ETA rather than a fixed-speed haversine.
+- **Code path:** `apps/mobile-partners/src/components/rider/RiderNavigationPanel.tsx`
+  (`openTurnByTurn`), `apps/mobile-partners/src/components/rider/RiderRouteMap.tsx`
+  (`openNavigation`), `apps/mobile-partners/src/domain/riderNavigationSession.ts`
+  (`destinationForJob` returns the single active job's destination). The
+  coordinates exist per stop (`DeliveryRunStop.deliveryLatitude/Longitude`,
+  mapped server-side in `regional-route-operations.service.ts`), so the data is
+  available; only the client hand-off is single-target.
+- **Evidence:** code review against live revision `2f4d1be`, 2026-10-08. Maps
+  themselves ARE integrated (Mapbox GL route view in the rider panel/customer
+  tracking; Mapbox Geocoding + Google Places in `apps/api-gateway/src/geo/geo.service.ts`);
+  the gap is specifically multi-stop navigation sequencing.
+- **Fix:** — (open)
+- **Notes:** Feature gap, not a defect in an existing flow. Recorded so it is not
+  mistaken for a regression, and so a future session can implement it against the
+  web reference.

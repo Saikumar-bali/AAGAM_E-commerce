@@ -261,3 +261,15 @@ human), what changed, why.
   - **BUG-010 status corrected** — already `FIXED-DEPLOYED` in `78a8a3f`
     (origin/main); the register still said "working tree, not yet deployed".
   - Still `OPEN`, out of this pass: **BUG-004** (dependency audit gate).
+
+- **2026-10-08 · v1.4.3 · aagam-testing (portal walkthrough + register sync)**
+  - Recorded **BUG-016** (OPEN): the mobile rider navigation hand-off is
+    single-destination (no `waypoints=`, straight-line 24 km/h ETA); the web
+    rider runs page already chains stops. Maps are integrated; only multi-stop
+    sequencing is missing.
+  - Promoted BUG-006, BUG-012, BUG-013, BUG-014, BUG-015 from
+    "FIXED (this branch, not yet deployed)" to `FIXED-DEPLOYED` — the fixes
+    landed on `main` as commit `2f4d1be`.
+  - Captured four fresh per-portal screen recordings (customer / store / rider /
+    admin) from the live site for review; no titles or subtitles are burned into
+    the frames.
