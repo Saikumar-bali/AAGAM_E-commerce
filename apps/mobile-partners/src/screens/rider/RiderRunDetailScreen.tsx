@@ -219,6 +219,16 @@ function StopCard({
   );
 }
 
+// Module scope so it survives component remounts: a reopened screen would
+// otherwise restart a component-scoped counter and reuse an idempotency key
+// that a prior add-on already consumed, silently replaying the old request.
+let extraMilkNonce = 0;
+
+const nextExtraMilkNonce = () => {
+  extraMilkNonce += 1;
+  return `${Date.now().toString(36)}-${extraMilkNonce.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<RiderTabParamList, 'RiderRunDetail'>; navigation: NavigationProp<RiderTabParamList> }) => {
   const runId = route.params.runId;
   const queryClient = useQueryClient();
@@ -244,11 +254,10 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [extraDays, setExtraDays] = useState(1);
   const [extraSlot, setExtraSlot] = useState<'AM' | 'PM'>('PM');
   const [extraNote, setExtraNote] = useState('');
-  // A ref, not component state: a counter that resets on remount would hand a
-  // reopened screen the same key for a different add-on. The ref stays stable
-  // across retries of one submission (the in-flight request keeps its key) and
-  // is bumped only when a fresh add-on is started.
-  const extraKeyRef = useRef(0);
+  // A fresh nonce is minted when the add-on dialog opens and held in a ref for
+  // the lifetime of that dialog: retries of one submission reuse the same key,
+  // while every new add-on (including after a remount) gets a distinct one.
+  const extraKeyRef = useRef('');
   // "today" attaches one extra to this delivery; "next" schedules the coming
   // days as a recurring add-on (mirrors the store grid's ATTACH_EVENING_MILK).
   const extraWhen: 'today' | 'next' = extraDays > 1 ? 'next' : 'today';
@@ -617,7 +626,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                   {!extraMilkOpen ? (
                     <TouchableOpacity
                       style={styles.extraTriggerButton}
-                      onPress={() => { extraKeyRef.current += 1; setExtraMilkOpen(true); }}
+                      onPress={() => { extraKeyRef.current = nextExtraMilkNonce(); setExtraMilkOpen(true); }}
                     >
                       <Plus size={16} color="#0F766E" />
                       <Text style={styles.extraTriggerText}>+ Extra Milk / Schedule Further Orders</Text>

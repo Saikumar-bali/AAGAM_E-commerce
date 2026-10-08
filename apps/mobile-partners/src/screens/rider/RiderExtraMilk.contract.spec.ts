@@ -35,12 +35,15 @@ describe('rider extra-milk / add-on dialog', () => {
     expect(service).toContain("headers: { 'idempotency-key': idempotencyKey }");
   });
 
-  it('keeps the idempotency key remount-safe via a ref', () => {
-    // A state counter resets on remount, so a reopened screen would reuse an
-    // already-consumed key for a different add-on. A ref survives remounts.
-    expect(screen).toContain('const extraKeyRef = useRef(0)');
-    expect(screen).toContain('extraKeyRef.current += 1');
-    expect(screen).not.toContain('extraKeyNonce');
+  it('mints a remount-safe idempotency key when the dialog opens', () => {
+    // A per-component counter restarts on remount, so a reopened screen would
+    // reuse an already-consumed key and replay the prior add-on. The nonce is
+    // module-scoped, so it keeps advancing across remounts.
+    expect(screen).toContain('let extraMilkNonce = 0');
+    expect(screen).toContain('extraMilkNonce += 1');
+    expect(screen).toContain('extraKeyRef.current = nextExtraMilkNonce()');
+    expect(screen).not.toContain('extraKeyRef.current += 1');
+    expect(screen).not.toContain('const extraKeyRef = useRef(0)');
   });
 
   it('surfaces an existing recurring add-on, not only a one-day extra', () => {
