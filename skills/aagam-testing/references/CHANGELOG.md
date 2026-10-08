@@ -293,3 +293,14 @@ human), what changed, why.
   - Responsive verified in-browser: 360x640, 390x844, 414x896 and 1366x834; all
     stop pins stay clear of the sheet/panel, and the floating tools never
     overlap the panel. Prototype only (mock data), served from the work host.
+
+- **2026-10-08 · v1.4.6 · aagam-testing (Run Console v3 — designed)**
+  - v3 keeps the horizontal sequence rail (the v2 side panel was rejected) and
+    adds on-map control: filter chips (All / Undelivered / Delivered / Failed /
+    COD due, each with a live count that dims the non-matching pins) plus a
+    right-edge tool stack (labels, route line, my location, fit) and a `...`
+    actions sheet (navigate / call / undo delivery / center / report problem).
+  - Visual system: dawn-route palette (bone paper, pine brand, coral active),
+    Bricolage Grotesque + Instrument Sans, gradient accent hairline. Verified at
+    360x640, 390x844, 414x896 and 1440x834; zero console errors; full flow
+    (arrive -> COD/OTP complete -> next) plus filter/undo/milk exercised.
