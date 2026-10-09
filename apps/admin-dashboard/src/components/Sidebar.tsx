@@ -34,6 +34,7 @@ import {
   Trees,
   FileSpreadsheet,
   UserCheck,
+  Map as MapIcon,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -83,6 +84,7 @@ const menuItems: Record<Role, MenuItem[]> = {
     { name: "Notifications", href: "/rider/notifications", icon: Bell },
     { name: "History", href: "/rider/history", icon: ShoppingCart },
     { name: "Earnings", href: "/rider/earnings", icon: Tag },
+    { name: "Route Map", href: "/rider/console", icon: MapIcon },
     { name: "Morning Runs", href: "/rider/runs", icon: Route },
     { name: "COD & Settlements", href: "/rider/cod", icon: ShieldAlert },
     { name: "Performance", href: "/rider/performance", icon: BarChart3 },

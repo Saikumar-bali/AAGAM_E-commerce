@@ -42,7 +42,7 @@ GET /api/orders/delivery-operations/queue   -> [{ id, orderId, status, currentRi
 |---|---|---|
 | Customer | `/login` → `/shop` | Shop, My Orders, Subscriptions, Notifications, All menu |
 | Store owner | `/login` → `/store` | Dashboard, Notifications, Orders, Deliveries, Pickup Proof, Subscription Runs, Inventory, My Stores, Settings |
-| Rider | `/login` → `/rider` | Home, Job Offers, Current Delivery, Pickup Tasks, Notifications, History, Earnings, Morning Runs, COD & Settlements, Performance, Availability, Profile, Support |
+| Rider | `/login` → `/rider` | Home, Job Offers, Current Delivery, Pickup Tasks, Notifications, History, Earnings, Route Map, Morning Runs, COD & Settlements, Performance, Availability, Profile, Support |
 | Admin | `/login` → `/admin` | Dashboard, Partner Applications, Analytics, Notifications, Support, Dispatch, Delivery Exceptions, Stores, Customers, Products, Delivery Zones, Localities, Delivery Fee Rules, Promotions, Subscriptions, Store Delivery, Route Planning, Riders, Orders, Excel Report, Live Tracking |
 
 ---
@@ -265,6 +265,17 @@ Quick actions on a cell: `TOGGLE_DELIVERED`, `SKIP`, `EXTRA_MILK`,
 pickup block, customer block, **Operational actions**, **Parcel and item
 checklist**, and the **Audit timeline** (`JOB_CREATED` → `ASSIGNMENT_CREATED` →
 `ASSIGNMENT_OFFERED` → `RIDER_ASSIGNED` → `ASSIGNMENT_ACCEPTED` → …).
+
+`/rider/console` (**Route Map** in the rider sidebar) is the map-first single-page
+run console: one Mapbox canvas (store pin, numbered stop pins, live rider dot,
+route line) with a scrollable stop rail and a bottom action sheet for the active
+stop. Run and stop data come from `GET /rider/delivery-runs/today` and
+`GET /rider/delivery-runs/:runId`; `GET /rider/delivery-runs/route-board` is used
+only for the live rider position. It shares the same
+arrive / proof / OTP / drop-token / COD / fail / add-on endpoints as
+`/rider/runs`; treat it as an alternate surface over the same state machine, not
+a separate flow. It is the answer to the "map-based rider console" request — the
+earlier multi-page `/rider/runs` list remains for bulk run management.
 
 **Rider busy-state assertion:** a `DeliveryRun` with `totalStopCount = 0` and no
 `DeliveryRunStop` rows must never pin a rider `BUSY`.

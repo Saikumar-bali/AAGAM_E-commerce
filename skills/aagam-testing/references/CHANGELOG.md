@@ -335,27 +335,20 @@ human), what changed, why.
     `[ADD-ON: <qty>|<paise>|<slot>]`, and the rail card gains a `📅 +xL ×Nd`
     future badge after attaching.
 
-- **2026-10-08 · v1.4.9 · aagam-testing (rider add-on implemented end to end; BUG-017/018)**
-  - Moved the prototype into real code. The store page stays untouched; the
-    capability lives on the rider surface because that is who is at the door:
-    `apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx` gained a
-    **Today only / Coming days** choice and an AM/PM *add-on slot*, and
-    `subscriptionOperationsService.addExtraMilk` now sends `targetSlot` and an
-    `idempotency-key`.
-  - Backend `delivery-run-operations.service.ts` `extraMilk()`: a recurring
-    add-on (`consecutiveDays > 1`) now writes
-    `[ADD-ON: <qty>|<paise>|<slot>]` (the marker the store grid's
-    `ATTACH_EVENING_MILK` already uses and the shared `delivery-add-on` parser
-    reads); a today-only add-on still writes `[EXTRA: <qty>|<paise>]`. The base
-    delivery keeps its own `deliverySlot`. It also takes an idempotency key,
-    records a `RIDER_EXTRA_MILK` audit entry and short-circuits a replay; the
-    controller forwards the `idempotency-key` header.
-  - Two defects recorded: **BUG-017** (no idempotency → double-tap double-charges)
-    and **BUG-018** (recurring add-on lost its slot; DTO `targetSlot` ignored).
-    Both FIXED-NOT-DEPLOYED.
-  - Regression: `apps/api-gateway/src/subscriptions/rider-extra-milk.e2e.spec.ts`
-    (4 DB-backed tests: today marker, recurring slot marker + parser, idempotent
-    replay, non-rider rejected) and the source contract
-    `RiderExtraMilk.contract.spec.ts` (5 assertions). `test:ci` for the two new
-    suites, `tsc --noEmit` for api-gateway + mobile-partners, and `npm run lint`
-    (0 errors) all pass locally against Postgres.
+- **2026-10-08 · v1.4.9 · aagam-testing (Run Console implemented in the repo)**
+  - The throwaway `run-console.html` prototype is now a **real, committed
+    surface**: `apps/admin-dashboard/src/app/(rider)/rider/console/page.tsx`
+    (route `/rider/console`, sidebar label **Route Map**) rendering
+    `components/rider/RiderRunConsole.tsx` +
+    `components/rider/RiderRunConsoleMap.tsx`.
+  - Run and stop data come from `GET /rider/delivery-runs/today` and
+    `GET /rider/delivery-runs/:runId`; `GET /rider/delivery-runs/route-board` is
+    read only for the live rider position. It shares the same
+    arrive / proof / OTP / drop-token / COD / fail / add-on endpoints as
+    `/rider/runs`, so the prototype's mock data is gone. `flows.md` now documents
+    it as an alternate surface over the same state machine, and the rider role
+    entry lists **Route Map**.
+  - Static checks only: `tsc --noEmit` clean, `eslint` clean on the three
+    new/changed files, `next build` succeeds with `/rider/console` in the route
+    manifest. The console was **not** exercised at runtime against a live backend
+    or an authenticated session.
