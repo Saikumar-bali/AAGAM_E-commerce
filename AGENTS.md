@@ -515,3 +515,62 @@ runs don't collide. `dispatch-second-rider.e2e.spec.ts` is the regression.
 `bankIfscCiphertext` because `currentRider` was `include`d whole (its `user`
 sub-select was already scoped). Any store/admin read path that returns a rider
 must `select` only the display fields. Same class as the `.../summary` leak.
+
+## Preview the mobile-partners RN screens on the web
+
+`apps/mobile-partners` is a bare React Native app with no web target, so there is
+no way to eyeball its screens without an emulator (unavailable: no KVM). To
+render the *real* screens (same components/styles/copy as the APK) in a browser,
+use the harness at `agent_demo_shots/rn-preview/`:
+
+- `mocks/rn-shim.js` aliases `react-native` to `react-native-web`; the other
+  `mocks/*.js` stub native modules (`WebView`, safe-area, geolocation, Firebase,
+  react-navigation, toast) and the `@aagam/mobile-shared` / `@aagam/utils`
+  packages. Service singletons (`riderService`, `notificationService`,
+  `RiderTrackingManager`, `RiderOnlineService`, native pickers/scanners, …) are
+  aliased to `mocks/native-services.js`.
+- `src/gallery.jsx` mounts the actual screen components. It overrides
+  `Text`/`ScrollView` to render plain `<div>`s (react-native-web renders `<Text>`
+  as `<div>`, and nested `<Text>` would produce invalid nested divs) and flattens
+  their `style` arrays with `StyleSheet.flatten` before handing them to the DOM.
+- Build: `cd agent_demo_shots/rn-preview && ../../node_modules/.bin/webpack --config webpack.config.js`.
+- Screenshots: `node shoot.js` (Playwright element shots → `screens/*.png`).
+- Live Mapbox map: pass a public token as `?mapbox=pk.…` on the gallery URL; the
+  token is read at runtime by `mocks/env.js` (`window.__MAPBOX_TOKEN__`).
+- Deps (`react-native-web`, `babel-loader`, `webpack-cli`, `html-webpack-plugin`,
+  `@babel/preset-react`, `@babel/preset-typescript`) are installed with
+  `--no-save`; re-install them in one `npm install` if a later install prunes
+  them (npm removes unlisted `--no-save` packages).
+
+### Live proxy: the real app against the real backend
+
+The gallery above renders individual screens from mock data. To run the *whole*
+app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClient`
+— wired to the live `https://aagaam.in/api`, use the second, separate config:
+
+- Build: `EXPO_PUBLIC_MAPBOX_TOKEN=pk.… ../../node_modules/.bin/webpack --config webpack.preview.config.js`
+  → `dist-live/`. Entry `src/web-entry.js` mounts `<App/>` (with an error
+  boundary that prints failures into `#boot-error`), and `@app` is aliased to
+  `apps/mobile-partners`.
+- Serve + proxy: `node server.js` (port `12001`; `MAPBOX_TOKEN=…`). The
+  production API sends **no CORS headers**, so the browser cannot call it
+  cross-origin; `server.js` proxies `/api/*` to `https://aagaam.in` on the same
+  origin and the app's `API_URL` is baked to `/api`. It also injects
+  `window.__ENV__` (Mapbox token) into `index.html` at serve time, so no rebuild
+  is needed to change the token. `run.sh` does build + serve in one step.
+- `@react-navigation/native-stack` must alias to `mocks/navigation.js`
+  (`createNativeStackNavigator`); a dummy passthrough `Screen` renders nothing.
+- Probes: `node probe-live.js` (render + errors + backend calls),
+  `node probe-interactive.js` / `probe-flows.js` (drive UI, RIDER_EMAIL/… env),
+  `node capture-live.js` (device screenshots → `screens/live-*.png`).
+- Dev hooks on the live bundle: `?map=1` mounts `RiderRouteMap` alone;
+  `?screen=route` mounts the new `RouteConsoleScreen` (and `&demo=1` seeds a
+  sample run so the populated console renders without a rider token).
+- Full-screen mode: the `#fs-toggle` button (also the `F` key, or
+  `?fullscreen=1`) adds `html.fs`, which drops the device-frame chrome and
+  shows only the app screen edge-to-edge.
+- Login is email+password or phone-OTP against live `/auth/mobile/login`; the
+  seed default (`rider@aagam.com`) is *not* a production credential, so the
+  authenticated rider dashboard needs a supplied test account password.
+  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
+  source for QA test accounts if present in the production DB.

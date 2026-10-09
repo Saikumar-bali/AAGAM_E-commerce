@@ -14,6 +14,7 @@ export type RiderJobsStackParamList = {
 
 export type RiderTabParamList = {
   Dashboard: undefined;
+  Route: undefined;
   Operations: NavigatorScreenParams<RiderJobsStackParamList> | undefined;
   Runs: undefined;
   RiderRunDetail: { runId: string };
