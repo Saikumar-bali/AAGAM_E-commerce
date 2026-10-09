@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { apiClient } from '@aagam/utils';
 import DashboardLayout from '@/components/DashboardLayout';
 import { formatDate, formatPaise } from '@/components/subscriptions/SubscriptionPlanCard';
-import { CalendarDays, Check, Clock3, Loader2, MapPin, ShieldCheck, WalletCards } from 'lucide-react';
+import { CalendarDays, Check, Clock3, Loader2, MapPin, WalletCards } from 'lucide-react';
 import { useToast, getToastErrorMessage } from '@/components/ToastProvider';
 
 const getLocalDateString = (offsetDays = 0) => {
@@ -36,10 +36,8 @@ export default function SubscribeReviewPage() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [addressId, setAddressId] = useState('');
   const [startDate, setStartDate] = useState(today());
-  const [method, setMethod] = useState('PERSONAL_HANDOVER');
   const [deliverySlot, setDeliverySlot] = useState<'AM' | 'PM'>('AM');
   const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } };
-  const [instructions, setInstructions] = useState('');
   const [quote, setQuote] = useState<any>();
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,12 +67,12 @@ export default function SubscribeReviewPage() {
     () => ({
       addressId,
       startDate,
-      deliveryMethod: method,
+      deliveryMethod: 'PERSONAL_HANDOVER',
       deliverySlot,
       deliveryWindowStartMinute: DELIVERY_WINDOWS[deliverySlot].start,
       deliveryWindowEndMinute: DELIVERY_WINDOWS[deliverySlot].end,
     }),
-    [addressId, startDate, method, deliverySlot],
+    [addressId, startDate, deliverySlot],
   );
 
   useEffect(() => {
@@ -91,7 +89,7 @@ export default function SubscribeReviewPage() {
         setQuote(null);
         setQuoteError(getToastErrorMessage(e, 'This plan is not available for the selected address.'));
       });
-  }, [addressId, startDate, method, planId, plan, isValidStartDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addressId, startDate, planId, plan, isValidStartDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
     if (!isValidStartDate) {
@@ -102,7 +100,7 @@ export default function SubscribeReviewPage() {
     try {
       const response = await apiClient.post(
         '/customer/subscriptions',
-        { ...payload, planId, trustedDropInstructions: instructions || undefined },
+        { ...payload, planId },
         { headers: { 'Idempotency-Key': `web-subscription:${Date.now()}:${crypto.randomUUID()}` } },
       );
       toast.success(response.data?.confirmationMessage || 'Subscription requested.');
@@ -292,57 +290,6 @@ export default function SubscribeReviewPage() {
               </Section>
             </div>
 
-            <Section icon={<ShieldCheck />} title="Handover proof">
-              {[
-                ['PERSONAL_HANDOVER', 'Personal OTP', 'OTP and GPS at the customer'],
-                ['TRUSTED_DROP', 'Trusted drop', 'Geofence, secure token and proof'],
-                ['SECURITY_RECEPTION', 'Security / reception', 'OTP and named handover'],
-              ]
-                .filter(([v]) =>
-                  v === 'PERSONAL_HANDOVER'
-                    ? plan.allowPersonalHandover
-                    : v === 'TRUSTED_DROP'
-                    ? plan.allowTrustedDrop
-                    : plan.allowSecurityHandover,
-                )
-                .map(([value, label, copy]) => (
-                  <button
-                    key={value}
-                    onClick={() => setMethod(value)}
-                    className={`mb-2 flex min-h-[48px] w-full items-center gap-3 rounded-lg border p-4 text-left transition ${
-                      method === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <span
-                      className={`h-5 w-5 rounded-full border-2 p-1 ${
-                        method === value ? 'border-emerald-700' : 'border-slate-300'
-                      }`}
-                    >
-                      {method === value ? (
-                        <span className="block h-full w-full rounded-full bg-emerald-700" />
-                      ) : null}
-                    </span>
-                    <span>
-                      <strong className="block text-slate-900">{label}</strong>
-                      <small className="text-slate-500">{copy}</small>
-                    </span>
-                  </button>
-                ))}
-              {method === 'TRUSTED_DROP' ? (
-                <div className="mt-4 grid gap-3">
-                  <p className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-[11px] font-medium leading-4 text-emerald-800">
-                    Aagaam securely creates your one-time drop QR after subscription creation. You never create or type
-                    a drop secret.
-                  </p>
-                  <textarea
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    placeholder="Milk box or doorstep instructions"
-                    className="min-h-[60px] rounded-lg border border-slate-200 p-4"
-                  />
-                </div>
-              ) : null}
-            </Section>
           </div>
 
           <aside className="h-fit rounded-lg border border-slate-200 bg-white p-4 lg:sticky lg:top-6">
