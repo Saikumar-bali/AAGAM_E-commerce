@@ -334,3 +334,17 @@ human), what changed, why.
     payload it would send: `[EXTRA: <qty>|<paise>]` or
     `[ADD-ON: <qty>|<paise>|<slot>]`, and the rail card gains a `📅 +xL ×Nd`
     future badge after attaching.
+
+- **2026-10-08 · v1.4.9 · aagam-testing (Run Console implemented in the repo)**
+  - The throwaway `run-console.html` prototype is now a **real, committed
+    surface**: `apps/admin-dashboard/src/app/(rider)/rider/console/page.tsx`
+    (route `/rider/console`, sidebar label **Route Map**) rendering
+    `components/rider/RiderRunConsole.tsx` +
+    `components/rider/RiderRunConsoleMap.tsx`.
+  - It reuses the live `getRiderRouteBoard` board and the same
+    arrive / proof / OTP / drop-token / COD / fail / add-on endpoints as
+    `/rider/runs`, so the prototype's mock data is gone. `flows.md` now documents
+    it as an alternate surface over the same state machine, and the rider role
+    entry lists **Route Map**.
+  - Verified: `tsc --noEmit` clean, `eslint` clean on the three new/changed
+    files, `next build` succeeds with `/rider/console` in the route manifest.
