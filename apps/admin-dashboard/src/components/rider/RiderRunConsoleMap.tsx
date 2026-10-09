@@ -146,6 +146,11 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const readyRef = useRef(false);
+  // The map init effect is mount-only, so its `load` handler must call the
+  // latest renderers rather than the empty-data closures captured at mount.
+  const renderMarkersRef = useRef<() => void>(() => {});
+  const renderRouteRef = useRef<() => void>(() => {});
+  const fitRouteRef = useRef<() => void>(() => {});
 
   // ------------------------------------------------------------- render pins
   const focusIds = React.useMemo(() => {
@@ -261,6 +266,12 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
   }, [stops, stores, riderPosition]);
 
   useEffect(() => {
+    renderMarkersRef.current = renderMarkers;
+    renderRouteRef.current = renderRoute;
+    fitRouteRef.current = fitRoute;
+  }, [renderMarkers, renderRoute, fitRoute]);
+
+  useEffect(() => {
     renderMarkers();
   }, [renderMarkers]);
 
@@ -291,9 +302,11 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
     map.on('load', () => {
       readyRef.current = true;
       map.resize();
-      renderMarkers();
-      renderRoute();
-      fitRoute();
+      // Use the refs: this handler is captured at mount, before stop data (and
+      // therefore the real renderers) exist.
+      renderMarkersRef.current();
+      renderRouteRef.current();
+      fitRouteRef.current();
     });
     mapRef.current = map;
     return () => {
