@@ -36,6 +36,7 @@ import {
   UndoRunStopDto,
 } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { computeVoidAdjustment } from './subscription-balances';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TrustedDropService } from './trusted-drop.service';
@@ -1107,7 +1108,12 @@ export class DeliveryRunOperationsService {
           const completedDeliveries = Math.max(0, sub.completedDeliveries - 1);
           const remainingFundedDeliveries = Math.min(totalDeliveries, sub.remainingFundedDeliveries + 1);
           const completed = completedDeliveries >= totalDeliveries;
-          const collected = collectedCashPaise;
+          // The day cell is zeroed below, so only the part really present in
+          // the ledger may leave it; the rest is reconciliation drift that only
+          // ever existed on the cell. Removing it from the ledger too would
+          // understate collected cash and drop valid due, breaking the
+          // collected + due == price invariant.
+          const cash = computeVoidAdjustment(sub.amountCollectedPaise, collectedCashPaise);
           const nextDelivery = await tx.subscriptionDelivery.findFirst({
             where: {
               subscriptionId: sub.id,
@@ -1140,8 +1146,8 @@ export class DeliveryRunOperationsService {
               status: completed ? CustomerSubscriptionStatus.COMPLETED : CustomerSubscriptionStatus.ACTIVE,
               completedDeliveries,
               remainingFundedDeliveries,
-              amountDuePaise: Math.max(0, sub.amountDuePaise - collected),
-              amountCollectedPaise: Math.max(0, sub.amountCollectedPaise - collected),
+              amountDuePaise: Math.max(0, sub.amountDuePaise + cash.dueRestoredPaise),
+              amountCollectedPaise: cash.amountCollectedPaise,
               nextDeliveryDate: completed ? null : nextDelivery?.serviceDate ?? null,
               nextCashCollectionDate: completed ? null : nextCash?.serviceDate ?? null,
             },
