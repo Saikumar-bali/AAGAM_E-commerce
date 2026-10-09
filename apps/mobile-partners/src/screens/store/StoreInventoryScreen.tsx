@@ -17,6 +17,7 @@ import { DEFAULT_PRODUCT_IMAGE, getProductImage } from '@aagam/utils';
 import Toast from 'react-native-toast-message';
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   ChevronDown,
   Eye,
@@ -151,7 +152,7 @@ function ProductHeader({
   );
 }
 
-export const StoreInventoryScreen = () => {
+export const StoreInventoryScreen = ({ navigation }: { navigation?: any }) => {
   const queryClient = useQueryClient();
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [section, setSection] = useState<'mine' | 'catalogue'>('mine');
@@ -403,6 +404,14 @@ export const StoreInventoryScreen = () => {
         <View style={styles.hero}>
           <View style={styles.heroGlow} />
           <View style={styles.brandRow}>
+            <TouchableOpacity
+              testID="inventory_back_button"
+              accessibilityLabel="Back"
+              onPress={() => navigation.goBack()}
+              style={styles.heroIconButton}
+            >
+              <ArrowLeft size={21} color="#FFFFFF" />
+            </TouchableOpacity>
             <AagamBrand compact inverse caption="Store operations" />
             <TouchableOpacity
               testID="inventory_refresh_button"

@@ -4,19 +4,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Box,
-  CalendarDays,
-  CircleCheck,
-  Ellipsis,
-  House,
-  ShoppingCart,
-  Users,
-} from 'lucide-react-native';
+import { Ellipsis, House, LayoutGrid, ShoppingCart } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
+import { StoreOperationsHubScreen } from '../screens/store/StoreOperationsHubScreen';
+import { StoreMoreScreen } from '../screens/store/StoreMoreScreen';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
 import { StoreSubscriptionOperationsScreen } from '../screens/store/StoreSubscriptionOperationsScreen';
-import { StoreOperationsDock } from '../components/StoreOperationsDock';
 import { StoreInventoryScreen } from '../screens/store/StoreInventoryScreen';
 import { StoreOrdersNavigator } from './StoreOrdersNavigator';
 import { StoreSettingsScreen } from '../screens/store/StoreSettingsScreen';
@@ -30,7 +23,6 @@ import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
 import { StoreRiderAssignmentsScreen } from '../screens/store/StoreRiderAssignmentsScreen';
 import { notificationService } from '../api/notificationService';
 import { storeService } from '../api/storeService';
-import { deliveryOperationsService } from '../api/deliveryOperationsService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../screens/PartnerNotificationsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -46,6 +38,12 @@ function tabBadge(count: number) {
   return count > 99 ? '99+' : count;
 }
 
+/**
+ * Four-destination store tab bar — Home, Operations, Orders, More — mirroring
+ * the web store workspace. Secondary screens (inventory, plans, subscribers,
+ * subscription runs, settings, milk grid) drill down from the Operations and
+ * More hubs instead of competing for a tab.
+ */
 const StoreTabs = () => {
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, 6);
@@ -59,15 +57,6 @@ const StoreTabs = () => {
     queryKey: ['store', 'pending-order-badge'],
     queryFn: pendingStoreOrders,
     refetchInterval: 15_000,
-    retry: 1,
-  });
-  const pickupBadgeQuery = useQuery({
-    queryKey: ['store', 'pickup-waiting-badge'],
-    queryFn: async () => {
-      const queue = await deliveryOperationsService.getQueue();
-      return queue.filter((job: any) => job.status === 'RIDER_AT_STORE').length;
-    },
-    refetchInterval: 10_000,
     retry: 1,
   });
   const badgeStyle = {
@@ -112,11 +101,20 @@ const StoreTabs = () => {
         name="Dashboard"
         component={StoreDashboard}
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarButtonTestID: 'tab_dashboard',
           tabBarBadge: tabBadge(Number(inboxQuery.data?.unreadCount || 0)),
           tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size, focused }) => <House size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Operations"
+        component={StoreOperationsHubScreen}
+        options={{
+          title: 'Operations',
+          tabBarButtonTestID: 'tab_operations',
+          tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
@@ -131,55 +129,8 @@ const StoreTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Inventory"
-        component={StoreInventoryScreen}
-        options={{
-          title: 'Inventory',
-          tabBarButtonTestID: 'tab_inventory',
-          tabBarIcon: ({ color, size, focused }) => <Box size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="Subscribers"
-        component={StoreSubscribersScreen}
-        options={{
-          title: 'Subscribers',
-          tabBarButtonTestID: 'tab_subscribers',
-          tabBarIcon: ({ color, size, focused }) => <Users size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="Plans"
-        component={StoreSubscriptionPlansScreen}
-        options={{
-          title: 'Plans',
-          tabBarButtonTestID: 'tab_plans',
-          tabBarIcon: ({ color, size, focused }) => <Box size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="MilkGrid"
-        component={StoreMilkGridScreen}
-        options={{
-          title: 'Milk Grid',
-          tabBarButtonTestID: 'tab_milk_grid',
-          tabBarIcon: ({ color, size, focused }) => <CalendarDays size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="Operations"
-        component={StorePickupAlertsScreen}
-        options={{
-          title: 'Operations',
-          tabBarButtonTestID: 'tab_operations',
-          tabBarBadge: tabBadge(Number(pickupBadgeQuery.data || 0)),
-          tabBarBadgeStyle: badgeStyle,
-          tabBarIcon: ({ color, size, focused }) => <CircleCheck size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={StoreSettingsScreen}
+        name="More"
+        component={StoreMoreScreen}
         options={{
           title: 'More',
           tabBarButtonTestID: 'tab_settings',
@@ -187,7 +138,6 @@ const StoreTabs = () => {
         }}
       />
     </Tab.Navigator>
-      <StoreOperationsDock />
     </View>
   );
 };
@@ -205,6 +155,9 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
       <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
       <Stack.Screen name="StoreRiderAssignments" component={StoreRiderAssignmentsScreen} />
+      <Stack.Screen name="StoreInventory" component={StoreInventoryScreen} />
+      <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
+      <Stack.Screen name="StorePickupAlerts" component={StorePickupAlertsScreen} />
     </Stack.Navigator>
   </View>
 );

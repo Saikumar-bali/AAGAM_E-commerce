@@ -13,24 +13,24 @@ describe('partner mobile UI audit regressions', () => {
     expect(screen('store/StorePickupAlertsScreen.tsx')).not.toContain('<ArrowLeft');
   });
 
-  it('uses exactly five equal-width Store tabs without a hidden spacer route', () => {
+  it('uses four equal-width Store tabs without a hidden spacer route', () => {
     const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
-    expect((navigator.match(/<Tab\.Screen/g) || []).length).toBe(5);
+    expect((navigator.match(/<Tab\.Screen/g) || []).length).toBe(4);
     expect(navigator).toContain('tabBarItemStyle: {');
     expect(navigator).toContain('flex: 1,');
     expect(navigator).not.toContain('tabBarButton: () => null');
     expect(navigator).not.toContain("tabBarStyle: { display: 'none' }");
   });
 
-  it('keeps Store headers separated and uses the dashboard theme on details and More', () => {
+  it('keeps Store headers separated and uses the teal workspace theme on details and More', () => {
     const brand = repoFile('apps/mobile-partners/src/components/AagamBrand.tsx');
     const details = screen('store/StoreOrderDetailsScreen.tsx');
     const settings = screen('store/StoreSettingsScreen.tsx');
     expect(brand).toContain("marginRight: 'auto'");
-    expect(details).toContain("backgroundColor: '#057A55'");
-    expect(details).toContain("backgroundColor: '#078B4D'");
-    expect(settings).toContain("backgroundColor: '#057A55'");
-    expect(settings).toContain("backgroundColor: '#078B4D'");
+    expect(details).toContain("backgroundColor: '#0F766E'");
+    expect(details).toContain("backgroundColor: '#E8F8EE'");
+    expect(settings).toContain("backgroundColor: '#0F766E'");
+    expect(settings).toContain("backgroundColor: '#E8F8EE'");
   });
 
   it('renders the Aagaam artwork full-bleed through one shared mark component', () => {
@@ -79,7 +79,7 @@ describe('partner mobile UI audit regressions', () => {
     expect(login).not.toContain('ShieldCheck');
   });
 
-  it('uses one combined rider and store loading screen with the dashboard hero green', () => {
+  it('uses one combined rider and store loading screen with the teal workspace hero', () => {
     const root = repoFile('apps/mobile-partners/src/navigation/RootNavigator.tsx');
     const baseStyles = repoFile('apps/mobile-partners/android/app/src/main/res/values/styles.xml');
     const android12Styles = repoFile('apps/mobile-partners/android/app/src/main/res/values-v31/styles.xml');
@@ -87,7 +87,7 @@ describe('partner mobile UI audit regressions', () => {
     expect(root).toContain('Preparing rider and store tools');
     expect(root).toContain('<Bike');
     expect(root).toContain('<Store');
-    expect(root).toContain("backgroundColor: '#057A55'");
+    expect(root).toContain("backgroundColor: '#0F766E'");
     expect(baseStyles).toContain('<item name="android:windowBackground">#057A55</item>');
     expect(android12Styles).toContain('<item name="android:windowSplashScreenBackground">#057A55</item>');
     expect(android12Styles).toContain('@drawable/ic_launcher_foreground');
@@ -114,13 +114,13 @@ describe('partner mobile UI audit regressions', () => {
     }
   });
 
-  it('keeps Store inventory in the green Aagaam workspace theme', () => {
+  it('keeps Store inventory in the teal Aagaam workspace theme', () => {
     const inventory = screen('store/StoreInventoryScreen.tsx');
     expect(inventory).toContain('AagamBrand');
     expect(inventory).toContain('caption="Store operations"');
     expect(inventory).toContain('StatusBar');
-    expect(inventory).toContain("const BRAND_GREEN = '#057A55'");
-    expect(inventory).toContain("const ACTION_GREEN = '#078B4D'");
+    expect(inventory).toContain("const BRAND_GREEN = '#0F766E'");
+    expect(inventory).toContain("const ACTION_GREEN = '#0F766E'");
     expect(inventory).toContain('styles.bodySheet');
     expect(inventory).toContain('testID="inventory_refresh_button"');
   });
