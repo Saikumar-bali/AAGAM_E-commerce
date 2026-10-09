@@ -1,4 +1,4 @@
-import { buildRiderMapHtml } from './riderRouteMapHtml';
+import { RIDER_MAP_STYLES, buildRiderMapHtml } from './riderRouteMapHtml';
 
 describe('RiderRouteMap', () => {
   it('builds a Mapbox view with attribution and live rider updates', () => {
@@ -11,5 +11,37 @@ describe('RiderRouteMap', () => {
     expect(html).toContain('Green Leaf');
     expect(html).not.toContain('tile.openstreetmap.org');
     expect(html).not.toContain('googleapis.com/maps/api/js');
+  });
+
+  it('defaults to a satellite view and exposes a style toggle', () => {
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store');
+    expect(RIDER_MAP_STYLES.satellite).toBe('mapbox://styles/mapbox/satellite-streets-v12');
+    expect(html).toContain(RIDER_MAP_STYLES.satellite);
+    expect(html).toContain('mapbox://styles/mapbox/satellite-streets-v12');
+    expect(html).toContain('window.setRiderMapStyle');
+    expect(html).toContain('map-style-toggle');
+    expect(html).toContain('map.on(\'style.load\'');
+  });
+
+  it('honours an explicit streets fallback style', () => {
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store', null, { initialStyle: 'streets' });
+    expect(html).toContain("var currentStyle = 'streets'");
+  });
+
+  it('draws a blue road-following navigation route with a turn-by-turn banner', () => {
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store');
+    // Directions service drives the road-following geometry.
+    expect(html).toContain('api.mapbox.com/directions/v5/mapbox/driving-traffic');
+    expect(html).toContain('geometries=geojson');
+    expect(html).toContain('steps=true');
+    // Rapido-style blue navigation line with a dark casing under it.
+    expect(html).toContain("'line-color': '#2563eb'");
+    expect(html).toContain("'line-color': '#0b2f7a'");
+    // Turn-by-turn banner + navigation camera.
+    expect(html).toContain('map-nav-banner');
+    expect(html).toContain('map-nav-instruction');
+    expect(html).toContain('window.setNavigationMode');
+    expect(html).toContain('pitch');
+    expect(html).toContain('bearing');
   });
 });
