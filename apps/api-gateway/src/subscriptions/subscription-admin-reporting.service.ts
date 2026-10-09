@@ -242,7 +242,48 @@ export class SubscriptionAdminReportingService {
     });
   }
 
-  /** Store-scoped aggregate analytics for the owner's stores. */
+  /** Newest-first audit trail of every money-affecting change on a subscription. */
+  async subscriptionAuditTrail(
+    actor: { id: string; role: Role },
+    subscriptionId: string,
+    limit?: number,
+  ) {
+    const subscription = await prisma.customerSubscription.findUnique({
+      where: { id: subscriptionId },
+      select: {
+        id: true,
+        homeStore: { select: { id: true, name: true, ownerId: true } },
+        customer: { select: { id: true, name: true } },
+      },
+    });
+    if (!subscription) throw new NotFoundException('Subscription not found');
+    if (actor.role !== Role.ADMIN && subscription.homeStore?.ownerId !== actor.id) {
+      throw new ForbiddenException('Subscription does not belong to your store');
+    }
+    const entries = await prisma.subscriptionAuditEntry.findMany({
+      where: { subscriptionId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit ?? 50, 1), 200),
+      select: {
+        id: true,
+        action: true,
+        reason: true,
+        metadata: true,
+        actorRole: true,
+        createdAt: true,
+        actor: { select: { id: true, name: true } },
+      },
+    });
+    return {
+      subscriptionId: subscription.id,
+      customer: subscription.customer,
+      store: subscription.homeStore
+        ? { id: subscription.homeStore.id, name: subscription.homeStore.name }
+        : null,
+      entries,
+    };
+  }
+
   async storeAnalytics(actor: { id: string; role: Role }) {
     const storeFilter = actor.role === Role.ADMIN ? {} : { homeStore: { ownerId: actor.id } };
     const deliveryWhere = actor.role === Role.ADMIN ? {} : {
@@ -897,7 +938,7 @@ export class SubscriptionAdminReportingService {
           generationKey: `manual:${subscription.id}:${seq}:${dateStr}:${deliverySlot}`,
           storeId: store.id,
           cashDuePaise: seq === 1 ? amountDuePaise : 0,
-          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          proofMode: SubscriptionProofMode.RIDER_PHOTO_GPS,
           deferredReason,
         });
 
@@ -1260,7 +1301,7 @@ export class SubscriptionAdminReportingService {
           generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:AM`,
           storeId: store.id,
           cashDuePaise: amDue,
-          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          proofMode: SubscriptionProofMode.RIDER_PHOTO_GPS,
         });
         seq++;
 
@@ -1276,7 +1317,7 @@ export class SubscriptionAdminReportingService {
             generationKey: `custom:${subscription.id}:${seq}:${delivery.date}:PM`,
             storeId: store.id,
             cashDuePaise: pmDue,
-            proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+            proofMode: SubscriptionProofMode.RIDER_PHOTO_GPS,
           });
           seq++;
         }
@@ -1554,7 +1595,7 @@ export class SubscriptionAdminReportingService {
           generationKey: `renewal:${renewalSub.id}:${seq}:${dateStr}:${deliverySlot}`,
           cashDuePaise: 0,
           cashCollectedPaise: seq === 1 && initialCash > 0 ? initialCash : 0,
-          proofMode: SubscriptionProofMode.PERSONAL_OTP_GPS,
+          proofMode: SubscriptionProofMode.RIDER_PHOTO_GPS,
           storeId: renewalSub.homeStoreId,
           deferredReason,
         });

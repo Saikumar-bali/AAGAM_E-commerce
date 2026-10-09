@@ -422,8 +422,63 @@ the four run-level loops (`confirmPacking`, `confirmStoreHandoff`,
 `confirmPickupReceipt`, `start`) now skip terminal stops, so a partially
 delivered route still packs and hands off its survivors.
 
-
 ---
+
+## Flow H — Store + rider mix, offline and online, in one DB-backed run
+
+Automated, deterministic companion to Flow A + Flow G that walks the whole chain
+against a real database in one Jest suite:
+`apps/api-gateway/src/subscriptions/subscription-flow.e2e.spec.ts`. It is the
+regression net for "4 offline + 4 online customers, store assigns the rider, the
+rider photo-GPS delivers, and the store can read the money back".
+
+Fixtures it builds: one store (owner) + zone + simple milk product/inventory +
+one ONLINE_MILK plan + one OFFLINE_MILK plan (each with a version, one milk item,
+store link, zone link) + one APPROVED/ONLINE rider.
+
+Flow walked:
+
+```text
+4x  store POST manual-customer (offline walk-in)  -> createManualSubscription
+        deliverySlot 'BOTH', 4 deliveries, AM+PM per service date
+4x  customer POSTsubscription (online self-register)  -> RIDER_PHOTO_GPS proof
+grid GET store/subscriptions/grid  -> 8 rows, offline slot 'AM+PM', online 'AM'
+store dispatch-to-rider  -> one run READY_FOR_PICKUP, 8 stops
+store runs/:runId/packing { expectedBagCount, packedBagCount }
+rider runs/:runId/pickup  -> PICKED_UP
+rider runs/:runId/start   -> IN_PROGRESS
+per stop: arrive -> complete { evidenceId, lat/lng, cashCollectedPaise } (NO OTP)
+replay complete           -> idempotent (no double count)
+store GET subscribers/:subscriptionId/audit -> ADMIN_MANUAL_SUBSCRIPTION_CREATED
+```
+
+Cross-cutting assertions it enforces (the Flow-test "must hold" list, step 4):
+
+- **Status coherence.** For each delivered stop, `SubscriptionDelivery`,
+  `DeliveryJob`, `Order` and `DeliveryRunStop` all read `DELIVERED`.
+- **Money.** `reconcileSubscriptionBalance(sub, deliveries)` returns a collected +
+  due split that never exceeds the plan price; `completedDeliveries` reaches `1`
+  and the contract is `ACTIVE`.
+- **Proof.** No delivery in the flow ever sets `PERSONAL_OTP_GPS` — store-assigned
+  and offline deliveries are `RIDER_PHOTO_GPS` (no customer OTP).
+- **Idempotency.** Replaying a stop completion does not change `completedDeliveries`.
+- **Audit scoping.** A different store owner reading the same subscription's audit
+  trail is rejected.
+
+Run it (needs Postgres and a pushed schema):
+
+```bash
+export DATABASE_URL="postgresql://<user>:<pass>@127.0.0.1:5432/<db>?schema=public"
+npm run build --workspace @aagam/database       # @aagam/database dist types
+cd apps/api-gateway && npx jest --runInBand subscription-flow.e2e.spec.ts
+```
+
+`createManualSubscription` writes the `ADMIN_MANUAL_SUBSCRIPTION_CREATED` audit
+entry the last leg asserts on; it needs an `addressId` and a `storeId` but no
+HTTP layer. `confirmPacking` requires `expectedBagCount === packedBagCount ===
+run.expectedBagCount` before the rider receipt — mirror Flow G.
+
+
 
 ## Known stall points
 

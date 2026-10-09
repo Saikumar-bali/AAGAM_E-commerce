@@ -574,6 +574,134 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
 - Full-screen mode: the `#fs-toggle` button (also the `F` key, or
   `?fullscreen=1`) adds `html.fs`, which drops the device-frame chrome and
   shows only the app screen edge-to-edge.
+- Static design prototypes live in `rn-preview/static/` (served at
+  `/static/<name>.html`, never wiped by the webpack build). The current one is
+  `handover-sheet.html` — the "Handover Sheet" rider-stop design, a single
+  self-contained HTML file that calls the real rider API via same-origin
+  `/api`. With no token it opens a built-in fleet demo (no failed requests);
+  add `?token=<JWT>` (stored in `localStorage.aagam_rider_token`) to drive the
+  live `getTodayRuns` → `getRun` → `arrive`/`otp`/`complete`/`extra-milk`/
+  `cash-accountability` endpoints. Verify with
+  `node probe-handover.js` (renders, map tiles, flow, 0 errors).
+- `rn-preview/static/rider-gallery.html` is the multi-screen version: a
+  to-scale phone with a sidebar to walk **every rider screen** — the 6 tabs
+  (Home, Route, Runs, Alerts, Earnings, Profile) plus the drill-downs (Run
+  detail, COD ledger, Payout history, Schedules, Documents, Support,
+  Notification settings, Tracking diagnostics). It is live by default: the
+  preview server injects a rider JWT into `window.__ENV__.AAGAM_TOKEN` (from
+  the `AAGAM_RIDER_TOKEN` env var) so every screen renders real data via
+  same-origin `/api`; `?demo=1` forces the built-in fleet dataset instead, and
+  `?screen=<key>` deep-links a screen. Verify with `node probe-gallery.js`
+  (all 14 screens render live, 0 errors).
+- `rn-preview/static/rider-app.html` is the **redesign concept** (not a
+  re-skin): a navy/emerald design system built on the brand's real mark colour
+  `#061B36`, with the actual `aagam-mark.png` logo (`rn-preview/static/brand/`)
+  surfaced in every header. Each screen gets its own layout idea (Home = today
+  dial + one NOW action, Runs = shift timeline, COD = cash ring, Earnings =
+  sparkline). Same live/demo wiring as the gallery. Verify with
+  `node probe-app.js`. The Route Handover sheet also models cash capture
+  (paid-in-full vs partial/over -> variance), field add-on milk (pack, unit
+  price, repeat days, current vs next slot), and the COD screen models the
+  deposit batch; Run detail shows a prepaid/pre-book concept card. Verify the
+  flows with `node probe-app-cash.js`.
+- **rider-app.html v2 (wired to the real DTOs):** the Route Handover sheet now
+  emits exact contracts — `arrive`/`fail` include `latitude`/`longitude`;
+  `complete` sends `{version,riderConfirmed,otpCode?,evidenceId?,cashCollectedPaise?,latitude,longitude}`;
+  partial cash fires a chained `record-payment {amountPaise,paymentMode:'CASH'|'PHONE_PE',note}`;
+  add-on fires `extra-milk {extraQuantity,extraPaise,consecutiveDays,targetSlot}`;
+  plus `toggle-slot`, `skip`, and customer `contact`. `?sim=1` = demo data +
+  real writes (payload capture). `node probe-bodies.js` asserts the emitted
+  bodies; `node probe-shots.js` renders screens `screens/v2-*.png`.
+- **Typography caveat (fixed):** the CSS requested `"Plus Jakarta Sans"` but the
+  page never loaded it — on machines without the font installed it silently fell
+  back to Segoe UI/Helvetica (invisible in a sandbox that happens to have it).
+  Now loaded via Google Fonts `<link>` with `preconnect`. Any future screen must
+  keep the webfont link, not rely on the local system.
+- **Horizontal rails:** `.chips` / `.maprail` use `scroll-snap-type: x proximity`
+  + `touch-action: pan-x pan-y` so vertical swipes still scroll the page, and the
+  `rails()` helper adds an edge-fade (`--paper` / map gradient) when content
+  overflows to the right — so "upcoming stops" read as more-to-the-right.
+- **Partial payment / cash-due reality (verified):** subscription cash is a
+  *ledger of dues*, not a per-stop exact toggle. The real partial-payment API is
+  `POST /rider/delivery-runs/:runId/stops/:stopId/record-payment` with
+  `{ amountPaise, paymentMode: 'CASH'|'PHONE_PE', note }` (service
+  `DeliveryRunOperationsService.recordPayment`, DTO `RiderRecordPaymentDto`).
+  It increments `subscriptionDelivery.cashCollectedPaise` and decrements
+  `subscription.amountDuePaise` (never below 0), and for CASH mints/extends the
+  COD ledger. The run controller also has `POST .../toggle-slot`,
+  `POST .../skip`, `GET rider/delivery-runs/route-board`.
+  **The rider mobile app does NOT call `record-payment`** — it can only complete
+  a stop for the full `cashDuePaise`. Only the admin rider console
+  (`RiderRunConsole.tsx`, `(rider)/rider/runs`) and the store milk grid
+  (`MilkDeliveryGrid.tsx`) expose partial CASH/PhonePe recording.
+- **Rider API contract (verified from controllers + DTOs + schema):**
+  - Portal (`riders/portal`, Role.RIDER): `home`, `offers`, `offers/:id`,
+    `delivery`, `deliveries`, `history[/:jobId]`, `receipts/:jobId`, `pickup(s)`,
+    `pickup/:jobId/verify|problem`, `earnings`, `cod`, `performance`,
+    `availability`, `availability/status`(PATCH), `availability/schedule`(PATCH),
+    `availability/break/start|end`, `profile`(GET/PATCH), `documents`,
+    `documents/:id/preview`, `contact/:jobId`, `support[/:id[/messages]]`.
+  - Runs (`rider/delivery-runs`, Role.RIDER): `route-board?date`, `today?date`,
+    `cash-batches`(GET), `:runId`, `:runId/pickup|start|finish`,
+    `:runId/stops/:stopId/arrive|otp|trusted-drop-evidence|complete|fail|reorder|extra-milk|toggle-slot|record-payment|skip`,
+    `:runId/cash-accountability`, `:runId/cash-batches`,
+    `cash-batches/:batchId/submit`.
+  - Key DTOs: `RunVersionDto{version}`; `ConfirmRunPickupReceiptDto{version,expectedBagCount,crateCode?}`;
+    `ArriveRunStopDto{version,latitude,longitude,accuracyMetres?}`;
+    `CompleteRunStopDto{...arrive,riderConfirmed,otpCode?(\d{6}),trustedDropToken?,evidenceId?,cashCollectedPaise?,note?}`;
+    `FailRunStopDto{...arrive,reason:DeliveryFailureReason,note?,retryRequested?}`;
+    `RiderExtraMilkDto{extraQuantity:string,extraPaise?,note?,consecutiveDays?(1-30),targetSlot?:'AM'|'PM'}`;
+    `RiderToggleSlotDto{targetSlot?:'AM'|'PM'}`; `RiderRecordPaymentDto{amountPaise,paymentMode?:'CASH'|'PHONE_PE',note?}`;
+    `skip` body `{reason?,note?}` (no DTO).
+  - Money is integer **paise** everywhere; run/stop carry optimistic `version`.
+    Payment state comes from `order.payment.status: PaymentStatus`
+    (`PENDING_COD` = collect cash; `CAPTURED`/`SUBSCRIPTION_FUNDED` = prepaid).
+    COD status enum: AWAITING_COLLECTION, HELD_BY_RIDER, PARTIALLY_DEPOSITED,
+    SETTLED, VARIANCE_REVIEW.
+  - **Mobile app gaps (wired vs not):** the app wires arrive/otp/trusted-drop/
+    complete/fail/**reorder**/start/finish/extra-milk/cash-accountability/
+    cash-batches. It does **NOT** wire `record-payment`, `toggle-slot`, `skip`,
+    or `route-board`; and stop completion always sends the full `cashDuePaise`
+    (no partial). Only admin `RiderRunConsole`/store `MilkDeliveryGrid` do
+    partial CASH/PhonePe.
+- **Store-side milk operations (verified):** offline customers are created by the
+  store (`POST store/subscriptions/manual-customer`, `CreateManualOfflineCustomerDto{name,phone(10 digits),line1,...}`);
+  online customers self-register. Rider assignment is store-controlled:
+  `available-riders`, `rider-assignments`, `dispatch-to-rider`,
+  `:subscriptionId/default-rider`, `:subscriptionId/temporary-rider`,
+  `auto-dispatch-default-riders`. The **Milk Board** is `GET store/subscriptions/grid?year&month`
+  → `{year,month,daysInMonth,totalSubscribers,rows,dailyTotals}` where each row has
+  `customerType:'offline'|'online'` (via `isOfflineSubscription`), `defaultRider`/
+  `temporaryRider`, and per-day cells `{deliveryId,status,baseQuantity,extraMilk,
+  cashCollectedPaise,cashDuePaise,paymentMode('CASH'|'PHONE_PE'|'DUE'),planLabel,
+  assignedRider,photoProof}`; `dailyTotals` carry totals incl. `totalLiters`,
+  `totalCollectedPaise`, `totalDuePaise`. Per-customer statement
+  `GET customer/:id/statement` → completed/skipped counts, extraLiters,
+  totalPaidRupees, totalDueRupees, WhatsApp text. Store override of any cell:
+  `POST store/subscriptions/deliveries/:id/quick-action` (STORE_OWNER|ADMIN|RIDER)
+  with `TOGGLE_DELIVERED|SKIP|EXTRA_MILK|TOGGLE_SLOT|RECORD_PAYMENT|VOID_PAYMENT|ATTACH_EVENING_MILK`;
+  store can record a payment on a customer's behalf via `subscribers/:id/record-payment`.
+  Cash: store `GET cash-batches` + `POST cash-batches/:batchId/verify` (SETTLED or
+  VARIANCE_REVIEW) + admin variance compensation; stop return `runs/:runId/stops/:stopId/return`.
+  Proof mode is resolved from the delivery method in `customer-subscription.service.ts`
+  (`proofMode()`): `TRUSTED_DROP`→geofence+token+photo, `SECURITY_RECEPTION`→OTP+GPS,
+  everything else (personal handover, store/offline/manual/custom/renewal subs)
+  →`RIDER_PHOTO_GPS`. There is **no customer OTP on store-assigned deliveries**;
+  the rider's photo + GPS is the handover proof. Offline/manual delivery rows are
+  stamped `RIDER_PHOTO_GPS` in `subscription-admin-reporting.service.ts`.
+  Money audit trail: `GET store/subscriptions/subscribers/:subscriptionId/audit`
+  (STORE_OWNER|ADMIN, store-scoped) → newest-first `SubscriptionAuditEntry` rows
+  (`action`, `reason`, `metadata`, `actor`, `createdAt`); written by cash funding,
+  grid quick-actions and admin ops. The customer app does **not** choose a
+  handover/proof method (`proofMode` chooser removed from
+  `SubscriptionReviewScreen`/`SubscriptionDetailScreen`); it sends
+  `PERSONAL_HANDOVER` unless the plan forbids it.
+- Login is email+password or phone-OTP against live `/auth/mobile/login`; the
+  seed default (`rider@aagam.com`) is *not* a production credential, so the
+  authenticated rider dashboard needs a supplied test account password.
+  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
+  source for QA test accounts if present in the production DB.
+
 - Login is email+password or phone-OTP against the environment's
   `/auth/mobile/login`; the seed default (`rider@aagam.com`) is *not* a
   credential there, so the authenticated rider dashboard needs a supplied test

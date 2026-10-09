@@ -352,3 +352,19 @@ human), what changed, why.
     new/changed files, `next build` succeeds with `/rider/console` in the route
     manifest. The console was **not** exercised at runtime against a live backend
     or an authenticated session.
+
+- **2026-10-08 · v1.5.0 · openhands (AAGAM rider flow session)**
+  - Added **Flow H** to `references/flows.md`: a DB-backed, deterministic
+    end-to-end run (`apps/api-gateway/src/subscriptions/subscription-flow.e2e.spec.ts`)
+    that walks 4 offline + 4 online customers through store rider-dispatch →
+    packing → rider bag receipt → photo+GPS per-stop completion with no OTP, and
+    enforces the step-4 "must hold" assertions (status coherence, money
+    reconciliation, proof mode, idempotency, audit scoping). This documents a
+    flow that previously existed only as separate UI/API descriptions across
+    Flows A, C and G, closing the self-update gap the skill flags.
+  - Verified the suite against a local Postgres 17 instance: 7/7 pass; the wider
+    `src/subscriptions/**` regression set is 30 suites / 169 tests green.
+  - No bug-register entry: the run surfaced no new defect.
+  - `SKILL.md` version bumped 1.4.9 → 1.5.0 (new section); `last-verified` left at
+    2026-10-08.
+

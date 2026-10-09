@@ -570,6 +570,20 @@ export class StoreSubscriptionsController {
     return this.milkGrid.getCustomerStatement(req.user, id);
   }
 
+  /** Audit trail: who changed what money on a subscription, and when. */
+  @Get('subscribers/:subscriptionId/audit')
+  subscriberAudit(
+    @Req() req: AuthenticatedRequest,
+    @Param('subscriptionId') subscriptionId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reporting.subscriptionAuditTrail(
+      req.user,
+      subscriptionId,
+      parseIntQuery(limit, 'limit', { min: 1, max: 200 }),
+    );
+  }
+
   @Get('grid/export-csv')
   async exportCsv(
     @Req() req: AuthenticatedRequest,
