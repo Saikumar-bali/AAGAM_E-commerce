@@ -153,7 +153,11 @@ document.body.appendChild(toggle);
 map.on('style.load', function () {
   if (!mapLoaded) return;
   routeSourceAdded = false;
-  if (riderMarker && lastRiderPoint) ensureRoute(lastRiderPoint, destination);
+  var point = pendingPoint || lastRiderPoint;
+  if (point) {
+    ensureRoute(point, destination);
+    pendingPoint = null;
+  }
 });
 
 function flushPending() {
