@@ -45,6 +45,7 @@ describe('StoreDashboard contracts', () => {
     expect(source).toContain('store.inventoryCount');
     expect(source).toContain('store.totalRevenue');
     expect(source).toContain('Assigned Stores');
-    expect(source).toContain('Have a great day ahead!');
+    expect(source).toContain('store_dashboard_stat_orders');
+    expect(source).toContain('store_dashboard_stat_products');
   });
 });

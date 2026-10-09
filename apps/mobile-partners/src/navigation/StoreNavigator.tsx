@@ -4,9 +4,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ellipsis, House, LayoutGrid, ShoppingCart } from 'lucide-react-native';
+import { Ellipsis, House, LayoutGrid, Repeat, ShoppingCart } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreOperationsHubScreen } from '../screens/store/StoreOperationsHubScreen';
+import { StoreSubscriptionsHubScreen } from '../screens/store/StoreSubscriptionsHubScreen';
 import { StoreMoreScreen } from '../screens/store/StoreMoreScreen';
 import { StoreDeliveryOperationsScreen } from '../screens/store/StoreDeliveryOperationsScreen';
 import { StoreSubscriptionOperationsScreen } from '../screens/store/StoreSubscriptionOperationsScreen';
@@ -126,6 +127,15 @@ const StoreTabs = () => {
           tabBarBadge: tabBadge(Number(orderBadgeQuery.data || 0)),
           tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size, focused }) => <ShoppingCart size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Subscriptions"
+        component={StoreSubscriptionsHubScreen}
+        options={{
+          title: 'Subscriptions',
+          tabBarButtonTestID: 'tab_subscriptions',
+          tabBarIcon: ({ color, size, focused }) => <Repeat size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen

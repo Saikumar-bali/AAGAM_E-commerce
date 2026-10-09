@@ -12,6 +12,8 @@ describe('Store mobile navigation and fulfillment contract', () => {
   const settings = source('./screens/store/StoreSettingsScreen.tsx');
   const ordersNavigator = source('./navigation/StoreOrdersNavigator.tsx');
   const orderDetails = source('./screens/store/StoreOrderDetailsScreen.tsx');
+  const subscriptionsHub = source('./screens/store/StoreSubscriptionsHubScreen.tsx');
+  const storeNavigator = source('./navigation/StoreNavigator.tsx');
 
   it('keeps bottom-tab headers free of misleading menu and back actions', () => {
     expect(dashboard).not.toContain('<Menu');
@@ -39,12 +41,31 @@ describe('Store mobile navigation and fulfillment contract', () => {
   });
 
   it('clearly distinguishes the dashboard historical count from the pending badge', () => {
-    expect(dashboard).toContain('title="Orders" value={String(totals.orders)} subtitle="All time"');
+    expect(dashboard).toContain('title="Orders"');
+    expect(dashboard).toContain('value={String(totals.orders)}');
+    expect(dashboard).toContain('subtitle="All time"');
   });
 
   it('provides actionable notification settings and store-location context', () => {
     expect(settings).toContain("Linking.sendIntent('android.settings.APP_NOTIFICATION_SETTINGS'");
     expect(settings).toContain('testID="store_settings_coordinates"');
     expect(settings).toContain('testID="store_settings_notifications"');
+  });
+
+  it('exposes Subscriptions as a first-class store tab wired to real subscription data', () => {
+    expect(storeNavigator).toContain('name="Subscriptions"');
+    expect(storeNavigator).toContain('StoreSubscriptionsHubScreen');
+    expect(storeNavigator).toContain('tabBarButtonTestID: \'tab_subscriptions\'');
+    expect(subscriptionsHub).toContain('subscriptionOperationsService.getSubscriberSnapshot');
+    expect(subscriptionsHub).toContain('subscriptionOperationsService.getPlans');
+    expect(subscriptionsHub).toContain("navigation.navigate('StoreSubscribers')");
+    expect(subscriptionsHub).toContain("navigation.navigate('StoreMilkGrid')");
+  });
+
+  it('renders the redesigned dashboard hero with the shared gradient surface', () => {
+    expect(dashboard).toContain("import { GradientSurface");
+    expect(dashboard).toContain('preset="hero"');
+    expect(dashboard).toContain('revenueByStore');
+    expect(dashboard).toContain('Assigned Stores');
   });
 });

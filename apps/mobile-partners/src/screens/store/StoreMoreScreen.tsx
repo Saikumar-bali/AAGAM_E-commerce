@@ -4,7 +4,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
-  CalendarDays,
   IndianRupee,
   LogOut,
   Package,
@@ -66,7 +65,7 @@ export function StoreMoreScreen() {
           </View>
         </View>
 
-        <StoreHubSection title="Catalog & subscriptions">
+        <StoreHubSection title="Catalog">
           <StoreHubTile
             icon={<Package size={20} />}
             title="Inventory"
@@ -85,16 +84,9 @@ export function StoreMoreScreen() {
             icon={<IndianRupee size={20} />}
             title="Subscription plans"
             subtitle="Published milk plans and pricing"
+            last
             testID="store_more_plans"
             onPress={() => navigation.navigate('StoreSubscriptionPlans')}
-          />
-          <StoreHubTile
-            icon={<CalendarDays size={20} />}
-            title="Subscription runs"
-            subtitle="Materialise and track delivery runs"
-            last
-            testID="store_more_subscription_runs"
-            onPress={() => navigation.navigate('StoreSubscriptionOperations')}
           />
         </StoreHubSection>
 

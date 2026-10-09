@@ -73,6 +73,8 @@
     "predeploy:audit:live": "node scripts/predeploy-readiness-audit.js --live",
     "db:push:prod": "prisma db push --schema packages/database/prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema packages/database/prisma/schema.prisma",
+    "db:seed": "npm run db:seed --workspace @aagam/database",
+    "seed:demo": "bash scripts/seed-demo.sh",
     "ci:api": "npx prisma validate --schema packages/database/prisma/schema.prisma && npm run test:ci --workspace=apps/api-gateway",
     "test": "npm run ci:api",
     "test:api": "npm run test --workspace=apps/api-gateway",

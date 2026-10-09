@@ -43,34 +43,68 @@ const runs = new DeliveryRunOperationsService(
 );
 const planning = new DeliveryRunPlanningService(new DeliveryWorkflowService(new DeliveryEventService()), {} as any);
 
+/**
+ * Remove every row this seeder (or a partially-failed earlier run) may have
+ * created. Lookup is tolerant: identifiers are gathered from the store, the
+ * demo customers, and the demo plans at once, so a run that died after deleting
+ * the store still cleans up the orders that referenced its customers. All
+ * `deleteMany` calls are no-ops on an empty database, so this is safe to run
+ * against a fresh schema (recovery from an expired sandbox).
+ */
 async function cleanupDemo() {
   const stores = await prisma.store.findMany({ where: { name: DEMO_STORE_NAME }, select: { id: true } });
   const storeIds = stores.map((s) => s.id);
   const users = await prisma.user.findMany({
-    where: { OR: [{ email: { startsWith: DEMO_STORE_NAME ? 'demo.' : 'demo.' } }, { email: { startsWith: 'offline.' } }] },
+    where: { OR: [{ email: { startsWith: 'demo.' } }, { email: { startsWith: 'offline.' } }] },
     select: { id: true },
   });
   const userIds = users.map((u) => u.id);
+  const plans = await prisma.subscriptionPlan.findMany({ where: { code: { startsWith: PLAN_PREFIX } }, select: { id: true } });
+  const planIds = plans.map((p) => p.id);
   const subs = await prisma.customerSubscription.findMany({
-    where: { OR: [{ customerId: { in: userIds } }, { homeStoreId: { in: storeIds } }] },
+    where: { OR: [{ customerId: { in: userIds } }, { homeStoreId: { in: storeIds } }, { planId: { in: planIds } }] },
     select: { id: true, customerId: true },
   });
   const subIds = subs.map((s) => s.id);
   for (const s of subs) if (!userIds.includes(s.customerId)) userIds.push(s.customerId);
-  const deliveries = await prisma.subscriptionDelivery.findMany({ where: { subscriptionId: { in: subIds } }, select: { id: true, deliveryJobId: true } });
+
+  const deliveries = await prisma.subscriptionDelivery.findMany({
+    where: { OR: [{ subscriptionId: { in: subIds } }, { storeId: { in: storeIds } }] },
+    select: { id: true, deliveryJobId: true },
+  });
+  const deliveryIds = deliveries.map((d) => d.id);
   const jobIds = deliveries.map((d) => d.deliveryJobId).filter((x): x is string => Boolean(x));
-  const orders = await prisma.order.findMany({ where: { storeId: { in: storeIds } }, select: { id: true } });
+
+  // Orders can be reached by customer, by store, or by the subscription
+  // delivery they fulfil — union all three so a half-cleaned store does not
+  // strand an order row (which then blocks the customer delete on its FK).
+  const orders = await prisma.order.findMany({
+    where: {
+      OR: [
+        { customerId: { in: userIds } },
+        { storeId: { in: storeIds } },
+        { subscriptionDeliveryId: { in: deliveryIds } },
+      ],
+    },
+    select: { id: true },
+  });
   const orderIds = orders.map((o) => o.id);
+
   const rns = await prisma.deliveryRun.findMany({ where: { storeId: { in: storeIds } }, select: { id: true } });
-  const stops = await prisma.deliveryRunStop.findMany({ where: { deliveryRunId: { in: rns.map((r) => r.id) } }, select: { id: true } });
-  await prisma.riderPhotoProof.deleteMany({ where: { deliveryRunStopId: { in: stops.map((s) => s.id) } } });
+  const runIds = rns.map((r) => r.id);
+  const stops = await prisma.deliveryRunStop.findMany({ where: { deliveryRunId: { in: runIds } }, select: { id: true } });
+  const stopIds = stops.map((s) => s.id);
+
+  await prisma.riderPhotoProof.deleteMany({ where: { deliveryRunStopId: { in: stopIds } } });
+  await prisma.deliveryRunAuditEntry.deleteMany({ where: { deliveryRunId: { in: runIds } } });
   await prisma.subscriptionAuditEntry.deleteMany({ where: { subscriptionId: { in: subIds } } });
   await prisma.codLedger.deleteMany({ where: { deliveryJobId: { in: jobIds } } });
   await prisma.deliveryEvent.deleteMany({ where: { deliveryJobId: { in: jobIds } } });
   await prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
-  await prisma.deliveryRunStop.deleteMany({ where: { deliveryRunId: { in: rns.map((r) => r.id) } } });
+  await prisma.subscriptionIssueReport.deleteMany({ where: { subscriptionId: { in: subIds } } });
+  await prisma.deliveryRunStop.deleteMany({ where: { deliveryRunId: { in: runIds } } });
   await prisma.deliveryRun.deleteMany({ where: { storeId: { in: storeIds } } });
-  await prisma.subscriptionDelivery.deleteMany({ where: { subscriptionId: { in: subIds } } });
+  await prisma.subscriptionDelivery.deleteMany({ where: { id: { in: deliveryIds } } });
   await prisma.deliveryJob.deleteMany({ where: { id: { in: jobIds } } });
   await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
   await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -78,11 +112,11 @@ async function cleanupDemo() {
   await prisma.customerSubscription.deleteMany({ where: { id: { in: subIds } } });
   await prisma.customerAddress.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.deliveryZoneStore.deleteMany({ where: { storeId: { in: storeIds } } });
-  await prisma.subscriptionPlanZone.deleteMany({ where: { plan: { code: { startsWith: PLAN_PREFIX } } } });
-  await prisma.subscriptionPlanStore.deleteMany({ where: { plan: { code: { startsWith: PLAN_PREFIX } } } });
-  await prisma.subscriptionPlanVersion.deleteMany({ where: { plan: { code: { startsWith: PLAN_PREFIX } } } });
-  await prisma.subscriptionPlanItem.deleteMany({ where: { plan: { code: { startsWith: PLAN_PREFIX } } } });
-  await prisma.subscriptionPlan.deleteMany({ where: { code: { startsWith: PLAN_PREFIX } } });
+  await prisma.subscriptionPlanZone.deleteMany({ where: { planId: { in: planIds } } });
+  await prisma.subscriptionPlanStore.deleteMany({ where: { planId: { in: planIds } } });
+  await prisma.subscriptionPlanVersion.deleteMany({ where: { planId: { in: planIds } } });
+  await prisma.subscriptionPlanItem.deleteMany({ where: { planId: { in: planIds } } });
+  await prisma.subscriptionPlan.deleteMany({ where: { id: { in: planIds } } });
   await prisma.inventory.deleteMany({ where: { product: { name: { startsWith: 'demo ' } } } });
   await prisma.product.deleteMany({ where: { name: { startsWith: 'demo ' } } });
   await prisma.category.deleteMany({ where: { name: { startsWith: 'demo ' } } });

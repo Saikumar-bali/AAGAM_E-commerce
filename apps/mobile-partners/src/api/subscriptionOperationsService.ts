@@ -474,7 +474,20 @@ export const subscriptionOperationsService = {
 
   getSubscribers: async (): Promise<any[]> => {
     const response = await apiClient.get('/store/subscriptions/subscribers');
-    return Array.isArray(response.data) ? response.data : [];
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.subscribers)) return data.subscribers;
+    return [];
+  },
+
+  // The subscribers endpoint returns `{ subscribers, counts }`; expose both so
+  // the hub can show server-computed totals instead of re-deriving them.
+  getSubscriberSnapshot: async (): Promise<{ subscribers: any[]; counts: Record<string, number> }> => {
+    const response = await apiClient.get('/store/subscriptions/subscribers');
+    const data = response.data ?? {};
+    const subscribers = Array.isArray(data) ? data : (Array.isArray(data.subscribers) ? data.subscribers : []);
+    const counts = data.counts ?? {};
+    return { subscribers, counts };
   },
 
   getPlans: async (): Promise<any[]> => {

@@ -13,9 +13,10 @@ describe('partner mobile UI audit regressions', () => {
     expect(screen('store/StorePickupAlertsScreen.tsx')).not.toContain('<ArrowLeft');
   });
 
-  it('uses four equal-width Store tabs without a hidden spacer route', () => {
+  it('uses five equal-width Store tabs without a hidden spacer route', () => {
     const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
-    expect((navigator.match(/<Tab\.Screen/g) || []).length).toBe(4);
+    expect((navigator.match(/<Tab\.Screen/g) || []).length).toBe(5);
+    expect(navigator).toContain("name=\"Subscriptions\"");
     expect(navigator).toContain('tabBarItemStyle: {');
     expect(navigator).toContain('flex: 1,');
     expect(navigator).not.toContain('tabBarButton: () => null');

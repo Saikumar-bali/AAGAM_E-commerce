@@ -132,6 +132,13 @@ if [ -f seed.js ]; then
 fi
 cd ../..
 
+# Persistent demo data (store/rider preview): idempotent and survives a fresh
+# sandbox. Runs only outside production; set SEED_DEMO_DATA=false to skip.
+if [ "${SEED_DEMO_DATA:-true}" != "false" ]; then
+  echo "  -> Seeding local demo data (subscription flow)..."
+  DATABASE_URL="$DB_URL" bash scripts/seed-demo.sh 2>&1 | tail -3
+fi
+
 # --------------------------------------------------
 # 7. Build packages + API gateway
 # --------------------------------------------------

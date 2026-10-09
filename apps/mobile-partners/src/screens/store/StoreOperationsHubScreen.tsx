@@ -4,8 +4,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
-  CalendarClock,
-  CalendarDays,
   ClipboardCheck,
   PackageCheck,
   Truck,
@@ -92,22 +90,7 @@ export function StoreOperationsHubScreen() {
           />
         </StoreHubSection>
 
-        <StoreHubSection title="Subscriptions">
-          <StoreHubTile
-            icon={<CalendarClock size={20} />}
-            title="Subscription runs"
-            subtitle="Prepare bags and track today's runs"
-            badge={prepBadge}
-            testID="store_hub_subscription_runs"
-            onPress={() => navigation.navigate('StoreSubscriptionOperations')}
-          />
-          <StoreHubTile
-            icon={<CalendarDays size={20} />}
-            title="Milk grid"
-            subtitle="Month view of every subscriber delivery"
-            testID="store_hub_milk_grid"
-            onPress={() => navigation.navigate('StoreMilkGrid')}
-          />
+        <StoreHubSection title="Preparation">
           <StoreHubTile
             icon={<ClipboardCheck size={20} />}
             title="D-1 preparation"
