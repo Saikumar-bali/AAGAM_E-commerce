@@ -895,7 +895,7 @@ export default function RiderRunConsole() {
   const openAddOn = (stop: RunStop) => {
     addOnKeyRef.current = null;
     addOnSubmitLock.current = false;
-    openAddOn(stop);
+    setAddOnStop(stop);
   };
   const closeAddOn = () => {
     addOnKeyRef.current = null;
