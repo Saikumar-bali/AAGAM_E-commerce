@@ -27,4 +27,21 @@ describe('RiderRouteMap', () => {
     const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store', null, { initialStyle: 'streets' });
     expect(html).toContain("var currentStyle = 'streets'");
   });
+
+  it('draws a blue road-following navigation route with a turn-by-turn banner', () => {
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store');
+    // Directions service drives the road-following geometry.
+    expect(html).toContain('api.mapbox.com/directions/v5/mapbox/driving-traffic');
+    expect(html).toContain('geometries=geojson');
+    expect(html).toContain('steps=true');
+    // Rapido-style blue navigation line with a dark casing under it.
+    expect(html).toContain("'line-color': '#2563eb'");
+    expect(html).toContain("'line-color': '#0b2f7a'");
+    // Turn-by-turn banner + navigation camera.
+    expect(html).toContain('map-nav-banner');
+    expect(html).toContain('map-nav-instruction');
+    expect(html).toContain('window.setNavigationMode');
+    expect(html).toContain('pitch');
+    expect(html).toContain('bearing');
+  });
 });

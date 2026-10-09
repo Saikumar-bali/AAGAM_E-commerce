@@ -31,6 +31,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   const webView = useRef<any>(null);
   const [hasFix, setHasFix] = useState(false);
   const [ready, setReady] = useState(false);
+  const [navigationMode, setNavigationMode] = useState(false);
   const html = useMemo(
     () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN) : null,
     [destination?.latitude, destination?.longitude, destinationLabel],
@@ -48,6 +49,16 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
     setHasFix(true);
     webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
   }, [ready, active, riderLocation?.latitude, riderLocation?.longitude]);
+
+  // Tilt into a navigation camera and show the turn-by-turn banner.
+  useEffect(() => {
+    if (!ready) return;
+    webView.current?.injectJavaScript(`if(window.setNavigationMode){window.setNavigationMode(${navigationMode});}true;`);
+  }, [ready, navigationMode]);
+
+  useEffect(() => {
+    if (!active) setNavigationMode(false);
+  }, [active]);
 
   if (!html || !destination) {
     return <View style={styles.unavailable}><LocateFixed size={20} color="#64748B" /><Text style={styles.unavailableText}>Map appears when destination coordinates are available.</Text></View>;
@@ -90,10 +101,20 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
       <View style={styles.footer}>
         <View style={styles.footerCopy}>
           <Text style={styles.destination} numberOfLines={1}>{destinationLabel}</Text>
-          <Text style={styles.status}>{hasFix ? 'Your position updates while delivery tracking is active.' : 'Finding your live position…'}</Text>
+          <Text style={styles.status}>{navigationMode ? 'Navigation on · turn-by-turn banner live' : (hasFix ? 'Your position updates while delivery tracking is active.' : 'Finding your live position…')}</Text>
         </View>
-        <TouchableOpacity accessibilityRole="button" testID="rider_open_turn_by_turn" style={styles.navigateButton} onPress={() => void openNavigation()}>
-          <Navigation size={16} color="#FFFFFF" /><Text style={styles.navigateText}>Navigate</Text><ExternalLink size={13} color="#FFFFFF" />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={navigationMode ? 'Stop navigation mode' : 'Start navigation mode'}
+          testID="rider_navigation_mode"
+          style={[styles.navigateButton, navigationMode && styles.navigateActive]}
+          onPress={() => setNavigationMode((on) => !on)}
+        >
+          <Navigation size={16} color="#FFFFFF" />
+          <Text style={styles.navigateText}>{navigationMode ? 'Stop' : 'Start'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open turn-by-turn navigation" testID="rider_open_turn_by_turn" style={styles.externalButton} onPress={() => void openNavigation()}>
+          <ExternalLink size={16} color="#0F766E" />
         </TouchableOpacity>
       </View>
     </View>
@@ -114,8 +135,10 @@ const styles = StyleSheet.create({
   footerCopy: { flex: 1 },
   destination: { color: '#0F172A', fontSize: 12, fontWeight: '600' },
   status: { color: '#64748B', fontSize: 9, lineHeight: 14, marginTop: 2 },
-  navigateButton: { height: 40, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#008C68', flexDirection: 'row', alignItems: 'center', gap: 4 },
-  navigateText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  navigateButton: { height: 40, borderRadius: 12, paddingHorizontal: 14, backgroundColor: '#2563EB', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  navigateActive: { backgroundColor: '#0F172A' },
+  navigateText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  externalButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
   unavailable: { marginTop: 16, minHeight: 74, borderRadius: 16, backgroundColor: '#F1F5F9', padding: 14, alignItems: 'center', justifyContent: 'center', gap: 6 },
   unavailableText: { color: '#64748B', fontSize: 10, textAlign: 'center', fontWeight: '500' },
 });
