@@ -341,10 +341,14 @@ human), what changed, why.
     (route `/rider/console`, sidebar label **Route Map**) rendering
     `components/rider/RiderRunConsole.tsx` +
     `components/rider/RiderRunConsoleMap.tsx`.
-  - It reuses the live `getRiderRouteBoard` board and the same
+  - Run and stop data come from `GET /rider/delivery-runs/today` and
+    `GET /rider/delivery-runs/:runId`; `GET /rider/delivery-runs/route-board` is
+    read only for the live rider position. It shares the same
     arrive / proof / OTP / drop-token / COD / fail / add-on endpoints as
     `/rider/runs`, so the prototype's mock data is gone. `flows.md` now documents
     it as an alternate surface over the same state machine, and the rider role
     entry lists **Route Map**.
-  - Verified: `tsc --noEmit` clean, `eslint` clean on the three new/changed
-    files, `next build` succeeds with `/rider/console` in the route manifest.
+  - Static checks only: `tsc --noEmit` clean, `eslint` clean on the three
+    new/changed files, `next build` succeeds with `/rider/console` in the route
+    manifest. The console was **not** exercised at runtime against a live backend
+    or an authenticated session.

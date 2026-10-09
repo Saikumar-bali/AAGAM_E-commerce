@@ -269,7 +269,9 @@ checklist**, and the **Audit timeline** (`JOB_CREATED` → `ASSIGNMENT_CREATED` 
 `/rider/console` (**Route Map** in the rider sidebar) is the map-first single-page
 run console: one Mapbox canvas (store pin, numbered stop pins, live rider dot,
 route line) with a scrollable stop rail and a bottom action sheet for the active
-stop. It drives the same `getRiderRouteBoard` board and the same
+stop. Run and stop data come from `GET /rider/delivery-runs/today` and
+`GET /rider/delivery-runs/:runId`; `GET /rider/delivery-runs/route-board` is used
+only for the live rider position. It shares the same
 arrive / proof / OTP / drop-token / COD / fail / add-on endpoints as
 `/rider/runs`; treat it as an alternate surface over the same state machine, not
 a separate flow. It is the answer to the "map-based rider console" request — the

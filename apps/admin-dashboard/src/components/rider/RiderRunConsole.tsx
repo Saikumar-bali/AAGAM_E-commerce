@@ -606,6 +606,10 @@ export default function RiderRunConsole() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
+  const addOnSubmitLock = useRef(false);
+  const paymentSubmitLock = useRef(false);
+  const addOnKeyRef = useRef<string | null>(null);
+  const paymentKeyRef = useRef<string | null>(null);
 
   // ------------------------------------------------------------------ load
   const load = useCallback(
@@ -626,7 +630,11 @@ export default function RiderRunConsole() {
           rows[0].id;
         const detail = await apiClient.get(`/rider/delivery-runs/${encodeURIComponent(currentId)}`);
         setActiveRun(detail.data);
-        setSelectedStopId((current) => current ?? firstActionableId(detail.data));
+        setSelectedStopId((current) =>
+          activeRun?.id === detail.data.id && current && detail.data.stops?.some((stop: RunStop) => stop.id === current)
+            ? current
+            : firstActionableId(detail.data),
+        );
       } catch (error) {
         toast.error(getToastErrorMessage(error, 'Delivery runs could not be loaded.'));
       } finally {
@@ -711,10 +719,10 @@ export default function RiderRunConsole() {
   const counts = useMemo(() => {
     return {
       ALL: consoleStops.length,
-      UNDELIVERED: consoleStops.filter((s) => !TERMINAL.includes(s.status)).length,
-      DELIVERED: consoleStops.filter((s) => s.status === 'DELIVERED').length,
-      FAILED: consoleStops.filter((s) => ['FAILED', 'RETURN_REQUIRED', 'RETURNED'].includes(s.status)).length,
-      COD: consoleStops.filter((s) => s.cashDuePaise > 0).length,
+      UNDELIVERED: consoleStops.filter((s) => stopMatchesFilter(s.status, s.cashDuePaise, 'UNDELIVERED')).length,
+      DELIVERED: consoleStops.filter((s) => stopMatchesFilter(s.status, s.cashDuePaise, 'DELIVERED')).length,
+      FAILED: consoleStops.filter((s) => stopMatchesFilter(s.status, s.cashDuePaise, 'FAILED')).length,
+      COD: consoleStops.filter((s) => stopMatchesFilter(s.status, s.cashDuePaise, 'COD')).length,
     } as Record<FilterKey, number>;
   }, [consoleStops]);
 
@@ -791,11 +799,12 @@ export default function RiderRunConsole() {
         if (!isPhotoGps && !trusted && !/^\d{6}$/.test(otpCode)) throw new Error('Enter the six-digit handover OTP.');
 
         const gps = await coordinates();
-        const cashAmt = collectedCash.trim()
-          ? Math.round(parseFloat(collectedCash) * 100)
-          : stop.cashDuePaise > 0
-          ? stop.cashDuePaise
-          : undefined;
+        const cashAmt = (() => {
+          if (!collectedCash.trim()) return stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined;
+          const rupees = parseFloat(collectedCash);
+          if (!Number.isFinite(rupees) || rupees < 0) throw new Error('Enter a valid cash amount in rupees.');
+          return Math.round(rupees * 100);
+        })();
 
         await apiClient.post(
           `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/complete`,
@@ -816,19 +825,26 @@ export default function RiderRunConsole() {
       'Delivery proof recorded and stop completed.',
     );
 
-  const submitAddOn = (stop: RunStop, payload: RiderAddOnPayload) =>
-    act(
+  const submitAddOn = (stop: RunStop, payload: RiderAddOnPayload) => {
+    if (addOnSubmitLock.current) return;
+    addOnSubmitLock.current = true;
+    const key = addOnKeyRef.current ?? `web-console-addon:${stop.id}:${Date.now()}`;
+    addOnKeyRef.current = key;
+    return act(
       `addon-${stop.id}`,
       async () => {
         await apiClient.post(
           `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/extra-milk`,
           payload,
-          { headers: { 'Idempotency-Key': `web-console-addon:${stop.id}:${Date.now()}` } },
+          { headers: { 'Idempotency-Key': key } },
         );
         setAddOnStop(null);
       },
       'Extra milk added.',
-    );
+    ).finally(() => {
+      addOnSubmitLock.current = false;
+    });
+  };
 
   const submitFailure = (stop: RunStop) =>
     act(
@@ -852,8 +868,12 @@ export default function RiderRunConsole() {
       retryRequested ? 'Retry requirement recorded.' : 'Delivery failure recorded.',
     );
 
-  const recordPayment = (stop: RunStop) =>
-    act(
+  const recordPayment = (stop: RunStop) => {
+    if (paymentSubmitLock.current) return;
+    paymentSubmitLock.current = true;
+    const key = paymentKeyRef.current ?? `web-console-pay:${stop.id}:${Date.now()}`;
+    paymentKeyRef.current = key;
+    return act(
       `pay-${stop.id}`,
       async () => {
         const amount = parseFloat(paymentRupees);
@@ -861,13 +881,35 @@ export default function RiderRunConsole() {
         await apiClient.post(
           `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/record-payment`,
           { amountPaise: Math.round(amount * 100), paymentMode },
-          { headers: { 'Idempotency-Key': `web-console-pay:${stop.id}:${Date.now()}` } },
+          { headers: { 'Idempotency-Key': key } },
         );
         setPaymentStop(null);
         setPaymentRupees('');
       },
       'Payment recorded.',
-    );
+    ).finally(() => {
+      paymentSubmitLock.current = false;
+    });
+  };
+
+  const openAddOn = (stop: RunStop) => {
+    addOnKeyRef.current = null;
+    addOnSubmitLock.current = false;
+    openAddOn(stop);
+  };
+  const closeAddOn = () => {
+    addOnKeyRef.current = null;
+    setAddOnStop(null);
+  };
+  const openPayment = (stop: RunStop) => {
+    paymentKeyRef.current = null;
+    paymentSubmitLock.current = false;
+    setPaymentStop(stop);
+  };
+  const closePayment = () => {
+    paymentKeyRef.current = null;
+    setPaymentStop(null);
+  };
 
   const confirmPickupReceipt = () =>
     act(
@@ -1174,7 +1216,7 @@ export default function RiderRunConsole() {
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setAddOnStop(activeStop)}
+                  onClick={() => openAddOn(activeStop)}
                   aria-label="Add milk for this customer"
                   className="grid h-9 w-9 place-items-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                 >
@@ -1206,20 +1248,7 @@ export default function RiderRunConsole() {
             .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
             .map((stop) => {
               const litres = stopLitres(stop);
-              const dimmed = !stopMatchesFilter(
-                {
-                  id: stop.id,
-                  sequenceNumber: stop.sequenceNumber,
-                  status: stop.status,
-                  latitude: 0,
-                  longitude: 0,
-                  customerName: stopName(stop),
-                  litres,
-                  cashDuePaise: stop.cashDuePaise,
-                  parcelCount: stop.expectedParcelCount,
-                },
-                filter,
-              );
+              const dimmed = !stopMatchesFilter(stop.status, stop.cashDuePaise, filter);
               const isActive = activeStop?.id === stop.id;
               return (
                 <button
@@ -1241,12 +1270,12 @@ export default function RiderRunConsole() {
                       aria-label={`Add milk for ${stopName(stop)}`}
                       onClick={(event) => {
                         event.stopPropagation();
-                        setAddOnStop(stop);
+                        openAddOn(stop);
                       }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.stopPropagation();
-                          setAddOnStop(stop);
+                          openAddOn(stop);
                         }
                       }}
                       className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
@@ -1375,7 +1404,7 @@ export default function RiderRunConsole() {
             </a>
           ) : null}
           {activeStop ? (
-            <button type="button" onClick={() => { setPaymentStop(activeStop); setMoreOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" onClick={() => { openPayment(activeStop); setMoreOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">
               <Banknote className="h-4 w-4 text-amber-700" /> Record payment
             </button>
           ) : null}
@@ -1460,13 +1489,13 @@ export default function RiderRunConsole() {
         <AddOnDialog
           stop={addOnStop}
           working={working === `addon-${addOnStop.id}`}
-          onClose={() => setAddOnStop(null)}
+          onClose={closeAddOn}
           onSubmit={(payload) => submitAddOn(addOnStop, payload)}
         />
       ) : null}
 
       {paymentStop ? (
-        <Modal title="Record a payment" subtitle={`${stopName(paymentStop)} · stop ${paymentStop.sequenceNumber}`} onClose={() => setPaymentStop(null)}
+        <Modal title="Record a payment" subtitle={`${stopName(paymentStop)} · stop ${paymentStop.sequenceNumber}`} onClose={closePayment}
           footer={
             <PrimaryButton onClick={() => recordPayment(paymentStop)} disabled={working === `pay-${paymentStop.id}`}>
               <Banknote className="h-4 w-4" /> Record payment

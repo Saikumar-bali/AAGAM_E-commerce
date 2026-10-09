@@ -53,14 +53,15 @@ const FAILED = new Set<ConsoleStopStatus>(['FAILED', 'RETURN_REQUIRED', 'RETURNE
 
 /** Matches the console's filter semantics so hidden pins dim rather than vanish. */
 export function stopMatchesFilter(
-  stop: ConsoleStop,
+  status: ConsoleStopStatus,
+  cashDuePaise: number,
   filter: RiderRunConsoleMapProps['filter'],
 ): boolean {
   if (filter === 'ALL') return true;
-  if (filter === 'DELIVERED') return DELIVERED.has(stop.status);
-  if (filter === 'FAILED') return FAILED.has(stop.status);
-  if (filter === 'COD') return stop.cashDuePaise > 0;
-  return !TERMINAL.includes(stop.status);
+  if (filter === 'DELIVERED') return DELIVERED.has(status);
+  if (filter === 'FAILED') return FAILED.has(status);
+  if (filter === 'COD') return cashDuePaise > 0;
+  return !TERMINAL.includes(status);
 }
 
 function hexForStatus(status: ConsoleStopStatus, active: boolean) {
@@ -182,7 +183,7 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
     const handler = onSelectStop;
 
     stops.forEach((stop) => {
-      const dimmed = !stopMatchesFilter(stop, filter);
+      const dimmed = !stopMatchesFilter(stop.status, stop.cashDuePaise, filter);
       const active = stop.id === activeStopId;
       const isNext = stop.id === nextId && !active;
       const label = focusIds.has(stop.id) || showAllLabels
@@ -219,10 +220,14 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
       return;
     }
     const coords = stops
+      .filter((stop) => !TERMINAL.includes(stop.status))
       .slice()
       .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
       .map((stop) => [stop.longitude, stop.latitude]);
-    if (coords.length < 2) return;
+    if (coords.length < 2) {
+      source?.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
     const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
       type: 'Feature',
       properties: {},
