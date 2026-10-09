@@ -346,10 +346,14 @@ export const subscriptionOperationsService = {
       targetSlot?: 'AM' | 'PM';
       note?: string;
     },
+    // A rider on a flaky connection can tap "Attach" twice; the key lets the
+    // API collapse the replay instead of charging the add-on twice.
+    idempotencyKey?: string,
   ) => {
     const response = await apiClient.post(
       `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/extra-milk`,
       input,
+      idempotencyKey ? { headers: { 'idempotency-key': idempotencyKey } } : undefined,
     );
     return response.data;
   },

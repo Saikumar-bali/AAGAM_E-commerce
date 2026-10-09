@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -219,6 +219,16 @@ function StopCard({
   );
 }
 
+// Module scope so it survives component remounts: a reopened screen would
+// otherwise restart a component-scoped counter and reuse an idempotency key
+// that a prior add-on already consumed, silently replaying the old request.
+let extraMilkNonce = 0;
+
+const nextExtraMilkNonce = () => {
+  extraMilkNonce += 1;
+  return `${Date.now().toString(36)}-${extraMilkNonce.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<RiderTabParamList, 'RiderRunDetail'>; navigation: NavigationProp<RiderTabParamList> }) => {
   const runId = route.params.runId;
   const queryClient = useQueryClient();
@@ -242,7 +252,15 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [extraQty, setExtraQty] = useState('+1L');
   const [extraPriceRupees, setExtraPriceRupees] = useState('80');
   const [extraDays, setExtraDays] = useState(1);
+  const [extraSlot, setExtraSlot] = useState<'AM' | 'PM'>('PM');
   const [extraNote, setExtraNote] = useState('');
+  // A fresh nonce is minted when the add-on dialog opens and held in a ref for
+  // the lifetime of that dialog: retries of one submission reuse the same key,
+  // while every new add-on (including after a remount) gets a distinct one.
+  const extraKeyRef = useRef('');
+  // "today" attaches one extra to this delivery; "next" schedules the coming
+  // days as a recurring add-on (mirrors the store grid's ATTACH_EVENING_MILK).
+  const extraWhen: 'today' | 'next' = extraDays > 1 ? 'next' : 'today';
 
   useEffect(() => {
     let mounted = true;
@@ -493,29 +511,42 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       quantity,
       paise,
       days,
+      slot,
       note,
+      idempotencyKey,
     }: {
       stop: DeliveryRunStop;
       quantity: string;
       paise: number;
       days: number;
+      slot: 'AM' | 'PM';
       note?: string;
+      idempotencyKey: string;
     }) => {
       return subscriptionOperationsService.addExtraMilk(runId, stop.id, {
         extraQuantity: quantity,
         extraPaise: paise,
         consecutiveDays: days,
+        // Only meaningful for a recurring add-on; the base delivery keeps its slot.
+        targetSlot: days > 1 ? slot : undefined,
         note,
-      });
+      }, idempotencyKey);
     },
-    onSuccess: async (_result, vars) => {
+    onSuccess: async (result, vars) => {
       setExtraMilkOpen(false);
       setExtraNote('');
       await refresh();
+      // Report what the API actually scheduled and charged: a request near the
+      // end of a plan is applied to fewer days than asked for, so the recorded
+      // scheduledDays/totalExtraPaise can differ from the requested values.
+      const scheduledDays = Number(result?.scheduledDays ?? vars.days);
+      const totalPaise = Number(result?.totalExtraPaise ?? vars.paise * vars.days);
       Toast.show({
         type: 'success',
         text1: `Extra milk attached! (${vars.quantity})`,
-        text2: `Scheduled for ${vars.days} day${vars.days > 1 ? 's' : ''} (+₹${((vars.paise / 100) * vars.days).toFixed(0)}). Cash due updated.`,
+        text2: scheduledDays > 1
+          ? `Scheduled ${vars.slot} for ${scheduledDays} day${scheduledDays > 1 ? 's' : ''} (+₹${(totalPaise / 100).toFixed(0)}). Cash due updated.`
+          : `Added to today (+₹${(totalPaise / 100).toFixed(0)}). Cash due updated.`,
       });
     },
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not add extra milk', text2: errorMessage(error) }),
@@ -578,19 +609,24 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
               {/* Extra Milk & Scheduling section for active subscription stops */}
               {Boolean(selectedStop.subscriptionDelivery) && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? (
                 <View style={styles.extraContainer}>
-                  {(selectedStop.subscriptionDelivery as any).deferredReason?.includes('[EXTRA:') ? (
-                    <View style={styles.extraActiveBanner}>
-                      <Package size={15} color="#704000" />
-                      <Text style={styles.extraActiveText}>
-                        Extra attached: {(selectedStop.subscriptionDelivery as any).deferredReason.replace(/\[EXTRA:\s*([^\]|]+)[^\]]*\].*/, '$1')}
-                      </Text>
-                    </View>
-                  ) : null}
+                  {(selectedStop.subscriptionDelivery as any).deferredReason?.match(/\[(EXTRA|ADD-ON):\s*([^\]|]+)(?:\|\d+)?(?:\|([A-Z]{2}))?\]/) ? (() => {
+                    const marker = (selectedStop.subscriptionDelivery as any).deferredReason
+                      .match(/\[(EXTRA|ADD-ON):\s*([^\]|]+)(?:\|\d+)?(?:\|([A-Z]{2}))?\]/) as RegExpMatchArray;
+                    const [kind, qty, slot] = [marker[1], marker[2], marker[3]];
+                    return (
+                      <View style={styles.extraActiveBanner}>
+                        <Package size={15} color="#704000" />
+                        <Text style={styles.extraActiveText}>
+                          {kind === 'ADD-ON' ? `Scheduled add-on: ${qty}${slot ? ` · ${slot}` : ''}` : `Extra attached: ${qty}`}
+                        </Text>
+                      </View>
+                    );
+                  })() : null}
 
                   {!extraMilkOpen ? (
                     <TouchableOpacity
                       style={styles.extraTriggerButton}
-                      onPress={() => setExtraMilkOpen(true)}
+                      onPress={() => { extraKeyRef.current = nextExtraMilkNonce(); setExtraMilkOpen(true); }}
                     >
                       <Plus size={16} color="#0F766E" />
                       <Text style={styles.extraTriggerText}>+ Extra Milk / Schedule Further Orders</Text>
@@ -609,6 +645,27 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                       <Text style={styles.extraCardSubtitle}>
                         Add extra milk today or schedule for upcoming days like the store grid does.
                       </Text>
+
+                      {/* Today-only vs coming-days */}
+                      <Text style={styles.extraLabel}>When</Text>
+                      <View style={styles.chipRow}>
+                        <TouchableOpacity
+                          style={[styles.dayChip, extraWhen === 'today' && styles.dayChipActive]}
+                          onPress={() => setExtraDays(1)}
+                        >
+                          <Text style={[styles.dayChipText, extraWhen === 'today' && styles.dayChipTextActive]}>
+                            Today only
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.dayChip, extraWhen === 'next' && styles.dayChipActive]}
+                          onPress={() => setExtraDays(extraDays > 1 ? extraDays : 3)}
+                        >
+                          <Text style={[styles.dayChipText, extraWhen === 'next' && styles.dayChipTextActive]}>
+                            Coming days
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
 
                       {/* Quantity Preset Chips */}
                       <Text style={styles.extraLabel}>Select Quantity</Text>
@@ -656,21 +713,41 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                       </View>
 
                       {/* Scheduling Duration */}
-                      <Text style={styles.extraLabel}>Schedule for Days</Text>
-                      <View style={styles.chipRow}>
-                        {SCHEDULE_DAYS.map((opt) => (
-                          <TouchableOpacity
-                            key={opt.days}
-                            style={[styles.dayChip, extraDays === opt.days && styles.dayChipActive]}
-                            onPress={() => setExtraDays(opt.days)}
-                          >
-                            <CalendarDays size={12} color={extraDays === opt.days ? '#FFFFFF' : '#0F766E'} />
-                            <Text style={[styles.dayChipText, extraDays === opt.days && styles.dayChipTextActive]}>
-                              {opt.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                      {extraWhen === 'next' ? (
+                        <>
+                          <Text style={styles.extraLabel}>Schedule for Days</Text>
+                          <View style={styles.chipRow}>
+                            {SCHEDULE_DAYS.filter((opt) => opt.days > 1).map((opt) => (
+                              <TouchableOpacity
+                                key={opt.days}
+                                style={[styles.dayChip, extraDays === opt.days && styles.dayChipActive]}
+                                onPress={() => setExtraDays(opt.days)}
+                              >
+                                <CalendarDays size={12} color={extraDays === opt.days ? '#FFFFFF' : '#0F766E'} />
+                                <Text style={[styles.dayChipText, extraDays === opt.days && styles.dayChipTextActive]}>
+                                  {opt.label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+
+                          {/* Which delivery the add-on rides with */}
+                          <Text style={styles.extraLabel}>Add-on slot</Text>
+                          <View style={styles.chipRow}>
+                            {(['AM', 'PM'] as const).map((slot) => (
+                              <TouchableOpacity
+                                key={slot}
+                                style={[styles.dayChip, extraSlot === slot && styles.dayChipActive]}
+                                onPress={() => setExtraSlot(slot)}
+                              >
+                                <Text style={[styles.dayChipText, extraSlot === slot && styles.dayChipTextActive]}>
+                                  {slot === 'AM' ? 'Morning (AM)' : 'Evening (PM)'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </>
+                      ) : null}
 
                       {/* Optional Note */}
                       <Text style={styles.extraLabel}>Note (optional)</Text>
@@ -686,10 +763,14 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                       <View style={styles.extraSummary}>
                         <Text style={styles.extraSummaryText}>
                           Adding <Text style={{ fontWeight: '700' }}>{extraQty}</Text> at ₹{extraPriceRupees || '0'}/day
-                          {extraDays > 1 ? ` for ${extraDays} days (Total: ₹${(Number(extraPriceRupees || 0) * extraDays).toFixed(0)})` : ' for today'}
+                          {extraWhen === 'next'
+                            ? ` ${extraSlot} for ${extraDays} days (Total: ₹${(Number(extraPriceRupees || 0) * extraDays).toFixed(0)})`
+                            : ' for today'}
                         </Text>
                         <Text style={styles.extraSummaryNote}>
-                          Today&apos;s COD cash collection increases by ₹{extraPriceRupees || '0'}.
+                          {extraWhen === 'next'
+                            ? `Stored as [ADD-ON: ${extraQty}|${Math.round(Number(extraPriceRupees || 0) * 100)}|${extraSlot}]. Cash due increases across the scheduled days.`
+                            : `Stored as [EXTRA: ${extraQty}|${Math.round(Number(extraPriceRupees || 0) * 100)}]. Today's COD cash collection increases.`}
                         </Text>
                       </View>
 
@@ -704,7 +785,9 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                             quantity: extraQty.trim() || '+1L',
                             paise: paise > 0 ? paise : 8000,
                             days: extraDays,
+                            slot: extraSlot,
                             note: extraNote.trim() || undefined,
+                            idempotencyKey: `${selectedStop.id}:${extraKeyRef.current}`,
                           });
                         }}
                       >
@@ -716,7 +799,9 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                         <Text style={styles.extraSubmitText}>
                           {extraMilkMutation.isPending
                             ? 'Attaching extra milk…'
-                            : `Attach ${extraQty} (+₹${extraPriceRupees || '0'} today)`}
+                            : extraWhen === 'next'
+                              ? `Attach ${extraQty} · ${extraSlot} ×${extraDays}d`
+                              : `Attach ${extraQty} (+₹${extraPriceRupees || '0'} today)`}
                         </Text>
                       </TouchableOpacity>
                     </View>
