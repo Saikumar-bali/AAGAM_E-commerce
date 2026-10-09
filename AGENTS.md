@@ -523,6 +523,11 @@ no way to eyeball its screens without an emulator (unavailable: no KVM). To
 render the *real* screens (same components/styles/copy as the APK) in a browser,
 use the harness at `agent_demo_shots/rn-preview/`:
 
+The harness is a throwaway local scaffold: `agent_demo_shots/` is listed in
+`.gitignore`, so a clean checkout does **not** contain it — it must be
+recreated by hand (or restored from a machine that still has it) before the
+commands below run. It is not required to build or test the app.
+
 - `mocks/rn-shim.js` aliases `react-native` to `react-native-web`; the other
   `mocks/*.js` stub native modules (`WebView`, safe-area, geolocation, Firebase,
   react-navigation, toast) and the `@aagam/mobile-shared` / `@aagam/utils`
@@ -569,8 +574,17 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
 - Full-screen mode: the `#fs-toggle` button (also the `F` key, or
   `?fullscreen=1`) adds `html.fs`, which drops the device-frame chrome and
   shows only the app screen edge-to-edge.
-- Login is email+password or phone-OTP against live `/auth/mobile/login`; the
-  seed default (`rider@aagam.com`) is *not* a production credential, so the
-  authenticated rider dashboard needs a supplied test account password.
-  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
-  source for QA test accounts if present in the production DB.
+- Login is email+password or phone-OTP against the environment's
+  `/auth/mobile/login`; the seed default (`rider@aagam.com`) is *not* a
+  credential there, so the authenticated rider dashboard needs a supplied test
+  account password.
+
+### QA against RouteConsoleScreen must not use production
+
+`RouteConsoleScreen` can start a run, record arrival GPS, and complete a stop
+for the authenticated rider's real assignments, which mutates delivery state,
+subscription entitlements, COD cash records, and customer-visible order status.
+Run its QA (and the live proxy above) against **staging** URLs, data and
+credentials only. A QA rider account must be provisioned in the staging
+database, never pulled from production; do not reuse a production admin login
+(`dorabbu4@gmail.com` or similar) for this workflow.

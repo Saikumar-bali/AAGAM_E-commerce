@@ -114,7 +114,8 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
   const runsQuery = useQuery({ queryKey: RIDER_RUNS_QUERY_KEY, queryFn: subscriptionOperationsService.getTodayRuns });
   const runs = runsQuery.data || [];
 
-  const runId = selectedRunId
+  const selectedRun = runs.find((candidate) => candidate.id === selectedRunId);
+  const runId = selectedRun?.id
     || runs.find((candidate) => ACTIVE_RUN_STATUSES.includes(candidate.status))?.id
     || runs[0]?.id
     || null;
@@ -190,32 +191,13 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) }),
   });
 
-  const completeMutation = useMutation({
-    mutationFn: async (stop: DeliveryRunStop) => {
-      if (!run) throw new Error('No active run.');
-      const point = await currentLocation();
-      return subscriptionOperationsService.completeStop(run.id, stop.id, {
-        version: stop.version,
-        ...point,
-        riderConfirmed: true,
-        cashCollectedPaise: stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined,
-      });
-    },
-    onSuccess: async () => {
-      Toast.show({ type: 'success', text1: 'Stop completed', text2: 'Delivery proof and funding entitlement were recorded.' });
-      setSelectedStopId(null);
-      await refresh();
-    },
-    onError: (error) => Toast.show({ type: 'error', text1: 'Delivery not completed', text2: errorMessage(error) }),
-  });
-
   const openFullProof = () => {
     if (!run) return;
     navigation.navigate('RiderRunDetail', { runId: run.id });
   };
 
   const runTone = run ? statusChipTone(run.status) : statusChipTone('PLANNED');
-  const busy = arriveMutation.isPending || completeMutation.isPending || runMutation.isPending;
+  const busy = arriveMutation.isPending || runMutation.isPending;
 
   const heroAction = (() => {
     if (!run) return null;
@@ -231,21 +213,14 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
       return <View style={styles.infoTile}><CheckCircle2 size={18} color="#0F766E" /><Text style={styles.infoText}>All stops done. Head back to the store.</Text></View>;
     }
     if (activeStop.status === 'ARRIVED') {
-      const needsFullProof = activeStop.proofMode !== 'RIDER_PHOTO_GPS' && activeStop.subscriptionDelivery?.subscription?.deliveryMethod === 'TRUSTED_DROP';
-      if (needsFullProof) {
-        return (
-          <ConsoleButton tone="primary" disabled={busy} onPress={() => openFullProof()}>
-            <Package size={18} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Open secure proof</Text>
-          </ConsoleButton>
-        );
-      }
+      // Every proof mode (photo-GPS, OTP, Trusted Drop) requires evidence the
+      // one-tap quick-complete cannot supply, so always route to the full proof
+      // flow in RiderRunDetail instead of issuing a completion that the API
+      // would reject for a missing photo/OTP.
       return (
-        <ConsoleButton tone="coral" disabled={busy} onPress={() => completeMutation.mutate(activeStop)}>
-          <CheckCircle2 size={18} color="#FFFFFF" />
-          <Text style={styles.buttonText}>
-            {completeMutation.isPending ? 'Completing…' : activeStop.cashDuePaise > 0 ? `Collect ${money(activeStop.cashDuePaise)} & complete` : 'Verify & complete stop'}
-          </Text>
+        <ConsoleButton tone="primary" disabled={busy} onPress={() => openFullProof()}>
+          <Package size={18} color="#FFFFFF" />
+          <Text style={styles.buttonText}>Open secure proof</Text>
         </ConsoleButton>
       );
     }
@@ -257,6 +232,17 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
     );
   })();
 
+  if (runsQuery.isError) {
+    return (
+      <View style={styles.centered}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
+        <CircleAlert size={44} color="#B42318" />
+        <Text style={styles.errorTitle}>Route unavailable</Text>
+        <Text style={styles.centeredText}>{runsQuery.error ? errorMessage(runsQuery.error) : 'Your route could not be loaded.'}</Text>
+        <TouchableOpacity style={styles.retry} onPress={() => void runsQuery.refetch()}><RefreshCw size={18} color="#FFFFFF" /><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
+      </View>
+    );
+  }
   if (runsQuery.isLoading || (runId && runQuery.isLoading)) {
     return <View style={styles.centered}><StatusBar barStyle="light-content" backgroundColor="#0F766E" /><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.centeredText}>Loading route…</Text></View>;
   }

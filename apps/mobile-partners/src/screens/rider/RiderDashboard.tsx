@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   Bike,
+  BriefcaseBusiness,
   CheckCircle2,
   Clock,
   HeartPulse,
@@ -264,8 +265,8 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
 
         <View style={styles.quickRow}>
           <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Morning runs</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} testID="rider_dashboard_jobs" onPress={() => navigation?.navigate?.('Operations', { screen: 'RiderJobs' })}><BriefcaseBusiness size={19} color="#0F766E" /><Text style={styles.quickText}>Jobs</Text></TouchableOpacity>
           <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('NotificationSettings')}><Settings size={19} color="#0F766E" /><Text style={styles.quickText}>Alerts</Text></TouchableOpacity>
         </View>
 
         {workspaceQuery.isLoading ? (
