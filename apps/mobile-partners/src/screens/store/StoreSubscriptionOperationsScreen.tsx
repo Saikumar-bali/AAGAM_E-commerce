@@ -319,7 +319,7 @@ export const StoreSubscriptionOperationsScreen = ({
             </TouchableOpacity>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>SUBSCRIPTION FULFILMENT</Text>
-              <Text style={styles.title}>Morning Runs</Text>
+              <Text style={styles.title}>Delivery Runs</Text>
             </View>
             <View style={styles.headerIcon}>
               <Route size={27} color="#0F766E" />

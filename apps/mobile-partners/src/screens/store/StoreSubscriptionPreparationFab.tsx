@@ -143,7 +143,7 @@ export function StoreSubscriptionPreparationModal({ visible, onClose }: { visibl
                         style={styles.input}
                       />
                       <View style={styles.actions}><TouchableOpacity disabled={mutation.isPending} style={styles.readyButton} onPress={() => mutation.mutate({ row, decision: 'READY' })}><CheckCircle2 size={17} color="#FFFFFF" /><Text style={styles.actionText}>Stock ready</Text></TouchableOpacity><TouchableOpacity disabled={mutation.isPending} style={styles.shortageButton} onPress={() => mutation.mutate({ row, decision: 'SHORTAGE' })}><AlertTriangle size={17} color="#B42318" /><Text style={styles.shortageActionText}>Shortage</Text></TouchableOpacity></View>
-                      <Text style={styles.footnote}>{row.packingAvailableNow ? 'Delivery day is active: use Morning Runs for packing and custody handoff.' : 'Packing/handoff remains a delivery-day custody action.'}</Text>
+                      <Text style={styles.footnote}>{row.packingAvailableNow ? 'Delivery day is active: use Delivery Runs for packing and custody handoff.' : 'Packing/handoff remains a delivery-day custody action.'}</Text>
                     </View>
                   ))}
           </ScrollView>

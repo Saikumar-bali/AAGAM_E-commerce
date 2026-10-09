@@ -1,11 +1,9 @@
 import React from 'react';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Bell, House, Navigation, Route, UserRound } from 'lucide-react-native';
+import { BarChart3, House, Navigation, Route, UserRound } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { notificationService } from '../api/notificationService';
-import { PARTNER_NOTIFICATION_QUERY_KEY, PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
+import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
 import { RiderAccountStatusScreen } from '../screens/rider/RiderAccountStatusScreen';
 import { RiderCodScreen } from '../screens/rider/RiderCodScreen';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
@@ -33,13 +31,6 @@ const hidden = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as
 
 export const RiderNavigator = () => {
   const insets = useSafeAreaInsets();
-  const inboxQuery = useQuery({
-    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
-    queryFn: () => notificationService.getInbox(1),
-    staleTime: 10_000,
-    retry: 1,
-  });
-  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const bottomPadding = Math.max(insets.bottom, 6);
 
   return (
@@ -104,28 +95,6 @@ export const RiderNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Alerts"
-        component={PartnerNotificationsScreen}
-        options={{
-          title: 'Alerts',
-          tabBarButtonTestID: 'tab_alerts',
-          tabBarAccessibilityLabel: 'Rider alerts',
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: '#EF1D25',
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '600',
-            minWidth: 20,
-            height: 20,
-            lineHeight: 20,
-          },
-          tabBarIcon: ({ color, size, focused }) => (
-            <Bell size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="History"
         component={RiderEarningsScreen}
         options={{
@@ -162,6 +131,7 @@ export const RiderNavigator = () => {
         })}
       />
       <Tab.Screen name="RiderRunDetail" component={RiderRunDetailScreen} options={hidden} />
+      <Tab.Screen name="Notifications" component={PartnerNotificationsScreen} options={hidden} />
       <Tab.Screen name="NotificationSettings" component={RiderNotificationSettingsScreen} options={hidden} />
       <Tab.Screen name="TrackingDiagnostics" component={RiderTrackingDiagnosticsScreen} options={hidden} />
       <Tab.Screen name="RiderProfileDetails" component={RiderProfileDetailsScreen} options={hidden} />

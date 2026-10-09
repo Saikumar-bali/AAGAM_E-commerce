@@ -716,3 +716,80 @@ Run its QA (and the live proxy above) against **staging** URLs, data and
 credentials only. A QA rider account must be provisioned in the staging
 database, never pulled from production; do not reuse a production admin login
 (`dorabbu4@gmail.com` or similar) for this workflow.
+
+### Rider "go online" needs approved documents
+
+`PATCH /riders/portal/availability/status` to `ONLINE` and
+`POST /riders/me/heartbeat` are both gated by
+`rider-operations-eligibility.ts`, which requires four APPROVED, unexpired
+`RiderDocument` rows (`DRIVING_LICENSE`, `IDENTITY`, `VEHICLE_REGISTRATION`,
+`VEHICLE_INSURANCE`). Without them the gateway returns **409** with
+`reasons: [*_MISSING]`, so the dashboard toggle silently snaps back to Offline.
+The local demo seeder (`apps/api-gateway/demo-seed.flow.ts`) now creates those
+documents for `rider@aagam.com` and leaves the profile `OFFLINE` (never seed a
+rider `ONLINE`; `ONLINE`/`BUSY` also blocks `dispatchToRider`).
+
+### Preview harness route params
+
+`agent_demo_shots/rn-preview/mocks/navigation.js` is a hand-rolled navigator; it
+must keep `navigate(name, params)` params for the **tab** branch, otherwise any
+screen that reads `route.params` (e.g. `RiderRunDetailScreen.runId`) receives
+`undefined` and fetches `/delivery-runs/undefined` (404 → "Route unavailable").
+The geolocation mock there must resolve a position (not error), since the web
+preview has no real GPS for the online/route-location flows.
+
+
+### Rider notifications now live in Profile (hidden tab)
+
+The rider tab bar no longer has an `Alerts` tab. `PartnerNotificationsScreen`
+is registered as a **hidden** `Notifications` tab in `RiderNavigator` and opened
+from the Profile row / the delivery-flow bell via `navigation.navigate("Notifications")`.
+It renders its own back button that calls `navigation.goBack()`; in the preview
+harness that only works because the tab mock keeps a tab history and routes
+`goBack`/`canGoBack` through it (see `mocks/navigation.js`).
+
+### Live route map + upcoming stops on the run detail
+
+`RiderRunDetailScreen` renders `RiderRouteMap` (Mapbox) with the live rider dot
+(from `Geolocation.watchPosition`) plus numbered stop markers (`stops` prop ->
+`RiderMapStop[]`: `done`/`current`/`upcoming`) and an "Upcoming stops" horizontal
+rail. Stop coordinates come from `deliveryLatitude/Longitude`, falling back to the
+subscription `addressSnapshot.latitude/longitude`. The preview WebView mock
+implements `injectJavaScript` so live map updates behave in the browser.
+
+Each map marker shows the customer name in a `.stop-label` badge (current stop in
+red, done/upcoming in teal/white) so riders see names, not just numbers. Both the
+main map and the stop-sheet map mirror the run's progress via the
+`progressDone`/`progressTotal` props, which drive the in-map `window.setRouteProgress`
+badge (`N / M delivered`).
+
+### Rider arrival quick actions + skip
+
+The next-stop card and each upcoming card expose **Deliver** (records arrival, then
+the sheet advances to the proof step) and **Skip** (opens the `SKIP STOP` modal).
+`skipStop(runId, stopId, { reason, note, version })` posts to
+`POST /rider/delivery-runs/:runId/stops/:stopId/skip`; the controller accepts a plain
+`{ reason?, note? }` body (no whitelisted DTO), so the extra `version` is harmless.
+The full-stop sheet is essentials-first: map, contact/extra/proof chips, then a
+"More details" gate; there is **no** content above the map.
+
+Partial cash: the rider **can** record a partial cash payment. The stop sheet shows
+the outstanding balance and a validated amount input; the rider cannot enter more
+than what is still owed on the stop. The client sends the entered
+`cashCollectedPaise` with the completion `POST` and the server also enforces the cap
+(`recordPayment` rejects an amount above the stop's `cashDuePaise - cashCollectedPaise`),
+so over-collection is blocked on both sides.
+
+Multiple subscriptions per customer: one customer can hold two subscriptions (a
+different plan, or the same plan in another slot); each becomes its own stop. Both
+`RiderRunDetailScreen` and `RouteConsoleScreen` detect the repeat customer and
+disambiguate by labelling every stop with its own plan (`subscription.plan.name`) or
+slot, plus a "2 subscriptions" badge on the duplicated customer's cards/rail chips.
+The gateway `ownedRun(...)` payload includes the subscription plan/slot for this.
+
+Demo route note: the seeded `m009` run (`Anakapalle Hub`) drifts into an inconsistent
+state after repeated QA (stop `READY` but `deliveryJob`/`order` `DELIVERED`), which
+makes `/arrive` return `409 Delivery job is not approaching the customer` or
+`409 Order is DELIVERED`. Reset stops 3-8 to `READY`/`PLANNED`,
+`deliveryJob=OUT_FOR_DELIVERY`, `order=OUT_FOR_DELIVERY` before testing arrival.
+

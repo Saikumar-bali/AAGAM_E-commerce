@@ -83,6 +83,7 @@ import {
   SetDefaultRiderDto,
   SetTemporaryRiderDto,
   AutoDispatchDefaultRidersDto,
+  UndoRunStopDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -404,6 +405,16 @@ export class RiderDeliveryRunsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.runs.skipStop(runId, stopId, body, req.user);
+  }
+
+  @Post(':runId/stops/:stopId/undo')
+  undoStop(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: UndoRunStopDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.undoStop(runId, stopId, body, req.user);
   }
 }
 

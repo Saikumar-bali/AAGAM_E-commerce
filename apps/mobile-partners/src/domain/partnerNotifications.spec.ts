@@ -37,7 +37,7 @@ describe('partner notification contract', () => {
     const command = navigationCommandForNotification(normalizeNotificationNavigation({
       eventType: 'ASSIGNMENT_OFFERED',
     }));
-    expect(command).toEqual({ workspace: 'RIDER', tab: 'Alerts' });
+    expect(command).toEqual({ workspace: 'ROOT', screen: 'Notifications' });
   });
 
   it('opens the exact support conversation when ticketId is present', () => {

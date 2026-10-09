@@ -2,6 +2,7 @@ import { useAuthStore } from '@aagam/mobile-shared';
 import { useQuery } from '@tanstack/react-query';
 import {
   Banknote,
+  BellRing,
   Bike,
   CalendarClock,
   ChevronRight,
@@ -26,13 +27,22 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
+import { notificationService } from '../../api/notificationService';
 import { PartnerTabBrand } from '../../components/PartnerTabBrand';
+import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
 
 export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
   const query = useQuery({ queryKey: ['rider', 'profile'], queryFn: riderService.getProfile, retry: 1 });
+  const inboxQuery = useQuery({
+    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
+    queryFn: () => notificationService.getInbox(1),
+    staleTime: 10_000,
+    retry: 1,
+  });
+  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const profile: any = query.data || {};
   const lifecycle: any = profile.lifecycle || {};
   const initials = useMemo(() => String(profile.user?.name || user?.name || 'Rider')
@@ -93,6 +103,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
             </TouchableOpacity>
 
             <Text style={styles.sectionTitle}>Account</Text>
+              <MenuRow icon={<BellRing size={21} color="#0F766E" />} title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'Delivery runs, offers and route alerts'} onPress={() => navigation.navigate('Notifications')} />
             <MenuRow icon={<Bike size={21} color="#0F766E" />} title="Profile, vehicle and bank" subtitle="Edit protected Rider information" onPress={() => navigation.navigate('RiderProfileDetails')} />
             <MenuRow icon={<FileCheck2 size={21} color="#0F766E" />} title="Documents and renewals" subtitle={`${profile.documents?.length || 0} submitted files`} onPress={() => navigation.navigate('RiderDocuments')} />
             <MenuRow icon={<CalendarClock size={21} color="#0F766E" />} title="Schedules and shifts" subtitle="Multiple work windows, timezone and calendar" onPress={() => navigation.navigate('RiderSchedule')} />

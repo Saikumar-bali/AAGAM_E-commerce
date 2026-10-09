@@ -18,7 +18,7 @@ export type RiderTabParamList = {
   Operations: NavigatorScreenParams<RiderJobsStackParamList> | undefined;
   Runs: undefined;
   RiderRunDetail: { runId: string };
-  Alerts: undefined;
+  Notifications: undefined;
   History: undefined;
   Profile: undefined;
   NotificationSettings: undefined;

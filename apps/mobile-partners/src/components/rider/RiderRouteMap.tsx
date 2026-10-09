@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ExternalLink, LocateFixed, Navigation } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
-import { buildRiderMapHtml, MapCoordinate } from './riderRouteMapHtml';
+import { buildRiderMapHtml, MapCoordinate, RiderMapStop } from './riderRouteMapHtml';
 import { EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
 
 // react-native-webview 14's overloads collapse to `never` with React 19 JSX
@@ -17,6 +17,9 @@ export type RiderRouteMapProps = {
   active?: boolean;
   riderLocation?: Coordinate | null;
   expanded?: boolean;
+  stops?: RiderMapStop[];
+  progressDone?: number;
+  progressTotal?: number;
 };
 
 const validCoordinate = (point?: Coordinate | null): point is Coordinate => Boolean(
@@ -27,14 +30,16 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
   const [hasFix, setHasFix] = useState(false);
   const [ready, setReady] = useState(false);
   const [navigationMode, setNavigationMode] = useState(false);
+  const hasProgress = Number.isFinite(progressDone) && Number.isFinite(progressTotal) && (progressTotal as number) > 0;
+  const stopsKey = (stops || []).map((stop) => `${stop.sequence}:${stop.latitude}:${stop.longitude}:${stop.state}`).join('|');
   const html = useMemo(
-    () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN) : null,
-    [destination?.latitude, destination?.longitude, destinationLabel],
+    () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN, { stops }) : null,
+    [destination?.latitude, destination?.longitude, destinationLabel, stopsKey],
   );
 
   // Keep the live rider dot in sync after the page is ready; before that the
@@ -55,6 +60,11 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
     if (!ready) return;
     webView.current?.injectJavaScript(`if(window.setNavigationMode){window.setNavigationMode(${navigationMode});}true;`);
   }, [ready, navigationMode]);
+
+  useEffect(() => {
+    if (!ready || !hasProgress) return;
+    webView.current?.injectJavaScript(`if(window.setRouteProgress){window.setRouteProgress(${progressDone},${progressTotal});}true;`);
+  }, [ready, hasProgress, progressDone, progressTotal]);
 
   useEffect(() => {
     if (!active) setNavigationMode(false);

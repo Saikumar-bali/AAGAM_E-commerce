@@ -87,8 +87,8 @@ describe('Partners notification delivery contracts', () => {
     const riderNavigator = read('navigation/RiderNavigator.tsx');
     expect(root).toContain('name="Notifications"');
     expect(storeDashboard).toContain('store_dashboard_notifications');
-    expect(riderNavigator).toContain('name="Alerts"');
-    expect(riderNavigator).toContain('tab_alerts');
+    expect(riderNavigator).toContain('name="Notifications"');
+    expect(riderNavigator).not.toContain('tab_alerts');
   });
 
   it('preserves metadata identifiers and prioritizes Store pickup routing', () => {

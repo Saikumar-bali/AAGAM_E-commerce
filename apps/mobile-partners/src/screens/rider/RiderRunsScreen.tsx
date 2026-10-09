@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { NavigationProp } from '@react-navigation/native';
 import { Banknote, CalendarDays, ChevronRight, MapPinned, PackageCheck, Route } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PartnerTabBrand } from '../../components/PartnerTabBrand';
 import {
   DeliveryRunSummary,
   subscriptionOperationsService,
@@ -98,12 +99,13 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 14) + 8, paddingBottom: 110 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 110 }]}
         refreshControl={<RefreshControl refreshing={runsQuery.isRefetching} onRefresh={() => void runsQuery.refetch()} tintColor="#FFFFFF" />}
       >
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 14) + 10 }]}>
           <View style={styles.heroGlow} />
-          <View style={styles.heroTitleRow}><View><Text style={styles.eyebrow}>MORNING OPERATIONS</Text><Text style={styles.heroTitle}>Delivery Runs</Text></View><View style={styles.heroIcon}><Route size={30} color="#0F766E" /></View></View>
+          <View style={styles.brandRow}><PartnerTabBrand inverse caption="RIDER PARTNER" /></View>
+          <View style={styles.heroTitleRow}><View><Text style={styles.eyebrow}>DELIVERY OPERATIONS</Text><Text style={styles.heroTitle}>Delivery Runs</Text></View><View style={styles.heroIcon}><Route size={30} color="#0F766E" /></View></View>
           <Text style={styles.heroSubtitle}>Complete every customer stop individually. Cash is collected only where the route explicitly shows an amount due.</Text>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}><Text style={styles.heroMetricValue}>{completedStops}/{totalStops}</Text><Text style={styles.heroMetricLabel}>Stops complete</Text></View>
@@ -117,6 +119,7 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
           ) : null}
         </View>
 
+        <View style={styles.body}>
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Today’s assigned routes</Text><Text style={styles.sectionCount}>{runs.length}</Text></View>
         {runsQuery.isLoading ? (
           <View style={styles.stateCard}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.stateText}>Loading assigned runs…</Text></View>
@@ -127,6 +130,7 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
         )) : (
           <View style={styles.stateCard}><Route size={42} color="#94A3B8" /><Text style={styles.stateTitle}>No subscription runs today</Text><Text style={styles.stateText}>Newly assigned runs will appear here after the store finishes route preparation.</Text></View>
         )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -134,9 +138,11 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F3F7F5' },
-  content: { paddingHorizontal: 16 },
-  hero: { backgroundColor: '#0F766E', borderRadius: 26, padding: 20, overflow: 'hidden', shadowColor: '#064E3B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 7 },
+  content: {},
+  body: { paddingHorizontal: 16, paddingTop: 20 },
+  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', shadowColor: '#064E3B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 7 },
   heroGlow: { position: 'absolute', width: 210, height: 210, borderRadius: 105, right: -80, top: -95, backgroundColor: '#34D399', opacity: 0.24 },
+  brandRow: { marginBottom: 16 },
   heroTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { color: '#B9F6DF', fontSize: 11, fontWeight: '600', letterSpacing: 1.4 },
   heroTitle: { color: '#FFFFFF', fontSize: 30, fontWeight: '600', marginTop: 4 },
@@ -149,7 +155,7 @@ const styles = StyleSheet.create({
   heroDivider: { width: 1, height: 33, backgroundColor: 'rgba(255,255,255,0.25)' },
   resumeButton: { minHeight: 50, marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   resumeButtonText: { color: '#0F766E', fontSize: 14, fontWeight: '600' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 12 },
   sectionTitle: { color: '#17211D', fontSize: 19, fontWeight: '600' },
   sectionCount: { minWidth: 24, height: 24, borderRadius: 12, backgroundColor: '#DCEDE6', color: '#0F766E', textAlign: 'center', lineHeight: 24, fontWeight: '600' },
   runCard: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2EBE7', shadowColor: '#0F2A20', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },

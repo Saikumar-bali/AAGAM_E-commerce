@@ -966,6 +966,24 @@ export class RiderRecordPaymentDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  // Optional so older callers keep working; the rider app sends the stop
+  // version so a collection can be rejected if the stop moved on.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  version?: number;
+}
+
+export class UndoRunStopDto {
+  @IsInt()
+  @Min(0)
+  version!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class SetDefaultRiderDto {

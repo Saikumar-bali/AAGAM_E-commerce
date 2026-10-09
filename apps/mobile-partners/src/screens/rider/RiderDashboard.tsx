@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
   Bike,
   BriefcaseBusiness,
   CheckCircle2,
@@ -114,7 +113,6 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     () => (workspace?.pendingOffers || []).filter((offer) => isOfferActionable(offer, now)),
     [now, workspace?.pendingOffers],
   );
-  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   useEffect(() => {
     if (!activeJob || !isTrackableDeliveryStatus(activeJob.status)) {
@@ -236,11 +234,6 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
               <Text style={styles.title}>Hello, {user?.name?.split(' ')[0] || 'Partner'}</Text>
               <Text style={styles.subtitle}>Availability, offers and live delivery health in one place.</Text>
             </View>
-            <TouchableOpacity testID="rider_dashboard_alerts" style={styles.iconButton} onPress={() => navigation?.navigate?.('Alerts')}>
-              <Bell size={22} color="#FFFFFF" />
-              {unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => navigation?.navigate?.('Profile')}><UserRound size={22} color="#FFFFFF" /></TouchableOpacity>
           </View>
           <View style={styles.availabilityCard}>
             <View style={[styles.statusIcon, isOnline ? styles.onlineIcon : styles.offlineIcon]}>
@@ -264,7 +257,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         </View>
 
         <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Morning runs</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Delivery runs</Text></TouchableOpacity>
           <TouchableOpacity style={styles.quickAction} testID="rider_dashboard_jobs" onPress={() => navigation?.navigate?.('Operations', { screen: 'RiderJobs' })}><BriefcaseBusiness size={19} color="#0F766E" /><Text style={styles.quickText}>Jobs</Text></TouchableOpacity>
           <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking</Text></TouchableOpacity>
         </View>

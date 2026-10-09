@@ -66,6 +66,21 @@ function stopCoordinates(stop: DeliveryRunStop): Coordinates | null {
   return latitude != null && longitude != null ? { latitude, longitude } : null;
 }
 
+// One customer can hold more than one subscription — a different plan, or the
+// same plan in a different slot — and each subscription is its own stop. Tag
+// those duplicates so the rider can tell the two deliveries apart, and label
+// every stop with its own plan/slot.
+function customerKey(stop: DeliveryRunStop) {
+  const customer = stop.deliveryJob?.order?.customer;
+  return customer?.phone || customer?.name || stop.subscriptionDelivery?.subscription?.customerId || stop.id;
+}
+
+function planLabel(stop: DeliveryRunStop) {
+  const plan = stop.subscriptionDelivery?.subscription?.plan?.name;
+  const slot = stop.subscriptionDelivery?.deliverySlot;
+  return plan || (slot ? `${slot} subscription` : 'Subscription');
+}
+
 async function requestLocationPermission() {
   if (Platform.OS !== 'android') return true;
   if (await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) return true;
@@ -145,6 +160,14 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
 
   const stops = useMemo(() => run?.stops || [], [run]);
   const actionable = useMemo(() => stops.filter((stop) => ACTIONABLE.includes(stop.status)), [stops]);
+  const duplicateCustomerKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    stops.forEach((stop) => {
+      const key = customerKey(stop);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
+  }, [stops]);
   const activeStop = useMemo(
     () => actionable.find((stop) => stop.id === selectedStopId) || actionable[0] || null,
     [actionable, selectedStopId],
@@ -312,10 +335,12 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {stops.map((stop) => {
               const tone = stop.status === 'DELIVERED' ? styles.stopDone : ['FAILED', 'CANCELLED'].includes(stop.status) ? styles.stopFailed : stop.id === activeStop?.id ? styles.stopActive : styles.stopPending;
+              const multiSub = duplicateCustomerKeys.has(customerKey(stop));
               return (
                 <TouchableOpacity key={stop.id} onPress={() => setSelectedStopId(stop.id)} style={[styles.stopChip, tone]}>
                   <Text style={styles.stopChipSeq}>{stop.sequenceNumber}</Text>
                   <Text style={styles.stopChipName} numberOfLines={1}>{stop.deliveryJob?.order?.customer?.name || 'Customer'}</Text>
+                  {multiSub ? <Text style={styles.stopChipMulti}>2 subs</Text> : null}
                 </TouchableOpacity>
               );
             })}
@@ -328,6 +353,10 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
                 <View style={styles.stopCardCopy}>
                   <Text style={styles.stopEyebrow}>NEXT STOP · {activeStop.sequenceNumber}</Text>
                   <Text style={styles.stopName}>{activeStop.deliveryJob?.order?.customer?.name || 'Customer'}</Text>
+                  <View style={styles.stopPlanRow}>
+                    <Text style={styles.stopPlanText} numberOfLines={1}>{planLabel(activeStop)}</Text>
+                    {duplicateCustomerKeys.has(customerKey(activeStop)) ? <Text style={styles.stopMultiBadge}>2 subscriptions</Text> : null}
+                  </View>
                   <Text style={styles.stopAddress} numberOfLines={1}>{addressFrom(activeStop)}</Text>
                 </View>
                 {activeStop.deliveryJob?.order?.customer?.phone ? (
@@ -407,6 +436,7 @@ const styles = StyleSheet.create({
   stopFailed: { backgroundColor: '#FDECEC', borderColor: '#F6C6C6' },
   stopChipSeq: { color: '#0F172A', fontSize: 13, fontWeight: '800' },
   stopChipName: { color: '#475569', fontSize: 10, marginTop: 2 },
+  stopChipMulti: { color: '#8A4B00', fontSize: 8, fontWeight: '800', marginTop: 3 },
 
   stopCard: { paddingHorizontal: 12, paddingTop: 4, gap: 10 },
   stopCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -414,6 +444,9 @@ const styles = StyleSheet.create({
   stopCardCopy: { flex: 1 },
   stopEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
   stopName: { color: '#0F172A', fontSize: 15, fontWeight: '700', marginTop: 1 },
+  stopPlanRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' },
+  stopPlanText: { color: '#0F766E', fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  stopMultiBadge: { color: '#8A4B00', backgroundColor: '#FFF1D6', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 9, fontWeight: '700', overflow: 'hidden' },
   stopAddress: { color: '#64748B', fontSize: 11, marginTop: 1 },
   iconButton: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
   stopMeta: { flexDirection: 'row', gap: 16 },

@@ -172,7 +172,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
 
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Open subscription morning runs"
+                accessibilityLabel="Open subscription delivery runs"
                 activeOpacity={0.78}
                 style={styles.subscriptionRunCard}
                 onPress={() => navigation?.getParent?.()?.navigate?.('StoreSubscriptionOperations')}
@@ -180,7 +180,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                 <View style={styles.subscriptionRunIcon}><Route size={25} color="#0F766E" /></View>
                 <View style={styles.subscriptionRunCopy}>
                   <Text style={styles.subscriptionRunEyebrow}>SUBSCRIPTION OPERATIONS</Text>
-                  <Text style={styles.subscriptionRunTitle}>Morning runs & cash control</Text>
+                  <Text style={styles.subscriptionRunTitle}>Delivery runs &amp; cash control</Text>
                   <Text style={styles.subscriptionRunText}>Forecast demand, pack bags, and settle cash.</Text>
                 </View>
                 <ChevronRight size={22} color="#0F766E" />

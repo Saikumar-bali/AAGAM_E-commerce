@@ -55,6 +55,8 @@ import { PartnerQrScanner } from '../../native/PartnerQrScanner';
 import { PartnerDocumentPicker } from '../../native/PartnerDocumentPicker';
 import { PartnerConnectivity } from '../../native/PartnerConnectivity';
 import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
+import { RiderRouteMap } from '../../components/rider/RiderRouteMap';
+import type { RiderMapStop } from '../../components/rider/riderRouteMapHtml';
 
 const FAILURE_REASONS: Array<{ value: DeliveryFailureReason; label: string }> = [
   { value: 'CUSTOMER_UNREACHABLE', label: 'Customer unreachable' },
@@ -67,6 +69,8 @@ const FAILURE_REASONS: Array<{ value: DeliveryFailureReason; label: string }> = 
   { value: 'SAFETY_CONCERN', label: 'Safety concern' },
   { value: 'OTHER', label: 'Other' },
 ];
+
+const SKIP_REASONS = ['Customer requested skip', 'Not on my route today', 'Store instructed skip', 'Customer paid in advance', 'Other'];
 
 const EXTRA_PRESETS = [
   { label: '+0.5L', qty: '+0.5L', price: '40' },
@@ -135,6 +139,31 @@ function addressFrom(stop?: DeliveryRunStop | null) {
   return values.join(', ') || 'Customer delivery address';
 }
 
+// A customer may hold more than one subscription (different plan or slot), and
+// each delivery becomes its own stop. Identify the customer so the route can
+// flag the duplicates, then label each stop with its own plan/slot.
+function customerKey(stop: DeliveryRunStop) {
+  const customer = stop.deliveryJob.order.customer;
+  return customer?.phone || customer?.name || stop.subscriptionDelivery?.subscription?.customerId || stop.id;
+}
+
+function planLabel(stop: DeliveryRunStop) {
+  const plan = stop.subscriptionDelivery?.subscription?.plan?.name;
+  const items = stop.deliveryJob.order.items || [];
+  const itemLabel = items.map((item) => `${item.quantity} × ${item.product.name}`).join(' · ');
+  return plan || itemLabel || 'Subscription';
+}
+
+function stopCoordinates(stop: DeliveryRunStop): Coordinates | null {
+  if (typeof stop.deliveryLatitude === 'number' && typeof stop.deliveryLongitude === 'number') {
+    return { latitude: stop.deliveryLatitude, longitude: stop.deliveryLongitude };
+  }
+  const snapshot = stop.subscriptionDelivery?.subscription?.addressSnapshot || {};
+  const latitude = typeof snapshot.latitude === 'number' ? snapshot.latitude : undefined;
+  const longitude = typeof snapshot.longitude === 'number' ? snapshot.longitude : undefined;
+  return latitude != null && longitude != null ? { latitude, longitude } : null;
+}
+
 function StatusChip({ value }: { value: string }) {
   const complete = value === 'DELIVERED';
   const danger = ['FAILED', 'RETURN_REQUIRED'].includes(value);
@@ -146,58 +175,70 @@ function StatusChip({ value }: { value: string }) {
   );
 }
 
-function ProofSummary({ stop }: { stop: DeliveryRunStop }) {
-  // proofMode alone identifies photo-GPS stops. Guarding on subscriptionDelivery
-  // as well misfiled ordinary Trusted Drop and OTP stops into this branch.
+function proofDescriptor(stop: DeliveryRunStop): { kind: 'PHOTO_GPS' | 'TRUSTED_DROP' | 'OTP'; Icon: typeof Camera; tint: string; summary: string; quickLabel: string } {
   const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS';
-  if (isPhotoGps) {
-    if (stop.cashDuePaise > 0) {
-      return (
-        <View style={styles.proofRow}>
-          <Banknote size={17} color="#A15C00" />
-          <Text style={styles.proofText}>Collect {money(stop.cashDuePaise)} · Photo proof & GPS (No OTP)</Text>
-        </View>
-      );
-    }
-    return (
-      <View style={styles.proofRow}>
-        <Camera size={17} color="#0F766E" />
-        <Text style={styles.proofText}>₹0 due · Photo proof & GPS (No OTP)</Text>
-      </View>
-    );
-  }
   const method = stop.subscriptionDelivery?.subscription?.deliveryMethod;
-  if (stop.cashDuePaise > 0) {
-    return <View style={styles.proofRow}><Banknote size={17} color="#A15C00" /><Text style={styles.proofText}>Collect exactly {money(stop.cashDuePaise)} with customer OTP</Text></View>;
+  const cash = stop.cashDuePaise > 0;
+  if (isPhotoGps) {
+    return {
+      kind: 'PHOTO_GPS', Icon: cash ? Banknote : Camera, tint: cash ? '#A15C00' : '#0F766E',
+      summary: cash ? `Collect ${money(stop.cashDuePaise)} · Photo proof & GPS (No OTP)` : '₹0 due · Photo proof & GPS (No OTP)',
+      quickLabel: 'Deliver now',
+    };
+  }
+  if (cash) {
+    return { kind: 'OTP', Icon: Banknote, tint: '#A15C00', summary: `Collect exactly ${money(stop.cashDuePaise)} with customer OTP`, quickLabel: 'Deliver now' };
   }
   if (method === 'TRUSTED_DROP') {
-    return <View style={styles.proofRow}><Camera size={17} color="#0F766E" /><Text style={styles.proofText}>₹0 due · one-time QR, arrival/completion GPS and fresh photo required</Text></View>;
+    return { kind: 'TRUSTED_DROP', Icon: Camera, tint: '#0F766E', summary: '₹0 due · one-time QR, arrival/completion GPS and fresh photo required', quickLabel: 'Deliver now' };
   }
   if (method === 'SECURITY_RECEPTION') {
-    return <View style={styles.proofRow}><ShieldCheck size={17} color="#155E75" /><Text style={styles.proofText}>₹0 due · security/reception OTP handover</Text></View>;
+    return { kind: 'OTP', Icon: ShieldCheck, tint: '#155E75', summary: '₹0 due · security/reception OTP handover', quickLabel: 'Deliver now' };
   }
-  return <View style={styles.proofRow}><KeyRound size={17} color="#155E75" /><Text style={styles.proofText}>₹0 due · customer OTP handover</Text></View>;
+  return { kind: 'OTP', Icon: KeyRound, tint: '#155E75', summary: '₹0 due · customer OTP handover', quickLabel: 'Deliver now' };
+}
+
+function ProofSummary({ stop }: { stop: DeliveryRunStop }) {
+  const proof = proofDescriptor(stop);
+  const ProofIcon = proof.Icon;
+  return <View style={styles.proofRow}><ProofIcon size={17} color={proof.tint} /><Text style={styles.proofText}>{proof.summary}</Text></View>;
 }
 
 function StopCard({
   stop,
   isCurrent,
+  duplicateCustomer,
   onOpen,
   onNavigate,
   onMove,
+  onDeliverNow,
+  onSkip,
 }: {
   stop: DeliveryRunStop;
   isCurrent: boolean;
+  duplicateCustomer?: boolean;
   onOpen: () => void;
   onNavigate: () => void;
   onMove: (direction: 'up' | 'down') => void;
+  onDeliverNow: () => void;
+  onSkip: () => void;
 }) {
   const customer = stop.deliveryJob.order.customer;
+  const proof = proofDescriptor(stop);
+  const actionable = !['DELIVERED', 'CANCELLED', 'FAILED', 'RETURNED'].includes(stop.status);
+  const skippable = actionable && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(stop.status);
   return (
     <View style={[styles.stopCard, isCurrent && styles.stopCardCurrent]}>
       <View style={styles.stopHeader}>
         <View style={[styles.sequenceCircle, isCurrent && styles.sequenceCircleCurrent]}><Text style={[styles.sequenceText, isCurrent && styles.sequenceTextCurrent]}>{stop.sequenceNumber}</Text></View>
-        <View style={styles.stopHeadingCopy}><Text style={styles.customerName}>{customer?.name || 'Customer'}</Text><Text style={styles.addressText} numberOfLines={2}>{addressFrom(stop)}</Text></View>
+        <View style={styles.stopHeadingCopy}>
+          <Text style={styles.customerName}>{customer?.name || 'Customer'}</Text>
+          <Text style={styles.addressText} numberOfLines={2}>{addressFrom(stop)}</Text>
+          <View style={styles.planRow}>
+            <Text style={styles.planText} numberOfLines={1}>{planLabel(stop)}</Text>
+            {duplicateCustomer ? <Text style={styles.multiSubBadge}>2 subscriptions</Text> : null}
+          </View>
+        </View>
         <StatusChip value={stop.status} />
       </View>
       <View style={styles.itemsBox}>
@@ -205,15 +246,29 @@ function StopCard({
       </View>
       <ProofSummary stop={stop} />
       {stop.failureReason ? <View style={styles.failureNote}><CircleAlert size={15} color="#B42318" /><Text style={styles.failureNoteText}>{stop.failureReason}</Text></View> : null}
+
+      {actionable ? (
+        <View style={styles.quickActions}>
+          <TouchableOpacity accessibilityLabel={`Deliver stop ${stop.sequenceNumber} now`} style={styles.quickPrimary} onPress={onDeliverNow}>
+            <CheckCircle2 size={16} color="#FFFFFF" />
+            <Text style={styles.quickPrimaryText}>{proof.quickLabel}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityLabel={`Skip stop ${stop.sequenceNumber}`} style={styles.quickGhost} onPress={onSkip}>
+            <ArrowDown size={15} color="#B45309" />
+            <Text style={styles.quickGhostText}>Skip</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.stopActions}>
         <TouchableOpacity accessibilityLabel={`Navigate to stop ${stop.sequenceNumber}`} style={styles.secondaryButton} onPress={onNavigate}><Navigation size={17} color="#0F766E" /><Text style={styles.secondaryButtonText}>Navigate</Text></TouchableOpacity>
-        {!['DELIVERED', 'CANCELLED', 'FAILED', 'RETURNED'].includes(stop.status) ? (
+        {skippable ? (
           <View style={styles.reorderButtons}>
             <TouchableOpacity accessibilityLabel="Move stop earlier" style={styles.iconButton} onPress={() => onMove('up')}><ArrowUp size={17} color="#475569" /></TouchableOpacity>
             <TouchableOpacity accessibilityLabel="Move stop later" style={styles.iconButton} onPress={() => onMove('down')}><ArrowDown size={17} color="#475569" /></TouchableOpacity>
           </View>
         ) : null}
-        <TouchableOpacity style={styles.primaryButtonSmall} onPress={onOpen}><Text style={styles.primaryButtonSmallText}>{stop.status === 'DELIVERED' ? 'View' : 'Open stop'}</Text><ChevronRight size={17} color="#FFFFFF" /></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel={`Open stop ${stop.sequenceNumber} details`} style={styles.primaryButtonSmall} onPress={onOpen}><Text style={styles.primaryButtonSmallText}>{stop.status === 'DELIVERED' ? 'View' : 'Open'}</Text><ChevronRight size={17} color="#FFFFFF" /></TouchableOpacity>
       </View>
     </View>
   );
@@ -254,6 +309,14 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const [extraDays, setExtraDays] = useState(1);
   const [extraSlot, setExtraSlot] = useState<'AM' | 'PM'>('PM');
   const [extraNote, setExtraNote] = useState('');
+  const [riderLocation, setRiderLocation] = useState<Coordinates | null>(null);
+  const locationWatch = useRef<number | null>(null);
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [skipReason, setSkipReason] = useState('Customer requested skip');
+  const [showFullStop, setShowFullStop] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
   // A fresh nonce is minted when the add-on dialog opens and held in a ref for
   // the lifetime of that dialog: retries of one submission reuse the same key,
   // while every new add-on (including after a remount) gets a distinct one.
@@ -279,6 +342,24 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
     return () => { mounted = false; unsubscribe(); };
   }, []);
 
+  // Live rider position for the route map. Cleaned up on unmount so the map dot
+  // stops updating and the OS watch is released when the rider leaves the run.
+  useEffect(() => {
+    let cancelled = false;
+    void requestLocationPermission().then((permitted) => {
+      if (!permitted || cancelled) return;
+      locationWatch.current = Geolocation.watchPosition(
+        (position) => setRiderLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyMetres: position.coords.accuracy }),
+        () => {},
+        { enableHighAccuracy: true, distanceFilter: 12, interval: 6_000, fastestInterval: 4_000 },
+      );
+    });
+    return () => {
+      cancelled = true;
+      if (locationWatch.current != null) Geolocation.clearWatch(locationWatch.current);
+    };
+  }, []);
+
   const runQuery = useQuery({
     queryKey: ['rider', 'delivery-run', runId],
     queryFn: () => subscriptionOperationsService.getRun(runId),
@@ -294,9 +375,59 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const run = runQuery.data;
   const selectedStop = run?.stops.find((stop) => stop.id === selectedStopId) || null;
   const currentStop = useMemo(() => run?.stops.find((stop) => ['READY', 'PLANNED', 'ARRIVED', 'RETRY_PENDING'].includes(stop.status)) || null, [run?.stops]);
+  // "Deliver now" on a not-yet-arrived stop needs an arrival record first (the
+  // server requires it). Remember which stop the rider asked to deliver so the
+  // open sheet can auto-arrive and jump straight to the proof step.
+  const pendingQuickDeliverRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedStop) { pendingQuickDeliverRef.current = null; return; }
+    if (pendingQuickDeliverRef.current !== selectedStop.id) return;
+    if (selectedStop.status !== 'READY' && selectedStop.status !== 'PLANNED' && selectedStop.status !== 'RETRY_PENDING') return;
+    pendingQuickDeliverRef.current = null;
+    arriveMutation.mutate(selectedStop);
+  }, [selectedStop?.id, selectedStop?.status]);
+
+  const mapDestination = currentStop
+    ? stopCoordinates(currentStop)
+    : (run?.store && typeof run.store.latitude === 'number' && typeof run.store.longitude === 'number'
+      ? { latitude: run.store.latitude, longitude: run.store.longitude }
+      : null);
+  const mapDestinationLabel = currentStop
+    ? `${currentStop.sequenceNumber}. ${currentStop.deliveryJob.order.customer?.name || 'Customer'}`
+    : run?.store?.name || 'Store';
+  // Customers holding more than one subscription get one stop per subscription,
+  // so flag those so the rider can tell the two deliveries apart and mark each
+  // one delivered on its own.
+  const duplicateCustomerKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    (run?.stops || []).forEach((stop) => {
+      const key = customerKey(stop);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
+  }, [run?.stops]);
+  const mapStops = useMemo<RiderMapStop[]>(() => (run?.stops || []).flatMap((stop) => {
+    const point = stopCoordinates(stop);
+    if (!point) return [];
+    const isCurrent = currentStop?.id === stop.id;
+    const done = ['DELIVERED', 'COMPLETED'].includes(String(stop.status));
+    const multiSub = duplicateCustomerKeys.has(customerKey(stop));
+    return [{
+      latitude: point.latitude,
+      longitude: point.longitude,
+      sequence: stop.sequenceNumber,
+      label: multiSub ? `${stop.deliveryJob.order.customer?.name || 'Customer'} · ${planLabel(stop)}` : stop.deliveryJob.order.customer?.name || 'Customer',
+      state: isCurrent ? 'current' : done ? 'done' : 'upcoming',
+    }];
+  }), [run?.stops, currentStop?.id, duplicateCustomerKeys]);
+  const upcomingStops = useMemo(() => (run?.stops || [])
+    .filter((stop) => !['DELIVERED', 'CANCELLED', 'FAILED', 'RETURNED'].includes(String(stop.status)))
+    .slice()
+    .sort((a, b) => a.sequenceNumber - b.sequenceNumber), [run?.stops]);
   const completed = Number(run?.completedStopCount || 0);
   const total = Math.max(Number(run?.totalStopCount || run?.stops.length || 0), 1);
   const progress = Math.min(100, Math.round((completed / total) * 100));
+  const stopPoint = selectedStop ? stopCoordinates(selectedStop) : null;
 
   const refresh = async () => {
     await Promise.all([runQuery.refetch(), cashQuery.refetch()]);
@@ -346,7 +477,12 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       return subscriptionOperationsService.arriveAtStop(runId, stop.id, payload);
     },
     onSuccess: async () => { await refresh(); Toast.show({ type: 'success', text1: 'Arrival recorded', text2: 'GPS and timestamp were saved for this stop.' }); },
-    onError: (error) => Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) }),
+    onError: async (error) => {
+      // A conflict means another tab/refetch already bumped the stop; pull the
+      // fresh version so the rider can retry instead of staring at a stale sheet.
+      if (/changed|refresh and try again/i.test(errorMessage(error))) await refresh();
+      Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) });
+    },
   });
 
   const otpMutation = useMutation({
@@ -426,7 +562,10 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
         otpCode: trusted || isPhotoGps ? undefined : otpCode,
         trustedDropToken: trusted && !isPhotoGps ? dropToken.trim() : undefined,
         evidenceId: isPhotoGps || trusted ? trustedEvidenceId : undefined,
-        cashCollectedPaise: stop.cashDuePaise > 0 ? stop.cashDuePaise : undefined,
+        // Collect only what is still owed today; a part payment already
+        // recorded against this stop is subtracted so the door total matches
+        // the ledger.
+        cashCollectedPaise: stopOutstandingPaise(stop) > 0 ? stopOutstandingPaise(stop) : undefined,
         note: deliveryNote.trim() || undefined,
       });
     },
@@ -457,6 +596,59 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       Toast.show({ type: 'success', text1: retryRequested ? 'Retry recorded' : 'Failure recorded', text2: retryRequested ? 'The stop remains unresolved and must be retried.' : 'The exception is visible to the store and admin.' });
     },
     onError: (error) => Toast.show({ type: 'error', text1: 'Failure not recorded', text2: errorMessage(error) }),
+  });
+
+  const skipMutation = useMutation({
+    mutationFn: async (stop: DeliveryRunStop) => subscriptionOperationsService.skipStop(runId, stop.id, { reason: skipReason.trim() || 'Customer requested skip', version: stop.version }),
+    onSuccess: async () => {
+      setSkipOpen(false); setSelectedStopId(null);
+      await refresh();
+      Toast.show({ type: 'success', text1: 'Stop skipped', text2: 'Marked as customer-requested skip; the store and admin can see it.' });
+    },
+    onError: (error) => Toast.show({ type: 'error', text1: 'Could not skip stop', text2: errorMessage(error) }),
+  });
+
+  // Collect a part payment at the door. The rider types the amount in rupees;
+  // the server caps it at the day's outstanding due, so we validate the same
+  // ceiling here to fail fast with a clear message.
+  const paymentMutation = useMutation({
+    mutationFn: async ({ stop, amountPaise, note }: { stop: DeliveryRunStop; amountPaise: number; note?: string }) =>
+      subscriptionOperationsService.recordStopPayment(runId, stop.id, {
+        version: stop.version,
+        amountPaise,
+        paymentMode: 'CASH',
+        note,
+      }),
+    onSuccess: async (result, vars) => {
+      setPaymentOpen(false);
+      setPaymentAmount('');
+      setPaymentNote('');
+      await refresh();
+      Toast.show({
+        type: 'success',
+        text1: `Collected ${money(Number(result?.amountPaise ?? vars.amountPaise))}`,
+        text2: 'Recorded against this stop. Hand the cash to the store at settlement.',
+      });
+    },
+    onError: async (error) => {
+      if (/changed|refresh and try again/i.test(errorMessage(error))) await refresh();
+      Toast.show({ type: 'error', text1: 'Could not record payment', text2: errorMessage(error) });
+    },
+  });
+
+  // Undo a mistaken completion or skip. This is deliberately explicit: it
+  // reverses the funding entitlement and cash counters on the server.
+  const undoMutation = useMutation({
+    mutationFn: async (stop: DeliveryRunStop) =>
+      subscriptionOperationsService.undoStop(runId, stop.id, { version: stop.version, reason: 'Reversed from rider app' }),
+    onSuccess: async () => {
+      await refresh();
+      Toast.show({ type: 'success', text1: 'Stop reopened', text2: 'The delivery count and cash totals were reversed.' });
+    },
+    onError: async (error) => {
+      if (/changed|refresh and try again/i.test(errorMessage(error))) await refresh();
+      Toast.show({ type: 'error', text1: 'Could not undo stop', text2: errorMessage(error) });
+    },
   });
 
   const reorderMutation = useMutation({
@@ -552,6 +744,22 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
     onError: (error) => Toast.show({ type: 'error', text1: 'Could not add extra milk', text2: errorMessage(error) }),
   });
 
+  const openStop = (stop: DeliveryRunStop) => {
+    setShowFullStop(false);
+    setSelectedStopId(stop.id);
+  };
+
+  // Rupees still owed on this stop today: the day's due minus whatever the
+  // rider (or store) already collected against it.
+  const stopOutstandingPaise = (stop: DeliveryRunStop) =>
+    Math.max(0, (stop.cashDuePaise || 0) - (stop.subscriptionDelivery?.cashCollectedPaise || 0));
+
+  const openPartPayment = (stop: DeliveryRunStop) => {
+    setPaymentAmount(stopOutstandingPaise(stop) > 0 ? String(stopOutstandingPaise(stop) / 100) : '');
+    setPaymentNote('');
+    setPaymentOpen(true);
+  };
+
   const openNavigation = (stop: DeliveryRunStop) => {
     const snapshot = stop.subscriptionDelivery.subscription.addressSnapshot || {};
     const latitude = typeof snapshot.latitude === 'number' ? snapshot.latitude : undefined;
@@ -586,10 +794,55 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
         {run.status === 'PICKED_UP' ? <TouchableOpacity style={styles.stickyPrimary} disabled={runMutation.isPending} onPress={() => runMutation.mutate('start')}><Navigation size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{runMutation.isPending ? 'Starting…' : 'Start delivery run'}</Text></TouchableOpacity> : null}
         {run.status === 'PLANNED' || (run.status === 'READY_FOR_PICKUP' && !run.storeHandoffConfirmedAt) ? <View style={styles.noticeCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>Waiting for store handoff</Text><Text style={styles.noticeText}>The store must pack the exact route bags and confirm the physical handoff.</Text></View></View> : null}
         {run.status === 'READY_FOR_PICKUP' && run.storeHandoffConfirmedAt ? <View style={styles.pickupReceiptCard}><View style={styles.pickupReceiptHeader}><Package size={20} color="#0F766E" /><View style={styles.noticeCopy}><Text style={styles.pickupReceiptTitle}>Confirm your independent receipt</Text><Text style={styles.pickupReceiptText}>Count exactly {run.expectedBagCount || run.totalStopCount} bags before accepting this run.</Text></View></View>{run.crateCode ? <TextInput style={styles.input} value={pickupCrateCode} onChangeText={setPickupCrateCode} placeholder="Enter or scan route crate code" placeholderTextColor="#94A3B8" autoCapitalize="characters" /> : null}<TouchableOpacity style={styles.stickyPrimary} disabled={pickupMutation.isPending || Boolean(run.crateCode && !pickupCrateCode.trim())} onPress={() => pickupMutation.mutate()}><ShieldCheck size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{pickupMutation.isPending ? 'Verifying receipt…' : `Confirm ${run.expectedBagCount || run.totalStopCount} bags received`}</Text></TouchableOpacity></View> : null}
-        {run.status === 'IN_PROGRESS' && currentStop ? <TouchableOpacity style={styles.nextStopCard} onPress={() => setSelectedStopId(currentStop.id)}><View style={styles.nextStopIcon}><MapPin size={24} color="#FFFFFF" /></View><View style={styles.nextStopCopy}><Text style={styles.nextStopEyebrow}>NEXT STOP · {currentStop.sequenceNumber}</Text><Text style={styles.nextStopName}>{currentStop.deliveryJob.order.customer?.name || 'Customer'}</Text><Text style={styles.nextStopAddress} numberOfLines={1}>{addressFrom(currentStop)}</Text></View><ChevronRight size={24} color="#0F766E" /></TouchableOpacity> : null}
+        {run.status === 'IN_PROGRESS' && currentStop ? <TouchableOpacity style={styles.nextStopCard} onPress={() => openStop(currentStop)}><View style={styles.nextStopIcon}><MapPin size={24} color="#FFFFFF" /></View><View style={styles.nextStopCopy}><Text style={styles.nextStopEyebrow}>NEXT STOP · {currentStop.sequenceNumber}</Text><Text style={styles.nextStopName}>{currentStop.deliveryJob.order.customer?.name || 'Customer'}</Text><Text style={styles.nextStopAddress} numberOfLines={1}>{addressFrom(currentStop)}</Text></View><View style={styles.nextStopQuick}><Text style={styles.nextStopQuickText}>{proofDescriptor(currentStop).quickLabel}</Text><ChevronRight size={18} color="#0F766E" /></View></TouchableOpacity> : null}
+
+        {mapDestination ? (
+          <View style={styles.mapSection}>
+            <RiderRouteMap
+              destination={mapDestination}
+              destinationLabel={mapDestinationLabel}
+              riderLocation={riderLocation}
+              stops={mapStops}
+              progressDone={completed}
+              progressTotal={total}
+            />
+          </View>
+        ) : null}
+
+        {upcomingStops.length ? (
+          <View style={styles.upcomingSection}>
+            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming stops</Text><Text style={styles.sectionHint}>{upcomingStops.length} to deliver</Text></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.upcomingRail}>
+              {upcomingStops.map((stop, index) => {
+                const isCurrent = currentStop?.id === stop.id;
+                const point = stopCoordinates(stop);
+                return (
+                  <TouchableOpacity key={stop.id} activeOpacity={0.85} style={[styles.upcomingCard, isCurrent && styles.upcomingCardCurrent]} onPress={() => openStop(stop)}>
+                    <View style={styles.upcomingTopRow}>
+                      <View style={[styles.upcomingSeq, isCurrent && styles.upcomingSeqCurrent]}><Text style={[styles.upcomingSeqText, isCurrent && styles.upcomingSeqTextCurrent]}>{stop.sequenceNumber}</Text></View>
+                      {isCurrent ? <Text style={styles.upcomingNow}>NOW</Text> : <Text style={styles.upcomingOrder}>#{index + 1}</Text>}
+                    </View>
+                    <Text style={styles.upcomingName} numberOfLines={1}>{stop.deliveryJob.order.customer?.name || 'Customer'}</Text>
+                    <Text style={styles.upcomingAddress} numberOfLines={1}>{planLabel(stop)}</Text>
+                    <Text style={styles.upcomingAddress} numberOfLines={2}>{addressFrom(stop)}</Text>
+                    {duplicateCustomerKeys.has(customerKey(stop)) ? <Text style={styles.upcomingMultiSub}>2 subscriptions</Text> : null}
+                    <View style={styles.upcomingFooter}>
+                      <StatusChip value={stop.status} />
+                      {point ? <MapPin size={14} color="#0F766E" /> : <Text style={styles.upcomingNoPin}>No pin</Text>}
+                    </View>
+                    <View style={styles.upcomingActions}>
+                      <TouchableOpacity accessibilityLabel={`Deliver stop ${stop.sequenceNumber} now`} style={styles.upcomingDeliver} onPress={() => { pendingQuickDeliverRef.current = stop.id; openStop(stop); }}><CheckCircle2 size={13} color="#FFFFFF" /><Text style={styles.upcomingDeliverText}>Deliver</Text></TouchableOpacity>
+                      <TouchableOpacity accessibilityLabel={`Skip stop ${stop.sequenceNumber}`} style={styles.upcomingSkip} onPress={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); openStop(stop); }}><Text style={styles.upcomingSkipText}>Skip</Text></TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Ordered stops</Text><Text style={styles.sectionHint}>No bulk completion</Text></View>
-        {run.stops.map((stop) => <StopCard key={stop.id} stop={stop} isCurrent={currentStop?.id === stop.id} onOpen={() => setSelectedStopId(stop.id)} onNavigate={() => openNavigation(stop)} onMove={(direction) => reorderMutation.mutate({ stop, direction })} />)}
+        {run.stops.map((stop) => <StopCard key={stop.id} stop={stop} isCurrent={currentStop?.id === stop.id} duplicateCustomer={duplicateCustomerKeys.has(customerKey(stop))} onOpen={() => openStop(stop)} onNavigate={() => openNavigation(stop)} onMove={(direction) => reorderMutation.mutate({ stop, direction })} onDeliverNow={() => { pendingQuickDeliverRef.current = stop.id; openStop(stop); }} onSkip={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); openStop(stop); }} />)}
 
         {run.status === 'IN_PROGRESS' ? <TouchableOpacity style={styles.finishButton} disabled={runMutation.isPending} onPress={() => Alert.alert('Finish this route?', 'The server will block completion while any delivery, retry, or return requirement remains unresolved.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Check and finish', onPress: () => runMutation.mutate('finish') }])}><CheckCircle2 size={20} color="#FFFFFF" /><Text style={styles.finishButtonText}>Finish route after all stops</Text></TouchableOpacity> : null}
 
@@ -597,14 +850,57 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       </ScrollView>
 
       <Modal visible={Boolean(selectedStop)} transparent animationType="slide" onRequestClose={() => setSelectedStopId(null)}>
-        <View style={styles.modalBackdrop}><View style={styles.bottomSheet}>
+        <View style={[styles.modalBackdrop, styles.modalBackdropFull]}><View style={[styles.bottomSheet, styles.bottomSheetFull]}>
           {selectedStop ? <>
             <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>STOP {selectedStop.sequenceNumber}</Text><Text style={styles.sheetTitle}>{selectedStop.deliveryJob.order.customer?.name || 'Customer delivery'}</Text></View><TouchableOpacity style={styles.closeButton} onPress={() => setSelectedStopId(null)}><X size={21} color="#475569" /></TouchableOpacity></View>
+            <View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>STOP {selectedStop.sequenceNumber} · {run.completedStopCount} OF {total} DONE</Text><Text style={styles.sheetTitle}>{selectedStop.deliveryJob.order.customer?.name || 'Customer delivery'}</Text><View style={styles.sheetPlanRow}><Text style={styles.sheetPlanText} numberOfLines={1}>{planLabel(selectedStop)}</Text>{duplicateCustomerKeys.has(customerKey(selectedStop)) ? <Text style={styles.multiSubBadge}>2 subscriptions</Text> : null}</View></View><TouchableOpacity accessibilityLabel="Close stop details" style={styles.closeButton} onPress={() => setSelectedStopId(null)}><X size={21} color="#475569" /></TouchableOpacity></View>
             <ScrollView contentContainerStyle={styles.sheetScroll} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetAddress}>{addressFrom(selectedStop)}</Text>
-              {selectedStop.deliveryJob.order.customer?.phone ? <TouchableOpacity style={styles.contactRow} onPress={() => void Linking.openURL(`tel:${selectedStop.deliveryJob.order.customer.phone}`)}><Phone size={18} color="#0F766E" /><Text style={styles.contactText}>Call customer</Text></TouchableOpacity> : null}
+              {stopPoint ? (
+                <View style={styles.sheetMap}>
+                  <RiderRouteMap
+                    destination={stopPoint}
+                    destinationLabel={`${selectedStop.sequenceNumber}. ${selectedStop.deliveryJob.order.customer?.name || 'Customer'}`}
+                    riderLocation={riderLocation}
+                    stops={mapStops}
+                    progressDone={completed}
+                    progressTotal={total}
+                    expanded
+                  />
+                </View>
+              ) : null}
+              <View style={styles.sheetActionsRow}>
+                {selectedStop.deliveryJob.order.customer?.phone ? <TouchableOpacity accessibilityLabel="Call customer" style={styles.sheetChip} onPress={() => void Linking.openURL(`tel:${selectedStop.deliveryJob.order.customer.phone}`)}><Phone size={16} color="#0F766E" /><Text style={styles.sheetChipText}>Call</Text></TouchableOpacity> : null}
+                <TouchableOpacity accessibilityLabel="Navigate to customer" style={styles.sheetChip} onPress={() => openNavigation(selectedStop)}><Navigation size={16} color="#0F766E" /><Text style={styles.sheetChipText}>Navigate</Text></TouchableOpacity>
+                {!showFullStop ? <TouchableOpacity accessibilityLabel="Show full stop details" style={styles.sheetChipGhost} onPress={() => setShowFullStop(true)}><Text style={styles.sheetChipGhostText}>More details</Text></TouchableOpacity> : null}
+              </View>
               <View style={selectedStop.cashDuePaise > 0 ? styles.cashDueBanner : styles.fundedBanner}><Banknote size={21} color={selectedStop.cashDuePaise > 0 ? '#8A4B00' : '#0F766E'} /><View style={styles.bannerCopy}><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueTitle : styles.fundedTitle}>{selectedStop.cashDuePaise > 0 ? `${money(selectedStop.cashDuePaise)} due now` : 'Customer amount due: ₹0'}</Text><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueText : styles.fundedText}>{selectedStop.cashDuePaise > 0 ? ((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery) ? 'Collect the exact cash amount and take delivery photo proof. No OTP needed.' : 'Collect the exact amount only after valid OTP.') : 'Subscription already funded. Do not collect cash.'}</Text></View></View>
+
+              {selectedStop.cashDuePaise > 0 || Number(selectedStop.subscriptionDelivery?.cashCollectedPaise || 0) > 0 ? (() => {
+                const outstanding = stopOutstandingPaise(selectedStop);
+                const collected = Number(selectedStop.subscriptionDelivery?.cashCollectedPaise || 0);
+                return (
+                  <View style={styles.partialCard}>
+                    <View style={styles.partialHead}>
+                      <Banknote size={18} color={outstanding > 0 ? '#8A4B00' : '#0F766E'} />
+                      <Text style={styles.partialTitle}>{outstanding > 0 ? `${money(outstanding)} still to collect` : 'This stop is fully collected'}</Text>
+                    </View>
+                    {collected > 0 ? <Text style={styles.partialText}>Already recorded today: {money(collected)}. The rider holds this cash until store settlement.</Text> : null}
+                    {outstanding > 0 ? (
+                      <>
+                        <Text style={styles.partialText}>Customer can only pay part now? Record what you received. The rest stays on the customer ledger and the stop still completes.</Text>
+                        <TouchableOpacity style={styles.partPayButton} onPress={() => openPartPayment(selectedStop)}>
+                          <Plus size={17} color="#0F766E" />
+                          <Text style={styles.partPayButtonText}>Record a part payment</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
+                  </View>
+                );
+              })() : null}
+
+              {showFullStop ? (
+              <>
+              <Text style={styles.sheetAddress}>{addressFrom(selectedStop)}</Text>
 
               {/* Extra Milk & Scheduling section for active subscription stops */}
               {Boolean(selectedStop.subscriptionDelivery) && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? (
@@ -808,8 +1104,16 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                   )}
                 </View>
               ) : null}
+              </>
+              ) : null}
 
-              {selectedStop.status !== 'ARRIVED' && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? <TouchableOpacity style={styles.sheetPrimary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><MapPin size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{arriveMutation.isPending ? 'Reading GPS…' : 'I have arrived'}</Text></TouchableOpacity> : null}
+              {selectedStop.status !== 'ARRIVED' && !['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED'].includes(selectedStop.status) ? (
+                <View>
+                  {showFullStop ? <Text style={styles.fundedText}>The server requires an arrival record before delivery. “Mark delivered” reads GPS arrival, then reveals the proof step.</Text> : null}
+                  <TouchableOpacity style={styles.sheetPrimary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><MapPin size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{arriveMutation.isPending ? 'Reading GPS…' : 'I have arrived'}</Text></TouchableOpacity>
+                  <TouchableOpacity accessibilityLabel={`Deliver stop ${selectedStop.sequenceNumber} now`} style={styles.sheetSecondary} disabled={arriveMutation.isPending} onPress={() => arriveMutation.mutate(selectedStop)}><CheckCircle2 size={20} color="#0F766E" /><Text style={styles.sheetSecondaryText}>Mark delivered (arrive + proof)</Text></TouchableOpacity>
+                </View>
+              ) : null}
               {selectedStop.status === 'ARRIVED' ? <>
                 {((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS') ? (
                   <>
@@ -835,8 +1139,10 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                 <Text style={styles.inputLabel}>Delivery note (optional)</Text><TextInput style={[styles.input, styles.noteInput]} multiline value={deliveryNote} onChangeText={setDeliveryNote} placeholder="Quantity confirmed, drop location, recipient…" placeholderTextColor="#94A3B8" />
                 <TouchableOpacity style={styles.sheetPrimary} disabled={completeMutation.isPending} onPress={() => completeMutation.mutate(selectedStop)}><CheckCircle2 size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{completeMutation.isPending ? 'Verifying delivery…' : 'Verify and complete this stop'}</Text></TouchableOpacity>
                 <TouchableOpacity style={styles.failButton} onPress={() => setFailureOpen(true)}><CircleAlert size={19} color="#B42318" /><Text style={styles.failButtonText}>Report failure or request retry</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.skipButton} onPress={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); }}><ArrowDown size={19} color="#B45309" /><Text style={styles.skipButtonText}>Skip this stop (customer asked)</Text></TouchableOpacity>
               </> : null}
-              {selectedStop.status === 'DELIVERED' ? <View style={styles.deliveredState}><CheckCircle2 size={34} color="#0F766E" /><Text style={styles.deliveredTitle}>Delivery verified</Text><Text style={styles.deliveredText}>This stop is immutable and cannot be completed again.</Text></View> : null}
+              {selectedStop.status === 'DELIVERED' ? <View style={styles.deliveredState}><CheckCircle2 size={34} color="#0F766E" /><Text style={styles.deliveredTitle}>Delivery verified</Text><Text style={styles.deliveredText}>Marked delivered by mistake? You can reopen it and the server will reverse the delivery count and cash.</Text>{selectedStop.subscriptionDelivery?.cashCollectedPaise ? <Text style={styles.deliveredCash}>Cash recorded today: {money(Number(selectedStop.subscriptionDelivery.cashCollectedPaise))}</Text> : null}<TouchableOpacity accessibilityLabel="Undo delivery" style={styles.undoButton} disabled={undoMutation.isPending} onPress={() => Alert.alert('Reopen this stop?', 'The delivery count, cash totals and order status for this stop will be reversed. Only do this if the stop was closed by mistake.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Reopen stop', style: 'destructive', onPress: () => undoMutation.mutate(selectedStop) }])}>{undoMutation.isPending ? <ActivityIndicator size="small" color="#B45309" /> : <RefreshCw size={17} color="#B45309" />}<Text style={styles.undoButtonText}>{undoMutation.isPending ? 'Reopening…' : 'Reopen this stop (undo delivery)'}</Text></TouchableOpacity></View> : null}
+              {['CANCELLED', 'FAILED'].includes(selectedStop.status) ? <View style={styles.deliveredState}><Text style={styles.deliveredTitle}>{selectedStop.status === 'CANCELLED' ? 'Stop skipped' : 'Stop failed'}</Text><Text style={styles.deliveredText}>{selectedStop.failureReason || 'This stop was closed with an exception.'}</Text><TouchableOpacity accessibilityLabel="Undo skip" style={styles.undoButton} disabled={undoMutation.isPending} onPress={() => Alert.alert('Reopen this stop?', 'The skip/failure counter and the delivery status will be reversed so you can retry it.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Reopen stop', style: 'destructive', onPress: () => undoMutation.mutate(selectedStop) }])}>{undoMutation.isPending ? <ActivityIndicator size="small" color="#B45309" /> : <RefreshCw size={17} color="#B45309" />}<Text style={styles.undoButtonText}>{undoMutation.isPending ? 'Reopening…' : 'Reopen this stop'}</Text></TouchableOpacity></View> : null}
             </ScrollView>
           </> : null}
         </View></View>
@@ -848,6 +1154,47 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
           <Text style={styles.inputLabel}>Operational note</Text><TextInput style={[styles.input, styles.noteInput]} value={failureNote} onChangeText={setFailureNote} multiline placeholder="What happened and what should the next operator know?" placeholderTextColor="#94A3B8" />
           <View style={styles.retryRow}><View style={styles.retryCopy}><Text style={styles.retryTitle}>Retry this stop</Text><Text style={styles.retryText}>Keep it unresolved so the run cannot close accidentally.</Text></View><Switch value={retryRequested} onValueChange={setRetryRequested} trackColor={{ false: '#CBD5E1', true: '#8EDDC0' }} thumbColor={retryRequested ? '#0F766E' : '#FFFFFF'} /></View>
           <TouchableOpacity style={styles.failureSubmit} disabled={failMutation.isPending || !selectedStop} onPress={() => selectedStop && failMutation.mutate(selectedStop)}><CircleAlert size={20} color="#FFFFFF" /><Text style={styles.failureSubmitText}>{failMutation.isPending ? 'Recording…' : retryRequested ? 'Record and keep for retry' : 'Record delivery failure'}</Text></TouchableOpacity>
+        </ScrollView></View></View>
+      </Modal>
+
+      <Modal visible={skipOpen && Boolean(selectedStop)} transparent animationType="slide" onRequestClose={() => setSkipOpen(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.bottomSheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>SKIP STOP</Text><Text style={styles.sheetTitle}>{selectedStop ? `Stop ${selectedStop.sequenceNumber} · ${selectedStop.deliveryJob.order.customer?.name || 'Customer'}` : 'Skip stop'}</Text></View><TouchableOpacity style={styles.closeButton} onPress={() => setSkipOpen(false)}><X size={21} color="#475569" /></TouchableOpacity></View><ScrollView contentContainerStyle={styles.sheetScroll}>
+          <Text style={styles.fundedText}>Skip is for a stop that should not be delivered today — the customer asked to skip, or the stop is not on the route. It marks the stop and its subscription-day delivery as skipped and records the reason for the store and admin. It does not count as a failure.</Text>
+          <Text style={styles.inputLabel}>Reason</Text>
+          <View style={styles.reasonGrid}>{SKIP_REASONS.map((reason) => <TouchableOpacity key={reason} style={[styles.reasonChip, skipReason === reason && styles.reasonChipActive]} onPress={() => setSkipReason(reason)}><Text style={[styles.reasonChipText, skipReason === reason && styles.reasonChipTextActive]}>{reason}</Text></TouchableOpacity>)}</View>
+          <TextInput style={[styles.input, styles.noteInput]} value={skipReason} onChangeText={setSkipReason} multiline placeholder="Why is this stop being skipped?" placeholderTextColor="#94A3B8" />
+          <TouchableOpacity style={styles.skipSubmit} disabled={skipMutation.isPending || !selectedStop} onPress={() => selectedStop && skipMutation.mutate(selectedStop)}><ArrowDown size={20} color="#FFFFFF" /><Text style={styles.skipSubmitText}>{skipMutation.isPending ? 'Skipping…' : 'Skip this stop'}</Text></TouchableOpacity>
+        </ScrollView></View></View>
+      </Modal>
+
+      <Modal visible={paymentOpen && Boolean(selectedStop)} transparent animationType="slide" onRequestClose={() => setPaymentOpen(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.bottomSheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>PART PAYMENT</Text><Text style={styles.sheetTitle}>{selectedStop ? `Stop ${selectedStop.sequenceNumber} · ${selectedStop.deliveryJob.order.customer?.name || 'Customer'}` : 'Record payment'}</Text></View><TouchableOpacity style={styles.closeButton} onPress={() => setPaymentOpen(false)}><X size={21} color="#475569" /></TouchableOpacity></View><ScrollView contentContainerStyle={styles.sheetScroll} keyboardShouldPersistTaps="handled">
+          {selectedStop ? (() => {
+            const outstanding = stopOutstandingPaise(selectedStop);
+            const enteredPaise = Math.round(Number(paymentAmount) * 100);
+            const valid = Number.isFinite(enteredPaise) && enteredPaise > 0 && enteredPaise <= outstanding;
+            const over = Number.isFinite(enteredPaise) && enteredPaise > outstanding;
+            return (
+              <>
+                <View style={styles.expectedCashBox}><Text style={styles.expectedCashLabel}>Still to collect on this stop</Text><Text style={styles.expectedCashValue}>{money(outstanding)}</Text></View>
+                <Text style={styles.inputLabel}>Amount received from customer (₹)</Text>
+                <TextInput style={[styles.input, styles.cashInput]} keyboardType="decimal-pad" value={paymentAmount} onChangeText={(value) => setPaymentAmount(value.replace(/[^0-9.]/g, ''))} placeholder="0.00" placeholderTextColor="#94A3B8" />
+                <View style={styles.paymentQuickRow}>
+                  {[0.25, 0.5, 1].map((fraction) => {
+                    const value = Math.round(outstanding * fraction);
+                    if (value <= 0) return null;
+                    const label = fraction === 1 ? 'Full' : fraction === 0.5 ? 'Half' : 'Quarter';
+                    return <TouchableOpacity key={fraction} style={styles.paymentQuickChip} onPress={() => setPaymentAmount(String(value / 100))}><Text style={styles.paymentQuickChipText}>{label} · {money(value)}</Text></TouchableOpacity>;
+                  })}
+                </View>
+                {over ? <Text style={styles.paymentError}>Amount cannot exceed the outstanding {money(outstanding)}.</Text> : null}
+                <Text style={styles.inputLabel}>Note (optional)</Text>
+                <TextInput style={[styles.input, styles.noteInput]} value={paymentNote} onChangeText={setPaymentNote} multiline placeholder="Customer will pay the rest on the next delivery" placeholderTextColor="#94A3B8" />
+                <Text style={styles.cashDisclaimer}>The rest stays on the customer ledger. The stop still completes and the store reconciles the balance later.</Text>
+                <TouchableOpacity style={styles.sheetPrimary} disabled={paymentMutation.isPending || !valid} onPress={() => paymentMutation.mutate({ stop: selectedStop, amountPaise: enteredPaise, note: paymentNote.trim() || undefined })}><Banknote size={20} color="#FFFFFF" /><Text style={styles.sheetPrimaryText}>{paymentMutation.isPending ? 'Recording…' : `Record ${valid ? money(enteredPaise) : 'payment'}`}</Text></TouchableOpacity>
+              </>
+            );
+          })() : null}
         </ScrollView></View></View>
       </Modal>
 
@@ -870,9 +1217,9 @@ const styles = StyleSheet.create({
   stickyPrimary: { minHeight: 54, margin: 16, marginBottom: 0, borderRadius: 17, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, stickyPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' }, offlinePendingCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 16, flexDirection: 'row', gap: 12 }, noticeCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 16, flexDirection: 'row', gap: 12 }, noticeCopy: { flex: 1 }, noticeTitle: { color: '#704000', fontSize: 14, fontWeight: '600' }, noticeText: { color: '#8A5A14', fontSize: 12, lineHeight: 18, marginTop: 2 },
   nextStopCard: { margin: 16, marginBottom: 0, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B8DDCE', padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#0F2A20', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 }, nextStopIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, nextStopCopy: { flex: 1, marginHorizontal: 12 }, nextStopEyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, nextStopName: { color: '#17211D', fontSize: 16, fontWeight: '600', marginTop: 2 }, nextStopAddress: { color: '#64748B', fontSize: 11, marginTop: 2 },
   sectionHeader: { marginTop: 23, marginBottom: 11, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, sectionTitle: { color: '#17211D', fontSize: 19, fontWeight: '600' }, sectionHint: { color: '#0F766E', fontSize: 10, fontWeight: '600', backgroundColor: '#E2F5EC', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  stopCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E1EAE6' }, stopCardCurrent: { borderColor: '#60C69E', borderWidth: 2 }, stopHeader: { flexDirection: 'row', alignItems: 'flex-start' }, sequenceCircle: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#EEF3F1', alignItems: 'center', justifyContent: 'center' }, sequenceCircleCurrent: { backgroundColor: '#0F766E' }, sequenceText: { color: '#475569', fontSize: 14, fontWeight: '600' }, sequenceTextCurrent: { color: '#FFFFFF' }, stopHeadingCopy: { flex: 1, marginHorizontal: 10 }, customerName: { color: '#17211D', fontSize: 15, fontWeight: '600' }, addressText: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 2 }, statusChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, maxWidth: 105 }, statusChipText: { fontSize: 9, fontWeight: '600', textAlign: 'center' }, statusComplete: { backgroundColor: '#E5F7EE' }, statusCompleteText: { color: '#0F766E' }, statusDanger: { backgroundColor: '#FDECEC' }, statusDangerText: { color: '#B42318' }, statusWarning: { backgroundColor: '#FFF1D6' }, statusWarningText: { color: '#8A4B00' }, statusNeutral: { backgroundColor: '#EEF2F6' }, statusNeutralText: { color: '#475569' }, itemsBox: { marginTop: 12, borderRadius: 13, backgroundColor: '#F8FAF9', padding: 10, gap: 6 }, itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, itemText: { color: '#475569', fontSize: 12, fontWeight: '600' }, proofRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 11 }, proofText: { flex: 1, color: '#475569', fontSize: 11, fontWeight: '500' }, failureNote: { marginTop: 10, borderRadius: 12, backgroundColor: '#FEF1F0', padding: 9, flexDirection: 'row', gap: 8 }, failureNoteText: { flex: 1, color: '#9F2D23', fontSize: 11 }, stopActions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 }, secondaryButton: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#B8DDCE', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 4 }, secondaryButtonText: { color: '#0F766E', fontSize: 11, fontWeight: '600' }, reorderButtons: { flexDirection: 'row', gap: 4 }, iconButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, primaryButtonSmall: { marginLeft: 'auto', minHeight: 42, borderRadius: 13, backgroundColor: '#0F766E', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }, primaryButtonSmallText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  stopCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E1EAE6' }, stopCardCurrent: { borderColor: '#60C69E', borderWidth: 2 }, stopHeader: { flexDirection: 'row', alignItems: 'flex-start' }, sequenceCircle: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#EEF3F1', alignItems: 'center', justifyContent: 'center' }, sequenceCircleCurrent: { backgroundColor: '#0F766E' }, sequenceText: { color: '#475569', fontSize: 14, fontWeight: '600' }, sequenceTextCurrent: { color: '#FFFFFF' }, stopHeadingCopy: { flex: 1, marginHorizontal: 10 }, customerName: { color: '#17211D', fontSize: 15, fontWeight: '600' }, addressText: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 2 }, statusChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, maxWidth: 105 }, statusChipText: { fontSize: 9, fontWeight: '600', textAlign: 'center' }, statusComplete: { backgroundColor: '#E5F7EE' }, statusCompleteText: { color: '#0F766E' }, statusDanger: { backgroundColor: '#FDECEC' }, statusDangerText: { color: '#B42318' }, statusWarning: { backgroundColor: '#FFF1D6' }, statusWarningText: { color: '#8A4B00' }, statusNeutral: { backgroundColor: '#EEF2F6' }, statusNeutralText: { color: '#475569' }, itemsBox: { marginTop: 12, borderRadius: 13, backgroundColor: '#F8FAF9', padding: 10, gap: 6 }, itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, itemText: { color: '#475569', fontSize: 12, fontWeight: '600' }, proofRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 11 }, proofText: { flex: 1, color: '#475569', fontSize: 11, fontWeight: '500' }, failureNote: { marginTop: 10, borderRadius: 12, backgroundColor: '#FEF1F0', padding: 9, flexDirection: 'row', gap: 8 }, failureNoteText: { flex: 1, color: '#9F2D23', fontSize: 11 }, stopActions: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 }, secondaryButton: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#B8DDCE', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 4 }, secondaryButtonText: { color: '#0F766E', fontSize: 11, fontWeight: '600' }, reorderButtons: { flexDirection: 'row', gap: 4 }, iconButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, primaryButtonSmall: { marginLeft: 'auto', minHeight: 42, borderRadius: 13, backgroundColor: '#0F766E', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }, primaryButtonSmallText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' }, planRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }, planText: { color: '#0F766E', fontSize: 11, fontWeight: '600', flexShrink: 1 }, multiSubBadge: { color: '#8A4B00', backgroundColor: '#FFF1D6', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 9, fontWeight: '700', overflow: 'hidden' },
   finishButton: { minHeight: 54, marginHorizontal: 16, marginTop: 6, borderRadius: 17, backgroundColor: '#243C33', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, finishButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' }, cashCard: { margin: 16, borderRadius: 22, backgroundColor: '#FFF8E9', borderWidth: 1, borderColor: '#EDD8A8', padding: 17 }, cashTitleRow: { flexDirection: 'row', alignItems: 'center' }, cashIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#FFE9B6', alignItems: 'center', justifyContent: 'center' }, cashCopy: { flex: 1, marginLeft: 11 }, cashTitle: { color: '#704000', fontSize: 16, fontWeight: '600' }, cashText: { color: '#8A5A14', fontSize: 11, lineHeight: 16, marginTop: 2 }, cashTotals: { marginTop: 15, borderRadius: 14, backgroundColor: '#FFFFFF', padding: 12, flexDirection: 'row', justifyContent: 'space-between' }, cashTotalLabel: { color: '#64748B', fontSize: 12, fontWeight: '500' }, cashTotalValue: { color: '#704000', fontSize: 18, fontWeight: '600' }, cashButton: { minHeight: 50, marginTop: 12, borderRadius: 15, backgroundColor: '#A15C00', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }, cashButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.46)', justifyContent: 'flex-end' }, bottomSheet: { maxHeight: '91%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 9, paddingBottom: 24 }, sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#D1D9D5', alignSelf: 'center' }, sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#EDF1EF' }, sheetEyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '600', letterSpacing: 1.1 }, sheetTitle: { color: '#17211D', fontSize: 20, fontWeight: '600', marginTop: 2 }, closeButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, sheetScroll: { padding: 18, paddingBottom: 34 }, sheetAddress: { color: '#475569', fontSize: 13, lineHeight: 19 }, contactRow: { marginTop: 10, minHeight: 43, alignSelf: 'flex-start', borderRadius: 13, backgroundColor: '#E7F7EF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }, contactText: { color: '#0F766E', fontSize: 12, fontWeight: '600' }, cashDueBanner: { marginTop: 14, borderRadius: 16, backgroundColor: '#FFF2D9', borderWidth: 1, borderColor: '#EDD39D', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, fundedBanner: { marginTop: 14, borderRadius: 16, backgroundColor: '#E6F8EF', borderWidth: 1, borderColor: '#B9E5D1', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, bannerCopy: { flex: 1 }, cashDueTitle: { color: '#704000', fontSize: 14, fontWeight: '600' }, cashDueText: { color: '#8A5A14', fontSize: 11, lineHeight: 16, marginTop: 2 }, fundedTitle: { color: '#075E45', fontSize: 14, fontWeight: '600' }, fundedText: { color: '#0F766E', fontSize: 11, lineHeight: 16, marginTop: 2 }, sheetPrimary: { minHeight: 54, marginTop: 15, borderRadius: 16, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, sheetPrimaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' }, otpButton: { minHeight: 48, marginTop: 14, borderRadius: 15, borderWidth: 1, borderColor: '#9ED6BF', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, otpButtonText: { color: '#0F766E', fontSize: 13, fontWeight: '600' }, inputLabel: { color: '#334155', fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 8 }, input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: '#D5DEDA', backgroundColor: '#FAFCFB', paddingHorizontal: 14, color: '#17211D', fontSize: 14 }, otpInput: { fontSize: 22, fontWeight: '600', letterSpacing: 7, textAlign: 'center' }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, failButton: { minHeight: 50, marginTop: 10, borderRadius: 15, borderWidth: 1, borderColor: '#F2BBB7', backgroundColor: '#FFF7F6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, failButtonText: { color: '#B42318', fontSize: 13, fontWeight: '600' }, deliveredState: { alignItems: 'center', paddingVertical: 35, gap: 8 }, deliveredTitle: { color: '#0F766E', fontSize: 18, fontWeight: '600' }, deliveredText: { color: '#64748B', fontSize: 12, textAlign: 'center' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.46)', justifyContent: 'flex-end' }, bottomSheet: { maxHeight: '91%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 9, paddingBottom: 24 }, modalBackdropFull: { backgroundColor: '#FFFFFF' }, bottomSheetFull: { flex: 1, maxHeight: '100%', borderTopLeftRadius: 0, borderTopRightRadius: 0 }, sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#D1D9D5', alignSelf: 'center' }, sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#EDF1EF' }, sheetEyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '600', letterSpacing: 1.1 }, sheetTitle: { color: '#17211D', fontSize: 20, fontWeight: '600', marginTop: 2 }, sheetPlanRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }, sheetPlanText: { color: '#0F766E', fontSize: 12, fontWeight: '600', flexShrink: 1 }, closeButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' }, sheetScroll: { padding: 18, paddingBottom: 34 }, sheetAddress: { color: '#475569', fontSize: 13, lineHeight: 19 }, contactRow: { marginTop: 10, minHeight: 43, alignSelf: 'flex-start', borderRadius: 13, backgroundColor: '#E7F7EF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }, contactText: { color: '#0F766E', fontSize: 12, fontWeight: '600' }, cashDueBanner: { marginTop: 14, borderRadius: 16, backgroundColor: '#FFF2D9', borderWidth: 1, borderColor: '#EDD39D', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, fundedBanner: { marginTop: 14, borderRadius: 16, backgroundColor: '#E6F8EF', borderWidth: 1, borderColor: '#B9E5D1', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, bannerCopy: { flex: 1 }, cashDueTitle: { color: '#704000', fontSize: 14, fontWeight: '600' }, cashDueText: { color: '#8A5A14', fontSize: 11, lineHeight: 16, marginTop: 2 }, fundedTitle: { color: '#075E45', fontSize: 14, fontWeight: '600' }, fundedText: { color: '#0F766E', fontSize: 11, lineHeight: 16, marginTop: 2 }, sheetPrimary: { minHeight: 54, marginTop: 15, borderRadius: 16, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, sheetPrimaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' }, otpButton: { minHeight: 48, marginTop: 14, borderRadius: 15, borderWidth: 1, borderColor: '#9ED6BF', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, otpButtonText: { color: '#0F766E', fontSize: 13, fontWeight: '600' }, inputLabel: { color: '#334155', fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 8 }, input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: '#D5DEDA', backgroundColor: '#FAFCFB', paddingHorizontal: 14, color: '#17211D', fontSize: 14 }, otpInput: { fontSize: 22, fontWeight: '600', letterSpacing: 7, textAlign: 'center' }, noteInput: { minHeight: 86, paddingTop: 12, textAlignVertical: 'top' }, failButton: { minHeight: 50, marginTop: 10, borderRadius: 15, borderWidth: 1, borderColor: '#F2BBB7', backgroundColor: '#FFF7F6', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, failButtonText: { color: '#B42318', fontSize: 13, fontWeight: '600' }, deliveredState: { alignItems: 'center', paddingVertical: 35, gap: 8 }, deliveredTitle: { color: '#0F766E', fontSize: 18, fontWeight: '600' }, deliveredText: { color: '#64748B', fontSize: 12, textAlign: 'center' },
   reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, reasonChip: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#D7DFDB', paddingHorizontal: 11, alignItems: 'center', justifyContent: 'center' }, reasonChipActive: { borderColor: '#B42318', backgroundColor: '#FFF0EF' }, reasonChipText: { color: '#475569', fontSize: 11, fontWeight: '600' }, reasonChipTextActive: { color: '#B42318' }, retryRow: { marginTop: 16, borderRadius: 16, backgroundColor: '#F7FAF8', padding: 12, flexDirection: 'row', alignItems: 'center' }, retryCopy: { flex: 1, paddingRight: 12 }, retryTitle: { color: '#17211D', fontSize: 14, fontWeight: '600' }, retryText: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 2 }, failureSubmit: { minHeight: 54, marginTop: 16, borderRadius: 16, backgroundColor: '#B42318', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, failureSubmitText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   expectedCashBox: { borderRadius: 18, backgroundColor: '#FFF5DE', padding: 17, alignItems: 'center' }, expectedCashLabel: { color: '#8A5A14', fontSize: 11, fontWeight: '600' }, expectedCashValue: { color: '#704000', fontSize: 29, fontWeight: '600', marginTop: 4 }, cashInput: { fontSize: 21, fontWeight: '600' }, cashDisclaimer: { color: '#64748B', fontSize: 11, lineHeight: 17, marginTop: 12 },
   pickupReceiptCard: { marginHorizontal: 16, marginBottom: 14, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B8DDCE', padding: 16, gap: 12 },
@@ -908,4 +1255,57 @@ const styles = StyleSheet.create({
   extraSummaryNote: { color: '#0F766E', fontSize: 10, marginTop: 2, fontWeight: '500' },
   extraSubmitBtn: { minHeight: 46, marginTop: 12, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   extraSubmitText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  mapSection: { marginHorizontal: 16, marginTop: 16 },
+  upcomingSection: { marginTop: 4 },
+  upcomingRail: { paddingHorizontal: 16, gap: 12, paddingBottom: 6 },
+  upcomingCard: { width: 196, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1EAE6', padding: 13, shadowColor: '#0F2A20', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  upcomingCardCurrent: { borderColor: '#0F766E', borderWidth: 2 },
+  upcomingTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  upcomingSeq: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#EEF3F1', alignItems: 'center', justifyContent: 'center' },
+  upcomingSeqCurrent: { backgroundColor: '#0F766E' },
+  upcomingSeqText: { color: '#475569', fontSize: 13, fontWeight: '700' },
+  upcomingSeqTextCurrent: { color: '#FFFFFF' },
+  upcomingNow: { color: '#0F766E', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
+  upcomingOrder: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+  upcomingName: { color: '#17211D', fontSize: 14, fontWeight: '600', marginTop: 9 },
+  upcomingAddress: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 3, minHeight: 32 }, upcomingMultiSub: { color: '#8A4B00', backgroundColor: '#FFF1D6', alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 9, fontWeight: '700', marginTop: 4, overflow: 'hidden' },
+  upcomingFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  upcomingNoPin: { color: '#94A3B8', fontSize: 10, fontWeight: '500' },
+  upcomingActions: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  upcomingDeliver: { flex: 1, minHeight: 30, borderRadius: 10, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  upcomingDeliverText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  upcomingSkip: { minHeight: 30, borderRadius: 10, borderWidth: 1, borderColor: '#F0CFA0', backgroundColor: '#FFF7E8', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  upcomingSkipText: { color: '#B45309', fontSize: 10, fontWeight: '700' },
+  nextStopQuick: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  nextStopQuickText: { color: '#0F766E', fontSize: 12, fontWeight: '700' },
+  quickActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  quickPrimary: { flex: 1, minHeight: 40, borderRadius: 13, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  quickPrimaryText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  quickGhost: { minHeight: 40, borderRadius: 13, borderWidth: 1, borderColor: '#F0CFA0', backgroundColor: '#FFF7E8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 14 },
+  quickGhostText: { color: '#B45309', fontSize: 12, fontWeight: '700' },
+  sheetMap: { height: 260, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#D9E6E0', backgroundColor: '#E8F3EF' },
+  sheetActionsRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  sheetChip: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#B8DDCE', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14 },
+  sheetChipText: { color: '#0F766E', fontSize: 12, fontWeight: '600' },
+  sheetChipGhost: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#D5DEDA', backgroundColor: '#FAFCFB', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  sheetChipGhostText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  sheetSecondary: { minHeight: 50, marginTop: 10, borderRadius: 15, borderWidth: 1, borderColor: '#9ED6BF', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  sheetSecondaryText: { color: '#0F766E', fontSize: 13, fontWeight: '600' },
+  skipButton: { minHeight: 50, marginTop: 10, borderRadius: 15, borderWidth: 1, borderColor: '#F0CFA0', backgroundColor: '#FFF7E8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  skipButtonText: { color: '#B45309', fontSize: 13, fontWeight: '600' },
+  skipSubmit: { minHeight: 50, marginTop: 14, borderRadius: 15, backgroundColor: '#B45309', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  skipSubmitText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  partialCard: { marginTop: 12, borderRadius: 15, backgroundColor: '#FFF9EE', borderWidth: 1, borderColor: '#EBD7B0', padding: 12 },
+  partialHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partialTitle: { color: '#8A4B00', fontSize: 13, fontWeight: '700' },
+  partialText: { color: '#7A5A1E', fontSize: 11, lineHeight: 16, marginTop: 6 },
+  partPayButton: { minHeight: 46, marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: '#9ED6BF', backgroundColor: '#EFFBF5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  partPayButtonText: { color: '#0F766E', fontSize: 13, fontWeight: '600' },
+  paymentQuickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  paymentQuickChip: { flex: 1, minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#D5DEDA', backgroundColor: '#FAFCFB', alignItems: 'center', justifyContent: 'center' },
+  paymentQuickChipText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
+  paymentError: { color: '#B42318', fontSize: 12, fontWeight: '600', marginTop: 8 },
+  deliveredCash: { color: '#704000', fontSize: 12, fontWeight: '600', marginTop: 4 },
+  undoButton: { minHeight: 46, marginTop: 14, borderRadius: 14, borderWidth: 1, borderColor: '#F2C58F', backgroundColor: '#FFF6E9', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
+  undoButtonText: { color: '#B45309', fontSize: 13, fontWeight: '600' },
 });
