@@ -588,7 +588,9 @@ export default function RiderRunConsole() {
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [dropToken, setDropToken] = useState('');
-  const [proofReference, setProofReference] = useState('');
+  const [trustedEvidenceId, setTrustedEvidenceId] = useState<string | null>(null);
+  const [trustedEvidenceName, setTrustedEvidenceName] = useState<string | null>(null);
+  const [uploadingTrusted, setUploadingTrusted] = useState(false);
   const [collectedCash, setCollectedCash] = useState('');
   const [note, setNote] = useState('');
 
@@ -605,6 +607,7 @@ export default function RiderRunConsole() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const trustedFileInputRef = useRef<HTMLInputElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const addOnSubmitLock = useRef(false);
   const paymentSubmitLock = useRef(false);
@@ -753,7 +756,8 @@ export default function RiderRunConsole() {
     setEvidencePreview(null);
     setOtpCode('');
     setDropToken('');
-    setProofReference('');
+    setTrustedEvidenceId(null);
+    setTrustedEvidenceName(null);
     setCollectedCash('');
     setNote('');
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -794,8 +798,8 @@ export default function RiderRunConsole() {
         const trusted = stop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && stop.cashDuePaise === 0;
         if (isPhotoGps && !evidenceStorageKey)
           throw new Error('Capture or upload delivery photo proof before completing.');
-        if (!isPhotoGps && trusted && (!dropToken.trim() || !proofReference.trim()))
-          throw new Error('Secure drop token and proof reference are required.');
+        if (!isPhotoGps && trusted && (!dropToken.trim() || !trustedEvidenceId))
+          throw new Error('Scan the Trusted Drop QR and upload the drop photo before completing.');
         if (!isPhotoGps && !trusted && !/^\d{6}$/.test(otpCode)) throw new Error('Enter the six-digit handover OTP.');
 
         const gps = await coordinates();
@@ -812,10 +816,13 @@ export default function RiderRunConsole() {
             ...gps,
             version: stop.version,
             riderConfirmed: true,
-            evidenceId: isPhotoGps ? evidenceStorageKey : undefined,
+            evidenceId: isPhotoGps
+              ? evidenceStorageKey ?? undefined
+              : trusted
+                ? trustedEvidenceId ?? undefined
+                : undefined,
             otpCode: !isPhotoGps && !trusted ? otpCode : undefined,
             trustedDropToken: !isPhotoGps && trusted ? dropToken.trim() : undefined,
-            proofReference: !isPhotoGps && trusted ? proofReference.trim() : undefined,
             cashCollectedPaise: cashAmt,
             note: note.trim() || undefined,
           },
@@ -956,6 +963,31 @@ export default function RiderRunConsole() {
       toast.error(getToastErrorMessage(error, 'Photo upload failed.'));
     } finally {
       setUploadingEvidence(false);
+    }
+  };
+
+  const onPickTrustedPhoto = async (stop: RunStop, file: File) => {
+    const token = dropToken.trim();
+    if (token.length < 32) {
+      toast.error('Scan the current Trusted Drop QR first, then upload the drop photo.');
+      return;
+    }
+    setUploadingTrusted(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('trustedDropToken', token);
+      const response = await apiClient.post(
+        `/rider/delivery-runs/${activeRun?.id}/stops/${stop.id}/trusted-drop-evidence`,
+        form,
+      );
+      setTrustedEvidenceId(response.data.id);
+      setTrustedEvidenceName(file.name);
+      toast.success('Trusted Drop photo uploaded.');
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, 'Trusted Drop photo upload failed.'));
+    } finally {
+      setUploadingTrusted(false);
     }
   };
 
@@ -1106,16 +1138,41 @@ export default function RiderRunConsole() {
           <div className="space-y-2">
             <input
               value={dropToken}
-              onChange={(event) => setDropToken(event.target.value)}
-              placeholder="Secure drop token"
+              onChange={(event) => {
+                setDropToken(event.target.value);
+                setTrustedEvidenceId(null);
+                setTrustedEvidenceName(null);
+              }}
+              placeholder="Scanned Trusted Drop token"
               className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-teal-500"
             />
             <input
-              value={proofReference}
-              onChange={(event) => setProofReference(event.target.value)}
-              placeholder="Proof reference"
-              className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-teal-500"
+              ref={trustedFileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void onPickTrustedPhoto(activeStop, file);
+              }}
             />
+            <button
+              type="button"
+              disabled={uploadingTrusted}
+              onClick={() => trustedFileInputRef.current?.click()}
+              className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 p-3 text-left text-sm font-semibold text-slate-600 hover:border-teal-400 disabled:opacity-50"
+            >
+              {uploadingTrusted ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Package className="h-4 w-4" />
+              )}
+              {trustedEvidenceName ? `Photo attached: ${trustedEvidenceName}` : 'Capture / upload drop photo'}
+            </button>
+            <p className="text-[11px] text-slate-500">
+              Scan the customer&apos;s Trusted Drop QR first; the photo upload is bound to that scan.
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
