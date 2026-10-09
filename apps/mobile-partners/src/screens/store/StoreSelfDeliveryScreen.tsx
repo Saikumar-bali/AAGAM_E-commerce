@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   ActivityIndicator,
   Alert,
@@ -205,14 +206,14 @@ export default function StoreSelfDeliveryScreen() {
   if (verifyModal) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        <View style={styles.header}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
+        <GradientSurface preset="teal" style={styles.header}>
           <TouchableOpacity onPress={() => setVerifyModal(null)} style={styles.backBtn}>
-            <ChevronLeft size={24} color="#1E293B" />
+            <ChevronLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verify Customer</Text>
           <View style={{ width: 40 }} />
-        </View>
+        </GradientSurface>
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Customer Info</Text>
@@ -352,14 +353,14 @@ export default function StoreSelfDeliveryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={styles.header}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
+      <GradientSurface preset="teal" style={styles.header}>
         <TouchableOpacity onPress={() => partnerNavigationRef.current?.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={24} color="#1E293B" />
+          <ChevronLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Store Delivery</Text>
         <Text style={styles.countBadge}>{deliveries.length}</Text>
-      </View>
+      </GradientSurface>
 
       <FlatList
         data={[1]}
@@ -391,11 +392,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12, backgroundColor: '#FFF',
+    paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
   },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#0F172A' },
+  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF' },
   countBadge: { fontSize: 12, fontWeight: '600', color: '#FFF', backgroundColor: '#0D7E41', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   content: { padding: 16 },
   section: { marginBottom: 24 },

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import type { StorePickupReceipt } from '../../domain/storeReferenceUi';
 import { shortStoreOrderId } from '../../domain/storeReferenceUi';
+import { GradientSurface } from '../../components/GradientSurface';
 
 export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: any; route?: any }) => {
   const receipt = route?.params?.receipt as StorePickupReceipt | undefined;
@@ -59,7 +60,7 @@ export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: a
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
+        <GradientSurface preset="teal" style={styles.hero}>
           <TouchableOpacity style={styles.backButton} onPress={backToOrders}>
             <ArrowLeft size={32} color="#FFFFFF" />
           </TouchableOpacity>
@@ -73,7 +74,7 @@ export const StorePickupSuccessScreen = ({ navigation, route }: { navigation?: a
           </View>
           <Text style={styles.successTitle}>Pickup Successful!</Text>
           <Text style={styles.successSubtitle}>Verification Complete</Text>
-        </View>
+        </GradientSurface>
 
         <View style={styles.receiptCard}>
           <View style={styles.riderRow}>
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8F9F8' },
   scroll: { flex: 1 },
   content: { paddingBottom: 40 },
-  hero: { height: 355, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  hero: { height: 355, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   backButton: { position: 'absolute', top: 60, left: 25, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   confetti: { position: 'absolute', fontSize: 14 },
   shieldCircle: { height: 125, alignItems: 'center', justifyContent: 'center' },

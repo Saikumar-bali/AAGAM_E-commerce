@@ -38,6 +38,7 @@ import {
   subscriptionOperationsService,
 } from "../../api/subscriptionOperationsService";
 import type { StoreTabParamList } from "../../navigation/partnerNavigationTypes";
+import { GradientSurface } from '../../components/GradientSurface';
 
 const STORE_SUBSCRIPTION_KEY = ["store", "subscription-operations"] as const;
 type Section = "runs" | "forecast" | "cash" | "exceptions";
@@ -307,7 +308,7 @@ export const StoreSubscriptionOperationsScreen = ({
           />
         }
       >
-        <View style={styles.hero}>
+        <GradientSurface preset="teal" style={styles.hero}>
           <View style={styles.heroGlow} />
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -359,7 +360,7 @@ export const StoreSubscriptionOperationsScreen = ({
               <Text style={styles.heroMetricLabel}>cash to verify</Text>
             </View>
           </View>
-        </View>
+        </GradientSurface>
 
         <ScrollView
           horizontal
@@ -955,7 +956,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F3F7F5" },
   content: { paddingBottom: 110 },
   hero: {
-    backgroundColor: "#0F766E",
+    
     paddingHorizontal: 17,
     paddingTop: 24,
     paddingBottom: 22,

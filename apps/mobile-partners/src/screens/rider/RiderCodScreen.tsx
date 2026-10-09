@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -60,7 +61,7 @@ export const RiderCodScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.headerButton} onPress={() => navigation.goBack()}>
           <ArrowLeft size={23} color="#FFFFFF" />
         </TouchableOpacity>
@@ -71,7 +72,7 @@ export const RiderCodScreen = ({ navigation }: { navigation: any }) => {
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh COD ledger" style={styles.headerButton} onPress={() => void query.refetch()}>
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
@@ -192,7 +193,7 @@ function Fact({ label: factLabel, value, danger = false }: { label: string; valu
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
   content: { padding: 14 },

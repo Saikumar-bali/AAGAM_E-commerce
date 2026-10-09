@@ -19,6 +19,7 @@ import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { storeService } from '../../api/storeService';
 import { AagamBrand } from '../../components/AagamBrand';
+import { GradientSurface } from '../../components/GradientSurface';
 
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -143,13 +144,13 @@ export const StoreSettingsScreen = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
           <View style={styles.heroShape} />
           <AagamBrand compact caption="Fast Quality and Trust" inverse />
           <Text style={styles.eyebrow}>STORE WORKSPACE</Text>
           <Text style={styles.title}>More</Text>
           <Text style={styles.subtitle}>Profile, location, alerts and secure account controls.</Text>
-        </View>
+        </GradientSurface>
 
         <View style={styles.bodySheet}>
           {storesQuery.isLoading ? (
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1 },
   hero: {
     minHeight: 238,
-    backgroundColor: '#0F766E',
+    
     paddingHorizontal: 20,
     paddingBottom: 30,
     overflow: 'hidden',

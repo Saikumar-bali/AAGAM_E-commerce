@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -102,7 +103,7 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
         contentContainerStyle={[styles.content, { paddingBottom: 110 }]}
         refreshControl={<RefreshControl refreshing={runsQuery.isRefetching} onRefresh={() => void runsQuery.refetch()} tintColor="#FFFFFF" />}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 14) + 10 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 14) + 10 }]}>
           <View style={styles.heroGlow} />
           <View style={styles.brandRow}><PartnerTabBrand inverse caption="RIDER PARTNER" /></View>
           <View style={styles.heroTitleRow}><View><Text style={styles.eyebrow}>DELIVERY OPERATIONS</Text><Text style={styles.heroTitle}>Delivery Runs</Text></View><View style={styles.heroIcon}><Route size={30} color="#0F766E" /></View></View>
@@ -117,7 +118,7 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
               <Text style={styles.resumeButtonText}>{active.status === 'AWAITING_SETTLEMENT' ? 'Open cash settlement' : 'Resume active run'}</Text><ChevronRight size={20} color="#0F766E" />
             </TouchableOpacity>
           ) : null}
-        </View>
+        </GradientSurface>
 
         <View style={styles.body}>
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Today’s assigned routes</Text><Text style={styles.sectionCount}>{runs.length}</Text></View>
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F3F7F5' },
   content: {},
   body: { paddingHorizontal: 16, paddingTop: 20 },
-  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', shadowColor: '#064E3B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 7 },
+  hero: { paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', shadowColor: '#064E3B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 7 },
   heroGlow: { position: 'absolute', width: 210, height: 210, borderRadius: 105, right: -80, top: -95, backgroundColor: '#34D399', opacity: 0.24 },
   brandRow: { marginBottom: 16 },
   heroTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

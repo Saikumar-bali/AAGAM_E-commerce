@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { buildInspectionLines, operationCompleted } from '../../domain/deliveryOperations';
+import { GradientSurface } from '../../components/GradientSurface';
 
 type QuantityState = Record<string, Record<string, {
   sellable: string;
@@ -140,7 +141,7 @@ export const StoreDeliveryOperationsScreen = () => {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={queueQuery.isRefetching} onRefresh={() => void queueQuery.refetch()} />}
     >
-      <View style={styles.hero}>
+      <GradientSurface preset="teal" style={styles.hero}>
         <View>
           <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
           <Text style={styles.title}>Returns & COD</Text>
@@ -149,7 +150,7 @@ export const StoreDeliveryOperationsScreen = () => {
         <TouchableOpacity style={styles.refreshButton} onPress={() => void queueQuery.refetch()}>
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       {(() => {
         const pickupJobs = jobs.filter((j: any) => j.status === 'RIDER_AT_STORE');
@@ -388,7 +389,7 @@ export const StoreDeliveryOperationsScreen = () => {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { paddingBottom: 20 },
-  hero: { backgroundColor: '#0F766E', paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hero: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1.5 },
   title: { color: '#FFFFFF', fontSize: 28, fontWeight: '600', marginTop: 4 },
   subtitle: { color: '#D1FAE5', fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 280 },

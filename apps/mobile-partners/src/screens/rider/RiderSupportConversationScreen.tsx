@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { ArrowLeft, Camera, FilePlus2, LockKeyhole, RefreshCw, Send } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -75,11 +76,11 @@ export const RiderSupportConversationScreen = ({ route, navigation }: { route: a
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to support tickets" style={styles.headerButton} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>SUPPORT CONVERSATION</Text><Text numberOfLines={1} style={styles.title}>{ticket?.subject || 'Ticket'}</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh support conversation" style={styles.headerButton} onPress={() => void query.refetch()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         style={styles.messages}
@@ -141,7 +142,7 @@ export const RiderSupportConversationScreen = ({ route, navigation }: { route: a
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   messages: { flex: 1 }, messagesContent: { padding: 14, paddingBottom: 24 }, ticketSummary: { borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 14, marginBottom: 12 }, ticketStatus: { color: '#0F766E', fontSize: 10, fontWeight: '600' }, ticketSubject: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginTop: 4 }, ticketMeta: { color: '#64748B', fontSize: 10, marginTop: 4 }, jobId: { color: '#0F766E', fontSize: 9, fontWeight: '600', marginTop: 4 },
   messageRow: { alignItems: 'flex-start', marginBottom: 8 }, messageRowMine: { alignItems: 'flex-end' }, bubble: { maxWidth: '86%', borderRadius: 17, padding: 12 }, bubbleMine: { backgroundColor: '#0F766E', borderBottomRightRadius: 5 }, bubbleSupport: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderBottomLeftRadius: 5 }, sender: { color: '#0F766E', fontSize: 9, fontWeight: '600' }, senderMine: { color: '#A7F3D0' }, body: { color: '#0F172A', fontSize: 13, lineHeight: 19, marginTop: 4 }, bodyMine: { color: '#FFFFFF' }, attachment: { color: '#0F766E', fontSize: 9, fontWeight: '600', marginTop: 6 }, attachmentMine: { color: '#D1FAE5' }, time: { color: '#94A3B8', fontSize: 8, marginTop: 6 }, timeMine: { color: '#A7F3D0' },

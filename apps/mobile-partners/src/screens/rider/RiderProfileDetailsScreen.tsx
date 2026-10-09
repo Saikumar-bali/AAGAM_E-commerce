@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { ArrowLeft, Banknote, Bike, Save, ShieldCheck } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -63,10 +64,10 @@ export const RiderProfileDetailsScreen = ({ navigation }: { navigation: any }) =
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>PROTECTED ACCOUNT</Text><Text style={styles.title}>Profile, vehicle and bank</Text></View>
-      </View>
+      </GradientSurface>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         {query.isLoading ? <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View> : (
           <>
@@ -106,7 +107,7 @@ function Field({ label, ...props }: any) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   content: { padding: 14 }, card: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginBottom: 12 },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }, sectionTitleText: { color: '#0F172A', fontSize: 16, fontWeight: '600' },

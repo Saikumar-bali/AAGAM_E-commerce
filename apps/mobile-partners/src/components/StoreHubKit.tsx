@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
+import { GradientSurface, GradientPreset } from './GradientSurface';
 import { palette, radius, spacing, typography } from '../design/tokens';
 
 /**
@@ -12,16 +13,20 @@ export function StoreHubHeader({
   title,
   subtitle,
   accessory,
+  preset = 'hero',
+  insetTop,
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
   accessory?: React.ReactNode;
+  preset?: GradientPreset;
+  insetTop?: number;
 }) {
   return (
-    <View style={styles.header}>
+    <GradientSurface preset={preset} style={styles.header}>
       <View style={styles.headerGlow} />
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, insetTop !== undefined && { paddingTop: insetTop }]}>
         <View style={styles.flex}>
           <Text style={styles.eyebrow}>{eyebrow}</Text>
           <Text style={styles.title}>{title}</Text>
@@ -29,7 +34,7 @@ export function StoreHubHeader({
         </View>
         {accessory}
       </View>
-    </View>
+    </GradientSurface>
   );
 }
 
@@ -61,8 +66,8 @@ export function StoreHubTile({
   onPress: () => void;
   last?: boolean;
 }) {
-  const iconBg = tone === 'primary' ? palette.teal700 : tone === 'danger' ? palette.rose050 : palette.teal050;
-  const iconColor = tone === 'danger' ? palette.rose700 : palette.teal700;
+  const preset: GradientPreset = tone === 'primary' ? 'emerald' : tone === 'danger' ? 'rose' : 'teal';
+  const iconColor = '#FFFFFF';
   const showBadge = badge !== undefined && badge !== null && Number(badge) > 0;
   return (
     <TouchableOpacity
@@ -73,11 +78,11 @@ export function StoreHubTile({
       style={[styles.tile, !last && styles.tileDivider]}
       activeOpacity={0.7}
     >
-      <View style={[styles.tileIcon, { backgroundColor: iconBg }]}>
+      <GradientSurface preset={preset} radius={radius.md} style={styles.tileIcon}>
         {React.isValidElement(icon)
           ? React.cloneElement(icon as React.ReactElement<any>, { color: iconColor })
           : icon}
-      </View>
+      </GradientSurface>
       <View style={styles.flex}>
         <Text style={styles.tileTitle}>{title}</Text>
         {subtitle ? <Text style={styles.tileSubtitle}>{subtitle}</Text> : null}
@@ -95,7 +100,6 @@ export function StoreHubTile({
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   header: {
-    backgroundColor: palette.teal700,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
     overflow: 'hidden',

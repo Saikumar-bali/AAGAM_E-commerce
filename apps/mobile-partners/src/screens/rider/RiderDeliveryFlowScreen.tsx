@@ -37,6 +37,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   DeliveryFailureReason,
   deliveryOperationsService,
@@ -281,12 +282,12 @@ export const RiderDeliveryFlowScreen = ({ deliveryJobId, navigationPanel }: { de
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={styles.header}>
+      <GradientSurface preset="teal" style={styles.header}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider jobs" style={styles.headerButton} onPress={() => navigation.goBack()}><ArrowLeft size={21} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>ACTIVE DELIVERY</Text><Text style={styles.headerTitle}>{deliveryStatusLabel(activeJob.status)}</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh active delivery" style={styles.headerButton} onPress={() => void refresh()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${unreadCount} unread Rider alerts`} style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}><Bell size={22} color="#FFFFFF" />{unreadCount > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}</TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       {navigationPanel}
 

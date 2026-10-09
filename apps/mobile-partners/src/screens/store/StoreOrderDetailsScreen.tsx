@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
 import type { StoreOrderStatus } from '../../api/storeService';
+import { GradientSurface } from '../../components/GradientSurface';
 
 const EDITABLE_ITEM_STATUSES = new Set(['PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'PICKING']);
 const STATUS_LABELS: Record<string, string> = {
@@ -239,7 +240,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 18) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 18) + 8 }]}>
         <View style={styles.headerShape} />
         <TouchableOpacity
           testID="store_order_details_back"
@@ -260,7 +261,7 @@ export const StoreOrderDetailsScreen = ({ navigation, route }: { navigation?: an
         >
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         style={styles.scroll}
@@ -483,7 +484,7 @@ const styles = StyleSheet.create({
     minHeight: 126,
     paddingHorizontal: 16,
     paddingBottom: 18,
-    backgroundColor: '#0F766E',
+    
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

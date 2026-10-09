@@ -1,4 +1,5 @@
 import { useAuthStore } from '@aagam/mobile-shared';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, FileCheck2, RefreshCw } from 'lucide-react-native';
 import React, { useEffect } from 'react';
@@ -50,7 +51,7 @@ export const RiderReceiptScreen = ({ route, navigation }: { route: any; navigati
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to delivery detail" style={styles.headerButton} onPress={() => navigation.goBack()}>
           <ArrowLeft size={23} color="#FFFFFF" />
         </TouchableOpacity>
@@ -61,7 +62,7 @@ export const RiderReceiptScreen = ({ route, navigation }: { route: any; navigati
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh receipt" style={styles.headerButton} onPress={() => void query.refetch()}>
           <RefreshCw size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
@@ -147,7 +148,7 @@ function Fact({ label: factLabel, value, strong = false }: { label: string; valu
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
   content: { padding: 14 },

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { ArrowLeft, CalendarDays, ChevronRight, RefreshCw } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
@@ -80,7 +81,7 @@ export const RiderHistoryScreen = ({
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider jobs" style={styles.headerButton} onPress={onBack}>
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -91,7 +92,7 @@ export const RiderHistoryScreen = ({
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh delivery history" style={styles.headerButton} onPress={() => void query.refetch()}>
           <RefreshCw size={21} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         horizontal
@@ -188,7 +189,7 @@ function State({ icon, title, text }: { icon?: React.ReactNode; title: string; t
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 },
   title: { color: '#FFFFFF', fontSize: 25, fontWeight: '600', marginTop: 2 },

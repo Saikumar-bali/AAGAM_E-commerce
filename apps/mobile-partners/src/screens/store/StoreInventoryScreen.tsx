@@ -32,6 +32,7 @@ import {
 import { storeService } from '../../api/storeService';
 import { AagamBrand } from '../../components/AagamBrand';
 import { flattenCataloguePages, nextCataloguePage } from '../../domain/cataloguePagination';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   defaultDraft,
   parseWholeQuantity,
@@ -401,7 +402,7 @@ export const StoreInventoryScreen = ({ navigation }: { navigation?: any }) => {
           <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={ACTION_GREEN} />
         }
       >
-        <View style={styles.hero}>
+        <GradientSurface preset="teal" style={styles.hero}>
           <View style={styles.heroGlow} />
           <View style={styles.brandRow}>
             <TouchableOpacity
@@ -427,7 +428,7 @@ export const StoreInventoryScreen = ({ navigation }: { navigation?: any }) => {
           <Text style={styles.subtitle}>
             Manage visibility, selling price and physical stock from one workspace.
           </Text>
-        </View>
+        </GradientSurface>
 
         <View style={styles.bodySheet}>
           {stores.length > 1 ? (
@@ -886,7 +887,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   hero: {
     minHeight: 230,
-    backgroundColor: BRAND_GREEN,
+    
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 30,

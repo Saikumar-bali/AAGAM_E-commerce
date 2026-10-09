@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -224,7 +225,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching || inboxQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
           <View style={styles.brandRow}>
             <PartnerTabBrand inverse caption="RIDER PARTNER" />
           </View>
@@ -254,7 +255,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
               />
             )}
           </View>
-        </View>
+        </GradientSurface>
 
         <View style={styles.quickRow}>
           <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Delivery runs</Text></TouchableOpacity>
@@ -326,7 +327,7 @@ function OfferCard({ offer, now, busy, onOpen, onAccept, onReject }: { offer: Ri
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingBottom: 20 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  hero: { paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   brandRow: { marginBottom: 16 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1.3 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 4 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   iconButton: { width: 43, height: 43, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }, badge: { position: 'absolute', right: -3, top: -3, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, badgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '600' },

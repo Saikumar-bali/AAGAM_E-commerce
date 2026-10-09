@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -32,8 +31,6 @@ import { AagamBrand } from '../../components/AagamBrand';
 import { GradientSurface, GradientPreset } from '../../components/GradientSurface';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 import { palette, radius, spacing, typography } from '../../design/tokens';
-
-const { width } = Dimensions.get('window');
 
 type StoreSummary = {
   id: string;
@@ -227,38 +224,42 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               </View>
 
               <View style={styles.statsGrid}>
-                <DashboardStat
-                  icon={ShoppingCart}
-                  preset="azure"
-                  title="Orders"
-                  value={String(totals.orders)}
-                  subtitle="All time"
-                  testID="store_dashboard_stat_orders"
-                />
-                <DashboardStat
-                  icon={IndianRupee}
-                  preset="emerald"
-                  title="Revenue"
-                  value={money(totals.revenue)}
-                  subtitle="Recorded"
-                  testID="store_dashboard_stat_revenue"
-                />
-                <DashboardStat
-                  icon={Store}
-                  preset="violet"
-                  title="Stores"
-                  value={String(totals.stores)}
-                  subtitle="Assigned"
-                  testID="store_dashboard_stat_stores"
-                />
-                <DashboardStat
-                  icon={Box}
-                  preset="amber"
-                  title="Products"
-                  value={String(totals.inventory)}
-                  subtitle="In Inventory"
-                  testID="store_dashboard_stat_products"
-                />
+                <View style={styles.statsRow}>
+                  <DashboardStat
+                    icon={ShoppingCart}
+                    preset="azure"
+                    title="Orders"
+                    value={String(totals.orders)}
+                    subtitle="All time"
+                    testID="store_dashboard_stat_orders"
+                  />
+                  <DashboardStat
+                    icon={IndianRupee}
+                    preset="emerald"
+                    title="Revenue"
+                    value={money(totals.revenue)}
+                    subtitle="Recorded"
+                    testID="store_dashboard_stat_revenue"
+                  />
+                </View>
+                <View style={styles.statsRow}>
+                  <DashboardStat
+                    icon={Store}
+                    preset="violet"
+                    title="Stores"
+                    value={String(totals.stores)}
+                    subtitle="Assigned"
+                    testID="store_dashboard_stat_stores"
+                  />
+                  <DashboardStat
+                    icon={Box}
+                    preset="amber"
+                    title="Products"
+                    value={String(totals.inventory)}
+                    subtitle="In Inventory"
+                    testID="store_dashboard_stat_products"
+                  />
+                </View>
               </View>
 
               <Text style={styles.sectionEyebrow}>TODAY</Text>
@@ -358,9 +359,11 @@ function DashboardStat({
       <GradientSurface preset={preset} radius={radius.md} style={styles.statIcon}>
         <Icon size={20} color="#FFFFFF" />
       </GradientSurface>
-      <Text style={styles.statTitle}>{title}</Text>
-      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-      <Text style={styles.statSubtitle}>{subtitle}</Text>
+      <View style={styles.statCopy}>
+        <Text style={styles.statTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+        <Text style={styles.statSubtitle} numberOfLines={1}>{subtitle}</Text>
+      </View>
     </View>
   );
 }
@@ -476,15 +479,19 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: palette.slate900, fontWeight: '500' },
   searchClear: { fontSize: 16, color: palette.slate400, fontWeight: '500' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.md },
+  statsGrid: { gap: spacing.md },
+  statsRow: { flexDirection: 'row', gap: spacing.md },
   statCard: {
-    width: (width - 52) / 2,
-    minHeight: 150,
+    flex: 1,
+    minWidth: 0,
     borderRadius: radius.lg,
     backgroundColor: palette.white,
     borderWidth: 1,
     borderColor: palette.slate200,
     padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     shadowColor: '#0B3B36',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -492,8 +499,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statIcon: { width: 42, height: 42, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  statTitle: { color: palette.slate500, fontSize: 12, fontWeight: '600', marginTop: spacing.md, letterSpacing: 0.2 },
-  statValue: { color: palette.slate900, fontSize: 27, fontWeight: '700', marginTop: 2, letterSpacing: -0.6 },
+  statCopy: { flex: 1, minWidth: 0 },
+  statTitle: { color: palette.slate500, fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
+  statValue: { color: palette.slate900, fontSize: 24, fontWeight: '700', marginTop: 2, letterSpacing: -0.6 },
   statSubtitle: { color: palette.slate400, fontSize: 11, marginTop: 2 },
   sectionEyebrow: {
     ...typography.eyebrow,

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
+import { GradientSurface } from '../../components/GradientSurface';
 
 type Segment = 'Active' | 'Paused' | 'Cancelled' | 'All';
 
@@ -52,7 +53,7 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
           <ArrowLeft size={22} color="#FFFFFF" />
         </TouchableOpacity>
@@ -64,7 +65,7 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
           <Users size={18} color="#FFFFFF" />
           <Text style={styles.countText}>{subscribers.length}</Text>
         </View>
-      </View>
+      </GradientSurface>
 
       <View style={styles.segmentRow}>
         {SEGMENTS.map((s) => (
@@ -146,7 +147,7 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
   title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },

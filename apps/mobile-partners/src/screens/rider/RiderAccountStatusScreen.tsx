@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { ArrowLeft, CheckCircle2, Clock3, FileWarning, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react-native';
 import React from 'react';
 import {
@@ -32,10 +33,10 @@ export const RiderAccountStatusScreen = ({ navigation }: { navigation: any }) =>
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>RIDER LIFECYCLE</Text><Text style={styles.title}>Approval and eligibility</Text></View>
-      </View>
+      </GradientSurface>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
@@ -111,7 +112,7 @@ function Fact({ label: factLabel, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600' },
   content: { padding: 14 },
   errorBanner: { marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, errorBannerTitle: { color: '#92400E', fontSize: 11, fontWeight: '600' }, errorBannerText: { color: '#B45309', fontSize: 10, marginTop: 4 }, errorRetry: { color: '#0F766E', fontWeight: '600' },

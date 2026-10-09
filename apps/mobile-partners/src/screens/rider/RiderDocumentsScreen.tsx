@@ -1,4 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, Camera, ChevronRight, FileCheck2, FilePlus2, FolderOpen, RefreshCw } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -77,11 +78,11 @@ export const RiderDocumentsScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>PRIVATE DOCUMENT VAULT</Text><Text style={styles.title}>Documents and renewals</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh Rider documents" style={styles.back} onPress={() => void query.refetch()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -129,7 +130,7 @@ export const RiderDocumentsScreen = ({ navigation }: { navigation: any }) => {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, back: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 21, fontWeight: '600' },
   content: { padding: 14 }, card: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 }, sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600' },
   chips: { gap: 8, paddingVertical: 12 }, chip: { minHeight: 36, borderRadius: 11, backgroundColor: '#F1F5F9', paddingHorizontal: 12, justifyContent: 'center' }, chipActive: { backgroundColor: '#0F766E' }, chipText: { color: '#475569', fontSize: 10, fontWeight: '600' }, chipTextActive: { color: '#FFFFFF' },

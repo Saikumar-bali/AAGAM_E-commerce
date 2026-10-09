@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { ArrowLeft, ChevronRight, ImageOff, Phone, UserRound } from 'lucide-react-native';
 import { storeService, StoreOrderStatus } from '../../api/storeService';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   formatStoreMoney,
   orderCustomerName,
@@ -145,7 +146,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={styles.header}>
+      <GradientSurface preset="teal" style={styles.header}>
         <View style={styles.headerGlow} />
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
@@ -156,7 +157,7 @@ export const StoreOrderDetailsReferenceScreen = ({ navigation, route }: { naviga
             <Text style={styles.title}>Order details</Text>
           </View>
         </View>
-      </View>
+      </GradientSurface>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -259,7 +260,7 @@ function StatusRow({ label, value, payment = false, tone }: { label: string; val
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  header: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
   headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 56, gap: 12 },
   backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

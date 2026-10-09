@@ -1,4 +1,5 @@
 import { useAuthStore } from '@aagam/mobile-shared';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useQuery } from '@tanstack/react-query';
 import {
   Banknote,
@@ -71,7 +72,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
           <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
           <View style={styles.profileRow}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
@@ -82,7 +83,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
             </View>
             {approved ? <ShieldCheck size={29} color="#A7F3D0" /> : <ShieldAlert size={29} color="#FDE68A" />}
           </View>
-        </View>
+        </GradientSurface>
 
         {query.isLoading ? (
           <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.stateText}>Loading Rider account…</Text></View>
@@ -138,7 +139,7 @@ function MenuRow({ icon, title, subtitle, onPress }: { icon: React.ReactNode; ti
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 16 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  hero: { paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 16 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
   avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#0F766E', fontSize: 20, fontWeight: '600' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   content: { padding: 14 },

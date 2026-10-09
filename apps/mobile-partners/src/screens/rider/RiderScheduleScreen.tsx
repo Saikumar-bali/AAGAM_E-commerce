@@ -1,4 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CalendarClock, Clock3, Copy, PauseCircle, Plus, Save, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -128,10 +129,10 @@ export const RiderScheduleScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>EDITABLE AVAILABILITY</Text><Text style={styles.title}>Schedules and shifts</Text></View>
-      </View>
+      </GradientSurface>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         {query.isLoading ? <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /></View> : (

@@ -1,8 +1,8 @@
 import React, { ReactNode } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-export type GradientPreset = 'hero' | 'emerald' | 'azure' | 'violet' | 'amber' | 'rose';
+export type GradientPreset = 'hero' | 'teal' | 'emerald' | 'azure' | 'violet' | 'amber' | 'rose';
 
 /**
  * One place for every gradient in the partner workspace. Each preset is a
@@ -11,6 +11,7 @@ export type GradientPreset = 'hero' | 'emerald' | 'azure' | 'violet' | 'amber' |
  */
 export const gradients: Record<GradientPreset, { id: string; stops: [string, string, string] }> = {
   hero: { id: 'aagamHero', stops: ['#0B3B36', '#0F766E', '#10A86E'] },
+  teal: { id: 'aagamTeal', stops: ['#0B3B36', '#0F766E', '#12897F'] },
   emerald: { id: 'aagamEmerald', stops: ['#0F766E', '#0FA37F', '#34D399'] },
   azure: { id: 'aagamAzure', stops: ['#0C4A6E', '#0E7490', '#22D3EE'] },
   violet: { id: 'aagamViolet', stops: ['#3B1D8F', '#6D28D9', '#A78BFA'] },
@@ -29,7 +30,7 @@ export function GradientSurface({
   children,
 }: {
   preset?: GradientPreset;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   radius?: number;
   children?: ReactNode;
 }) {
