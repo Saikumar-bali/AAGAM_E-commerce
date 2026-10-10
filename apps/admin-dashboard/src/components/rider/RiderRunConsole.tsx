@@ -1300,9 +1300,14 @@ export default function RiderRunConsole() {
   );
 
   return (
-    <>
-      {/* Full-viewport map layer */}
-      <div className="fixed inset-0 z-0">
+    // Viewport-anchored shell. The dashboard layout wraps children in a
+    // zero-height box, so `absolute` chrome (the docked stop panel, tool rail,
+    // bottom actions) must be positioned against a full-height container here,
+    // not against that wrapper. On lg the sidebar (260px) is visible, so the
+    // console starts to its right.
+    <div className="fixed inset-0 z-0 overflow-hidden lg:left-[260px]">
+      {/* Map layer */}
+      <div className="absolute inset-0 z-0">
         <RiderRunConsoleMap
           stores={activeRun ? [{ name: activeRun.store.name, latitude: activeRun.store.latitude ?? null, longitude: activeRun.store.longitude ?? null }] : []}
           stops={consoleStops}
@@ -1570,6 +1575,6 @@ export default function RiderRunConsole() {
       >
         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
       </button>
-    </>
+    </div>
   );
 }

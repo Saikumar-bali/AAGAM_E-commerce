@@ -7,7 +7,9 @@ Production deployments are handled by `.github/workflows/deploy.yml`.
 - A deployment starts only after the `CI` workflow finishes successfully for `main`.
 - `workflow_dispatch` is available for a manual redeploy or rollback to a commit that is already contained in `main`.
 - The server is synchronized to the exact successful commit SHA. The workflow uses `git fetch` plus `git reset --hard` instead of a normal `git pull`, so local tracked changes (including file-mode drift) cannot create an untested mixed deployment.
-- The deployment installs locked dependencies with `npm ci`, validates and generates Prisma, builds the API, admin dashboard, worker, applies checked-in Prisma migrations, reloads PM2, and checks the API health endpoint.
+- The deployment installs locked dependencies with `npm ci`, validates and generates Prisma, applies checked-in Prisma migrations, reloads PM2, and checks the API health endpoint.
+- The API, admin dashboard and worker are compiled on the GitHub runner and transferred to the VPS as a build artifact. The 2 vCPU / 2 GB VPS must not compile: an on-host `api-gateway` `nest build` took 33-43 minutes of swap-throttled tsc and repeatedly hit the workflow timeout.
+- The deploy workflow restores the Turbo cache the CI Build job saved for the same commit (`turbo-Linux-<sha>`). Unchanged workspaces replay from cache; only the dashboard rebuilds, because its production `NEXT_PUBLIC_*` values differ from CI and are part of its Turbo hash via `apps/admin-dashboard/turbo.json`.
 - `prisma db push` is intentionally not used in production.
 - Concurrent production deployments are blocked both by GitHub Actions concurrency and a server-side `flock` lock.
 
@@ -83,7 +85,7 @@ Store the complete verified output as `DEPLOY_KNOWN_HOSTS`. Do not replace stric
 
 ## Encode the production environment
 
-The `.env` file must be shell-compatible because the deployment script exports it before building and restarting PM2. Keep secrets quoted when they contain spaces or shell characters.
+The `.env` file must be shell-compatible because the deployment workflow sources it before compiling and `deploy.sh` exports it before restarting PM2. Keep secrets quoted when they contain spaces or shell characters.
 
 Linux:
 
@@ -135,7 +137,7 @@ flock --version
 
 Use Node.js `22.x`, matching CI. If the system runtime is older, `deploy.sh` downloads the pinned Node `22.22.3` archive from nodejs.org, verifies it against the official SHA-256 manifest, caches it under `~/.cache/aagam-node`, and explicitly starts PM2 applications with that runtime.
 
-On a small VPS, `deploy.sh` checks combined free RAM and swap before `npm ci`. When less than 1536 MB is available, it creates or reactivates `/var/tmp/aagam-deploy.swap` using passwordless `sudo`, then builds with Turbo concurrency `1`. The defaults can be adjusted with `DEPLOY_MIN_AVAILABLE_MEMORY_MB`, `DEPLOY_SWAP_MB`, `DEPLOY_SWAP_FILE`, and `DEPLOY_NODE_HEAP_MB`.
+On a small VPS, `deploy.sh` does not build anything. It installs the prebuilt archive produced by the GitHub runner (API gateway, worker service, admin dashboard, shared package `dist` directories), regenerates the Prisma client for the host, runs migrations and reloads PM2. The artifact is staged under `/var/tmp` because `/tmp` on the VPS is a RAM-backed tmpfs. `npm ci` is skipped when `package-lock.json` is unchanged; when it does run it installs only the deployed workspaces with `--omit=dev` (mobile workspaces excluded, ~1.3 GB instead of ~1.8 GB) under a temporary 2 GB swap file that is released in the same deploy. `DEPLOY_ARTIFACT_ARCHIVE` names the uploaded archive and `DEPLOY_NODE_HEAP_MB` remains the runtime heap cap. After a successful deploy, `deploy.sh` runs `apt-get clean` and `git gc --auto` and prints disk usage.
 
 Install PM2 once and configure it to survive reboots:
 

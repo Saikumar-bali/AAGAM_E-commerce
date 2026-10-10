@@ -5,6 +5,10 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { getMapboxToken } from '@/lib/mapbox';
 
+// useLayoutEffect warns when this component is server-rendered (it is: the
+// console page is a client component that is also SSR'd); fall back on the server.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
 export type ConsoleStopStatus =
   | 'PLANNED'
   | 'READY'
@@ -146,6 +150,11 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const readyRef = useRef(false);
+  // The map init effect is mount-only, so its `load` handler must call the
+  // latest renderers rather than the empty-data closures captured at mount.
+  const renderMarkersRef = useRef<() => void>(() => {});
+  const renderRouteRef = useRef<() => void>(() => {});
+  const fitRouteRef = useRef<() => void>(() => {});
 
   // ------------------------------------------------------------- render pins
   const focusIds = React.useMemo(() => {
@@ -260,6 +269,13 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
     map.fitBounds(bounds, { padding: { top: 90, bottom: 260, left: 60, right: 60 }, maxZoom: 15, duration: 650 });
   }, [stops, stores, riderPosition]);
 
+  // Layout effect so the refs are current before Mapbox can deliver `load`.
+  useIsomorphicLayoutEffect(() => {
+    renderMarkersRef.current = renderMarkers;
+    renderRouteRef.current = renderRoute;
+    fitRouteRef.current = fitRoute;
+  }, [renderMarkers, renderRoute, fitRoute]);
+
   useEffect(() => {
     renderMarkers();
   }, [renderMarkers]);
@@ -291,9 +307,11 @@ const RiderRunConsoleMap: React.FC<RiderRunConsoleMapProps> = ({
     map.on('load', () => {
       readyRef.current = true;
       map.resize();
-      renderMarkers();
-      renderRoute();
-      fitRoute();
+      // Use the refs: this handler is captured at mount, before stop data (and
+      // therefore the real renderers) exist.
+      renderMarkersRef.current();
+      renderRouteRef.current();
+      fitRouteRef.current();
     });
     mapRef.current = map;
     return () => {
