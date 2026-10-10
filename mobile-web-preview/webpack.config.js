@@ -112,7 +112,7 @@ module.exports = {
       'process.env.__AAGAM_MAPBOX_TOKEN__': JSON.stringify(MAPBOX_TOKEN),
       'process.env.__AAGAM_GOOGLE_WEB_CLIENT_ID__': JSON.stringify(process.env.GOOGLE_WEB_CLIENT_ID || ''),
       'process.env.__AAGAM_GOOGLE_ANDROID_CLIENT_ID__': JSON.stringify(process.env.GOOGLE_ANDROID_CLIENT_ID || ''),
-      'process.env.__AAGAM_GOOGLE_MAPS_API_KEY__': JSON.stringify(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
+      'process.env.__AAGAM_GOOGLE_MAPS_API_KEY__': JSON.stringify(process.env.__AAGAM_GOOGLE_MAPS_API_KEY__ || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
     }),
     new webpack.ProvidePlugin({ process: here('mocks/process.js') }),
   ],

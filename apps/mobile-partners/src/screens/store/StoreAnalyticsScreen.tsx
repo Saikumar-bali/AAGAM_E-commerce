@@ -65,7 +65,9 @@ export const StoreAnalyticsScreen = ({ navigation }: { navigation: any }) => {
     const activeSubs = subscriptions.filter((s) => String(s.status).toUpperCase() === 'ACTIVE').reduce((a, s) => a + (s._count?._all || 0), 0);
     const totalSubs = subscriptions.reduce((a, s) => a + (s._count?._all || 0), 0);
     const collected = subscriptions.reduce((a, s) => a + (s._sum?.amountCollectedPaise || 0), 0);
-    const due = subscriptions.reduce((a, s) => a + (s._sum?.amountDuePaise || 0), 0);
+    const due = subscriptions
+      .filter((s) => !['CANCELLED', 'COMPLETED'].includes(String(s.status).toUpperCase()))
+      .reduce((a, s) => a + (s._sum?.amountDuePaise || 0), 0);
     const planned = deliveries.reduce((a, d) => a + (d._count?._all || 0), 0);
     const batchesPending = cash.filter((c) => String(c.status).toUpperCase() === 'SUBMITTED').reduce((a, c) => a + (c._count?._all || 0), 0);
     return { activeSubs, totalSubs, collected, due, planned, batchesPending, upcoming: data.upcomingSevenDayDemand || 0 };
