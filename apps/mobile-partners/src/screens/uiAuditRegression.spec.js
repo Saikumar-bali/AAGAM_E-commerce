@@ -294,4 +294,35 @@ describe('partner mobile UI audit regressions', () => {
     expect(dashboard).toContain('<GradientSurface preset={preset} radius={radius.md} style={styles.statIcon}>');
     expect(dashboard).toContain('<Icon size={20} color="#FFFFFF" />');
   });
+
+  it('gives every GradientSurface a unique SVG gradient id so same-preset tiles never fall back to a flat block', () => {
+    const gradient = fs.readFileSync(
+      path.join(__dirname, '..', 'components', 'GradientSurface.tsx'),
+      'utf8',
+    );
+    // The per-instance id must be generated, not read from the shared preset map.
+    expect(gradient).toContain('gradientSeq');
+    expect(gradient).toContain('useRef');
+    expect(gradient).not.toContain('const { id, stops } = gradients[preset];');
+  });
+
+  it('pins the partner app to LTR so an RTL device locale cannot mirror the layout', () => {
+    const index = repoFile('apps/mobile-partners/index.js');
+    expect(index).toContain('I18nManager');
+    expect(index).toContain('.forceRTL(false)');
+
+    const manifest = repoFile('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
+    expect(manifest).not.toContain('android:supportsRtl="true"');
+    expect(manifest).toContain('android:supportsRtl="false"');
+  });
+
+  it('pins the customer app to LTR so an RTL device locale cannot mirror the layout', () => {
+    const index = repoFile('apps/mobile-customer/index.js');
+    expect(index).toContain('I18nManager');
+    expect(index).toContain('.forceRTL(false)');
+
+    const manifest = repoFile('apps/mobile-customer/android/app/src/main/AndroidManifest.xml');
+    expect(manifest).not.toContain('android:supportsRtl="true"');
+    expect(manifest).toContain('android:supportsRtl="false"');
+  });
 });

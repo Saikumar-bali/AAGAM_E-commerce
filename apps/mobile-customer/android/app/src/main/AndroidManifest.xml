@@ -16,7 +16,7 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="true"
       android:networkSecurityConfig="@xml/network_security_config"
-      android:supportsRtl="true">
+      android:supportsRtl="false">
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_icon"
         android:resource="@drawable/ic_notification" />
