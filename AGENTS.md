@@ -196,6 +196,22 @@ whole subscription (the "Full Due" preset), so a lump sum on one cell is valid.
 - `customer-cancel-teardown.e2e.spec.ts` covers both the customer and
   store-owner cancel paths against a dispatched delivery.
 
+## Prisma interactive transactions have a 15s/30s default
+
+Prisma defaults an interactive `$transaction(fn)` to a **5s** budget (maxWait
+2s, timeout 5s). Against the remote Supabase pooler each round-trip is tens of
+ms, so any action that fans out into ~8+ sequential queries (subscription
+skip/pause/cancel teardown, dispatch, store grid quick-actions, run packing,
+order generation) blows the budget and surfaces as an opaque HTTP 500 —
+`Transaction already closed: A query cannot be executed on an expired
+transaction` or `Transaction not found`.
+
+`packages/database/src/index.ts` (`transactionWithSerializableRetry`) now
+applies `{ maxWait: 15000, timeout: 30000 }` to every interactive transaction
+that does not pass its own options. New services are therefore safe by default;
+do **not** re-add a bare `$transaction` timeout, and prefer this central default
+over per-service `{maxWait,timeout}` literals.
+
 ## Migrations
 
 New migrations in this repo are written idempotently
@@ -966,5 +982,22 @@ Key points:
   `AAGAM_*` logins) exercises the full navigators against the live DB.
 - `playwright` needs the `chrome` channel (`npx playwright install chrome`) for
   the MCP browser, not just `chromium-headless-shell`.
+- `mocks/geolocation.js` position must sit **inside the store's delivery
+  radius** (env `SUBSCRIPTION_STORE_DELIVERY_RADIUS_KM`, default 25km). The
+  AAGAAM store is at 17.7333, 82.9849; the old mock point (17.6868, 83.2185) is
+  ~30km away and makes every online self-subscribe `POST /api/customer/subscriptions`
+  (and its `.../quote` preflight) return `409 Eligible stores are outside the
+  configured delivery radius`. Offline/manual subs bypass this because the store
+  chooses the address. The customer app has no hand-entered-coordinate path — it
+  saves the address from `Geolocation` (map unavailable without a Mapbox token),
+  so the mock point is what the customer gets. Rebuild the bundle after editing
+  a mock (`APP=mobile-customer ../node_modules/.bin/webpack --config webpack.config.js`).
+- Online customer with no address: `SubscriptionReviewScreen` disables
+  "Request subscription" (needs `addressId`). Add one first via
+  `POST /api/customer/addresses` (CreateAddressDto: recipientName, phoneE164,
+  line1, city, state, pincode, optional latitude/longitude + locationSource).
+- The gateway in this sandbox runs with `DATABASE_URL = $AAGAAM_DATABASE`
+  (live Supabase `aws-0-ap-south-1` pooler), i.e. the preview writes to the same
+  DB as the live site. `psql "$AAGAAM_DATABASE"` reads it directly.
 
 

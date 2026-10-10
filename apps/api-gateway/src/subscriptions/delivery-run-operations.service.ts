@@ -666,7 +666,15 @@ export class DeliveryRunOperationsService {
       if (dto.newSequenceNumber > count) throw new BadRequestException('New route position is outside this run');
       const old = stop.sequenceNumber;
       if (old === dto.newSequenceNumber) return stop;
-      await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: 0 } });
+      // Park the moving stop at a value guaranteed to be free. A 0/negative
+      // placeholder is rejected by the DeliveryRunStop_sequence_check
+      // (sequenceNumber > 0), so use one past the current maximum.
+      const maxRow = await tx.deliveryRunStop.aggregate({
+        where: { deliveryRunId: runId },
+        _max: { sequenceNumber: true },
+      });
+      const parkedSequence = (maxRow._max.sequenceNumber ?? count) + 1;
+      await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: parkedSequence } });
       if (dto.newSequenceNumber < old) {
         await tx.deliveryRunStop.updateMany({
           where: { deliveryRunId: runId, sequenceNumber: { gte: dto.newSequenceNumber, lt: old } },

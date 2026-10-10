@@ -73,9 +73,21 @@ function BaseNavigator({ createRouter, navigatorType, tabBar, children, ...optio
     children,
   });
 
+  // Lazy mounting, like the real navigators: a route is rendered the first time
+  // it gains focus and stays mounted afterwards (it is only hidden, not
+  // unmounted, when focus moves away). Without this every registered screen —
+  // including hidden drill-downs such as RiderRunDetail — mounts on first paint
+  // with no route params and crashes the app.
+  const focusedKey = state.routes[state.index]?.key;
+  const [mountedKeys, setMountedKeys] = React.useState(() => new Set([focusedKey]));
+  React.useEffect(() => {
+    setMountedKeys((prev) => (prev.has(focusedKey) ? prev : new Set(prev).add(focusedKey)));
+  }, [focusedKey]);
+
   const screens = state.routes.map((route, index) => {
     const descriptor = descriptors[route.key];
     const focused = state.index === index;
+    if (!mountedKeys.has(route.key)) return null;
     return React.createElement(
       View,
       {
@@ -102,7 +114,7 @@ function BaseNavigator({ createRouter, navigatorType, tabBar, children, ...optio
         View,
         { style: styles.tabBar },
         state.routes
-          .filter((r) => !(descriptors[r.key]?.options?.tabBarButton === undefined && descriptors[r.key]?.options?.tabBarItemStyle?.display === 'none'))
+          .filter((r) => descriptors[r.key]?.options?.tabBarItemStyle?.display !== 'none')
           .map((route) => {
             const focused = state.routes[state.index].key === route.key;
             const opts = descriptors[route.key]?.options || {};
