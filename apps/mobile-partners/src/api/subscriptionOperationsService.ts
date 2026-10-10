@@ -713,4 +713,149 @@ export const subscriptionOperationsService = {
     const response = await apiClient.get('/upload/evidence-url', { params: { key } });
     return response.data?.url || response.data?.signedUrl || null;
   },
+
+  // --- Subscriber lifecycle (mirrors the web "Manage" modal) -------------
+
+  getSubscriberHistory: async (subscriptionId: string): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/history`,
+    );
+    return response.data;
+  },
+
+  getSubscriberAudit: async (subscriptionId: string, limit = 50): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/audit`,
+      { params: { limit } },
+    );
+    return Array.isArray(response.data) ? response.data : response.data?.entries || [];
+  },
+
+  cancelSubscription: async (subscriptionId: string, reason?: string) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/cancel`,
+      { reason: reason || 'Cancelled by store owner' },
+    );
+    return response.data;
+  },
+
+  updateSubscription: async (
+    subscriptionId: string,
+    body: {
+      deliverySlot?: 'AM' | 'PM' | 'AM+PM';
+      amountDuePaise?: number;
+      amountCollectedPaise?: number;
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.patch(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/manual-edit`,
+      body,
+    );
+    return response.data;
+  },
+
+  recordSubscriberPayment: async (
+    subscriptionId: string,
+    body: { amountPaise: number; paymentMode: 'CASH' | 'PHONE_PE'; note?: string },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/record-payment`,
+      body,
+    );
+    return response.data;
+  },
+
+  renewSubscription: async (
+    subscriptionId: string,
+    body: {
+      isSamePlan: boolean;
+      newPlanId?: string;
+      frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS';
+      startDate?: string;
+      totalDeliveries?: number;
+      deliverySlot?: 'AM' | 'PM' | 'AM+PM';
+      splitItems?: { amProductName: string; amQuantity: string; pmProductName: string; pmQuantity: string };
+      vacationRange?: { fromDate: string; toDate: string; policy: 'EXTEND_PLAN' | 'DEDUCT_BILL' };
+      initialCashCollectedPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE' | 'DUE';
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/renew`,
+      body,
+    );
+    return response.data;
+  },
+
+  // --- Calendar / analytics / store settings / preferences --------------
+
+  getAnalytics: async (): Promise<any> => {
+    const response = await apiClient.get('/store/subscriptions/analytics');
+    return response.data;
+  },
+
+  getOperatingHours: async (storeId: string): Promise<any> => {
+    const response = await apiClient.get(`/store-owner/stores/${encodeURIComponent(storeId)}/operating-hours`);
+    return response.data;
+  },
+
+  updateOperatingHours: async (
+    storeId: string,
+    body: { operatingHours?: Array<{ dayOfWeek: number; windows: Array<{ openMinute: number; closeMinute: number }> }>; timezone?: string },
+  ) => {
+    const response = await apiClient.put(`/store-owner/stores/${encodeURIComponent(storeId)}/operating-hours`, body);
+    return response.data;
+  },
+
+  getNotificationPreferences: async (): Promise<any> => {
+    const response = await apiClient.get('/notifications/preferences');
+    return response.data;
+  },
+
+  updateNotificationPreference: async (body: {
+    eventType?: string;
+    pushEnabled?: boolean;
+    inAppEnabled?: boolean;
+  }) => {
+    const response = await apiClient.patch('/notifications/preferences', body);
+    return response.data;
+  },
+
+  // --- Self-delivery queue (the web Deliveries page) --------------------
+
+  getSelfDeliveryQueue: async (storeId: string, from?: string, to?: string): Promise<any[]> => {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    const response = await apiClient.get(`/store-self-delivery/queue/${encodeURIComponent(storeId)}`, { params });
+    return Array.isArray(response.data) ? response.data : response.data?.items || [];
+  },
+
+  startSelfDelivery: async (deliveryId: string) => {
+    const response = await apiClient.post(`/store-self-delivery/start/${encodeURIComponent(deliveryId)}`);
+    return response.data;
+  },
+
+  completeSelfDelivery: async (
+    deliveryId: string,
+    body: { verifiedCustomerName: string; verifiedCustomerPhone: string; cashCollectedPaise: number; notes?: string },
+  ) => {
+    const response = await apiClient.post(`/store-self-delivery/complete/${encodeURIComponent(deliveryId)}`, body);
+    return response.data;
+  },
+
+  failSelfDelivery: async (deliveryId: string, reason: string) => {
+    const response = await apiClient.post(`/store-self-delivery/fail/${encodeURIComponent(deliveryId)}`, { reason });
+    return response.data;
+  },
+
+  updateSelfDelivery: async (
+    deliveryId: string,
+    body: { status?: string; cashCollectedPaise?: number; notes?: string; failureReason?: string },
+  ) => {
+    const response = await apiClient.patch(`/store-self-delivery/update/${encodeURIComponent(deliveryId)}`, body);
+    return response.data;
+  },
 };

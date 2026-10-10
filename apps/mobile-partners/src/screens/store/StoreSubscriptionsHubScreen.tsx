@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { Box, CalendarDays, Contact, IndianRupee, PackageCheck, Route, Users } from 'lucide-react-native';
+import { BarChart3, Box, CalendarDays, Contact, IndianRupee, PackageCheck, Route, Users } from 'lucide-react-native';
 import { StoreHubSection, StoreHubTile } from '../../components/StoreHubKit';
 import { GradientSurface } from '../../components/GradientSurface';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
@@ -103,6 +103,24 @@ export function StoreSubscriptionsHubScreen() {
             last
             testID="store_subscriptions_delivery_ops"
             onPress={() => navigation.navigate('StoreReturnsCod')}
+          />
+        </StoreHubSection>
+
+        <StoreHubSection title="Insights">
+          <StoreHubTile
+            icon={<CalendarDays size={20} />}
+            title="Delivery calendar"
+            subtitle="Scheduled deliveries by day"
+            testID="store_subscriptions_calendar"
+            onPress={() => navigation.navigate('StoreCalendar')}
+          />
+          <StoreHubTile
+            icon={<BarChart3 size={20} />}
+            title="Analytics"
+            subtitle="Subscriptions, deliveries and cash by status"
+            last
+            testID="store_subscriptions_analytics"
+            onPress={() => navigation.navigate('StoreAnalytics')}
           />
         </StoreHubSection>
 

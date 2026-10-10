@@ -23,6 +23,11 @@ import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen'
 import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
 import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
 import { StoreRiderAssignmentsScreen } from '../screens/store/StoreRiderAssignmentsScreen';
+import { StoreCalendarScreen } from '../screens/store/StoreCalendarScreen';
+import { StoreAnalyticsScreen } from '../screens/store/StoreAnalyticsScreen';
+import { StoreOperatingHoursScreen } from '../screens/store/StoreOperatingHoursScreen';
+import { StoreNotificationSettingsScreen } from '../screens/store/StoreNotificationSettingsScreen';
+import { StoreDeliveriesScreen } from '../screens/store/StoreDeliveriesScreen';
 import { notificationService } from '../api/notificationService';
 import { storeService } from '../api/storeService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../screens/PartnerNotificationsScreen';
@@ -169,6 +174,11 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreInventory" component={StoreInventoryScreen} />
       <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
       <Stack.Screen name="StorePickupAlerts" component={StorePickupAlertsScreen} />
+      <Stack.Screen name="StoreCalendar" component={StoreCalendarScreen} />
+      <Stack.Screen name="StoreAnalytics" component={StoreAnalyticsScreen} />
+      <Stack.Screen name="StoreOperatingHours" component={StoreOperatingHoursScreen} />
+      <Stack.Screen name="StoreNotificationSettings" component={StoreNotificationSettingsScreen} />
+      <Stack.Screen name="StoreDeliveries" component={StoreDeliveriesScreen} />
     </Stack.Navigator>
   </View>
 );

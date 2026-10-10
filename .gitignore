@@ -140,3 +140,4 @@ agent_demo_shots/
 
 # local demo credentials (never commit)
 .env.demo
+.agents/
