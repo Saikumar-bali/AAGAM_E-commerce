@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ellipsis, House, LayoutGrid, Repeat, ShoppingCart } from 'lucide-react-native';
+import { LayoutDashboard, LayoutGrid, Repeat, ShoppingCart, Ellipsis } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreOperationsHubScreen } from '../screens/store/StoreOperationsHubScreen';
 import { StoreSubscriptionsHubScreen } from '../screens/store/StoreSubscriptionsHubScreen';
@@ -40,10 +40,9 @@ function tabBadge(count: number) {
 }
 
 /**
- * Four-destination store tab bar — Home, Operations, Orders, More — mirroring
- * the web store workspace. Secondary screens (inventory, plans, subscribers,
- * subscription runs, settings, milk grid) drill down from the Operations and
- * More hubs instead of competing for a tab.
+ * Five-destination store tab bar — Home, Subscriptions, Orders, Operations,
+ * More. The two operational hubs swap places so Subscriptions (the store's
+ * daily milk business) is the first thing after Home.
  */
 const StoreTabs = () => {
   const insets = useSafeAreaInsets();
@@ -106,16 +105,16 @@ const StoreTabs = () => {
           tabBarButtonTestID: 'tab_dashboard',
           tabBarBadge: tabBadge(Number(inboxQuery.data?.unreadCount || 0)),
           tabBarBadgeStyle: badgeStyle,
-          tabBarIcon: ({ color, size, focused }) => <House size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
+          tabBarIcon: ({ color, size, focused }) => <LayoutDashboard size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
-        name="Operations"
-        component={StoreOperationsHubScreen}
+        name="Subscriptions"
+        component={StoreSubscriptionsHubScreen}
         options={{
-          title: 'Operations',
-          tabBarButtonTestID: 'tab_operations',
-          tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+          title: 'Subscriptions',
+          tabBarButtonTestID: 'tab_subscriptions',
+          tabBarIcon: ({ color, size, focused }) => <Repeat size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
@@ -130,12 +129,12 @@ const StoreTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Subscriptions"
-        component={StoreSubscriptionsHubScreen}
+        name="Operations"
+        component={StoreOperationsHubScreen}
         options={{
-          title: 'Subscriptions',
-          tabBarButtonTestID: 'tab_subscriptions',
-          tabBarIcon: ({ color, size, focused }) => <Repeat size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+          title: 'Operations',
+          tabBarButtonTestID: 'tab_operations',
+          tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen

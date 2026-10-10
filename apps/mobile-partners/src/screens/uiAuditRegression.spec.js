@@ -23,6 +23,76 @@ describe('partner mobile UI audit regressions', () => {
     expect(navigator).not.toContain("tabBarStyle: { display: 'none' }");
   });
 
+  it('orders the Store tabs Home, Subscriptions, Orders, Operations, More with a dashboard Home icon', () => {
+    const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
+    const home = navigator.indexOf('name="Dashboard"');
+    const subs = navigator.indexOf('name="Subscriptions"');
+    const orders = navigator.indexOf('name="Orders"');
+    const operations = navigator.indexOf('name="Operations"');
+    const more = navigator.indexOf('name="More"');
+    expect(home).toBeGreaterThan(-1);
+    expect(home).toBeLessThan(subs);
+    expect(subs).toBeLessThan(orders);
+    expect(orders).toBeLessThan(operations);
+    expect(operations).toBeLessThan(more);
+    // The Home tab must not reuse the old house glyph.
+    expect(navigator).toContain('LayoutDashboard');
+    expect(navigator).not.toContain('House');
+  });
+
+  it('gives every pushed Store screen a back affordance so none can strand the user', () => {
+    for (const file of [
+      'store/StoreInventoryScreen.tsx',
+      'store/StoreMilkGridScreen.tsx',
+      'store/StoreOfflineCustomerScreen.tsx',
+      'store/StoreOrderDetailsReferenceScreen.tsx',
+      'store/StoreOrderDetailsScreen.tsx',
+      'store/StorePickupAlertsScreen.tsx',
+      'store/StorePickupSuccessScreen.tsx',
+      'store/StorePickupVerificationScreen.tsx',
+      'store/StoreRiderAssignmentsScreen.tsx',
+      'store/StoreSettingsScreen.tsx',
+      'store/StoreSubscribersScreen.tsx',
+      'store/StoreSubscriptionOperationsScreen.tsx',
+      'store/StoreSubscriptionPlansScreen.tsx',
+      'store/StoreDeliveryOperationsScreen.tsx',
+    ]) {
+      const text = screen(file);
+      const hasBack = /goBack|ArrowLeft|StoreBackButton|onBack/.test(text);
+      expect(`${file}:${hasBack}`).toBe(`${file}:true`);
+    }
+  });
+
+  it('renders the pushed Store screens inside the gradient workspace chrome', () => {
+    for (const file of [
+      'store/StoreInventoryScreen.tsx',
+      'store/StoreMilkGridScreen.tsx',
+      'store/StoreOfflineCustomerScreen.tsx',
+      'store/StoreOrderDetailsReferenceScreen.tsx',
+      'store/StoreOrderDetailsScreen.tsx',
+      'store/StorePickupAlertsScreen.tsx',
+      'store/StorePickupSuccessScreen.tsx',
+      'store/StorePickupVerificationScreen.tsx',
+      'store/StoreRiderAssignmentsScreen.tsx',
+      'store/StoreSettingsScreen.tsx',
+      'store/StoreSubscribersScreen.tsx',
+      'store/StoreSubscriptionOperationsScreen.tsx',
+      'store/StoreSubscriptionPlansScreen.tsx',
+      'store/StoreDeliveryOperationsScreen.tsx',
+    ]) {
+      const text = screen(file);
+      expect(`${file}:${text.includes('GradientSurface')}`).toBe(`${file}:true`);
+    }
+  });
+
+  it('keeps the Rider pickup handoff escapable with an in-flow back control', () => {
+    const pickup = screen('rider/RiderPickupOperationsScreen.tsx');
+    expect(pickup).toContain('testID="rider_pickup_back"');
+    expect(pickup).toContain('ArrowLeft');
+    expect(pickup).toContain("onPress={() => navigation?.goBack?.()}");
+  });
+
+
   it('keeps Store headers separated and uses the teal workspace theme on details and More', () => {
     const brand = repoFile('apps/mobile-partners/src/components/AagamBrand.tsx');
     const details = screen('store/StoreOrderDetailsScreen.tsx');
