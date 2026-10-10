@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { ArrowLeft, Check, Clock, Plus, X } from 'lucide-react-native';
+import { ArrowLeft, Check, Clock, Plus, Store, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -48,7 +48,13 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
   const queryClient = useQueryClient();
   const storesQuery = useQuery({ queryKey: ['my-stores'], queryFn: storeService.getMyStores, retry: 1 });
   const stores = Array.isArray(storesQuery.data) ? storesQuery.data : [];
-  const storeId = stores[0]?.id;
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedStoreId((current) =>
+      current && stores.some((store: any) => store.id === current) ? current : stores[0]?.id || null,
+    );
+  }, [stores]);
+  const storeId = selectedStoreId || stores[0]?.id;
 
   const hoursQuery = useQuery({
     queryKey: ['store-operating-hours', storeId],
@@ -133,6 +139,26 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
           <Clock size={19} color="#FFFFFF" />
         </TouchableOpacity>
       </GradientSurface>
+
+      {stores.length > 1 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storeRail}>
+          {stores.map((store: any) => {
+            const selected = store.id === storeId;
+            return (
+              <TouchableOpacity
+                key={store.id}
+                style={[styles.storeChip, selected && styles.storeChipActive]}
+                onPress={() => setSelectedStoreId(store.id)}
+              >
+                <Store size={15} color={selected ? '#FFFFFF' : '#0F766E'} />
+                <Text style={[styles.storeChipText, selected && styles.storeChipTextActive]} numberOfLines={1}>
+                  {store.name || 'Store'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={palette.teal700} /><Text style={styles.muted}>Loading operating hours…</Text></View>
@@ -225,6 +251,11 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.slate050 },
+  storeRail: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, alignItems: 'center' },
+  storeChip: { maxWidth: 190, height: 39, borderRadius: 12, borderWidth: 1, borderColor: '#CFE4DB', backgroundColor: '#FFFFFF', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeChipActive: { backgroundColor: '#0F766E', borderColor: '#0F766E' },
+  storeChipText: { color: '#0F766E', fontSize: 11, fontWeight: '600', flexShrink: 1 },
+  storeChipTextActive: { color: '#FFFFFF' },
   flex: { flex: 1, minWidth: 0 },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   back: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },

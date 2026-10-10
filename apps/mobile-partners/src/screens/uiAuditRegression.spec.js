@@ -56,6 +56,12 @@ describe('partner mobile UI audit regressions', () => {
       'store/StoreSubscriptionOperationsScreen.tsx',
       'store/StoreSubscriptionPlansScreen.tsx',
       'store/StoreDeliveryOperationsScreen.tsx',
+      'store/StoreAnalyticsScreen.tsx',
+      'store/StoreCalendarScreen.tsx',
+      'store/StoreDeliveriesScreen.tsx',
+      'store/StoreNotificationSettingsScreen.tsx',
+      'store/StoreOfflineCustomersScreen.tsx',
+      'store/StoreOperatingHoursScreen.tsx',
     ]) {
       const text = screen(file);
       const hasBack = /goBack|ArrowLeft|StoreBackButton|onBack/.test(text);
@@ -79,6 +85,12 @@ describe('partner mobile UI audit regressions', () => {
       'store/StoreSubscriptionOperationsScreen.tsx',
       'store/StoreSubscriptionPlansScreen.tsx',
       'store/StoreDeliveryOperationsScreen.tsx',
+      'store/StoreAnalyticsScreen.tsx',
+      'store/StoreCalendarScreen.tsx',
+      'store/StoreDeliveriesScreen.tsx',
+      'store/StoreNotificationSettingsScreen.tsx',
+      'store/StoreOfflineCustomersScreen.tsx',
+      'store/StoreOperatingHoursScreen.tsx',
     ]) {
       const text = screen(file);
       expect(`${file}:${text.includes('GradientSurface')}`).toBe(`${file}:true`);
