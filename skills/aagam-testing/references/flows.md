@@ -436,6 +436,15 @@ Fixtures it builds: one store (owner) + zone + simple milk product/inventory +
 one ONLINE_MILK plan + one OFFLINE_MILK plan (each with a version, one milk item,
 store link, zone link) + one APPROVED/ONLINE rider.
 
+**Offline-customer location (store app).** The store's Add-offline-customer form
+(`StoreOfflineCustomerScreen`) must collect a real delivery location, not accept
+a default. It renders `LeafletMap` (`onPinChange`), a "Use current" GPS button
+and `/geo/reverse` address fill, seeds the pin from the selected store's own
+`latitude`/`longitude` (from `GET /store-owner/stores`), and refuses to submit
+until a valid non-default pin exists. The stored `CustomerAddress.latitude` /
+`longitude` is exactly what the rider route and dispatch map read, so a missing
+pin silently misroutes the customer. Regression: BUG-019.
+
 Flow walked:
 
 ```text

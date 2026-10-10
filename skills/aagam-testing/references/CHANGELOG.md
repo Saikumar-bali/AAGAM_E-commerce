@@ -368,3 +368,18 @@ human), what changed, why.
   - `SKILL.md` version bumped 1.4.9 → 1.5.0 (new section); `last-verified` left at
     2026-10-08.
 
+
+- **2026-10-10 · v1.5.1 · openhands (store react-native-web preview session)**
+  - Fixed and documented **BUG-019**: the store app Add-offline-customer form
+    (`StoreOfflineCustomerScreen`) had no map/location control and saved every
+    offline customer at the hardcoded `17.6913, 83.0039`. It now renders
+    `LeafletMap` (`onPinChange`) + a "Use current" GPS button + `/geo/reverse`
+    fill, seeds the pin from the selected store real coordinates, and blocks
+    submit until a valid pin is set. Verified via the react-native-web store
+    preview: a new customer persisted `17.6868, 83.2185` with a reverse-geocoded
+    city/pincode (pre-fix rows read `17.6913, 83.0039`). Marked
+    `FIXED-NOT-DEPLOYED` (branch `feat/rider-mobile-satellite-map`, not on `main`).
+  - `references/flows.md` gained an "Offline-customer location" note under Flow H
+    tying the stored `CustomerAddress` coordinates to the rider route/dispatch map.
+  - No credentials recorded; the store login was read from the environment.
+  - `SKILL.md` version bumped 1.5.0 -> 1.5.1; `last-verified` left at 2026-10-08.

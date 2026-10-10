@@ -933,3 +933,33 @@ cd agent_demo_shots && python3 -m http.server 12000 &
 The Playwright browser cache is also wiped on restart: re-run
 `npx playwright install chromium-headless-shell` before capture/probe scripts.
 
+## Browser preview of the mobile apps (react-native-web)
+
+`mobile-web-preview/` bundles the real `apps/mobile-customer` and
+`apps/mobile-partners` code with react-native-web and serves them through a
+same-origin proxy to the api-gateway. `./run.sh` builds both and serves on
+`:12001`: partners at `/preview/mobile-partners/`, customer at
+`/preview/mobile-customer/`. `server.js` forwards `/api/*` and `/socket.io/*` to
+`API_ORIGIN` (default `http://127.0.0.1:3005`) with `STRIP_API_PREFIX=1` (local
+gateway has no `/api` prefix), injects `window.__ENV__`, and streams live
+reload. `API_URL` is baked to `/api` so the bundle is same-origin.
+
+Key points:
+- `mocks/navigation.js` reuses the real `@react-navigation/core` builder;
+  `Screen`/`Group` come from `createNavigatorFactory` because core's public index
+  does not export them (a `Stack.Screen` of `undefined` throws inside the nav).
+- `mocks/keychain.js` must expose named exports (`setGenericPassword`, …)
+  because `mobile-shared/store/authStore.ts` uses `import * as Keychain`.
+- `apps/mobile-partners/src/components/StoreKit.tsx` does not exist on this
+  branch or on `main`/`bugs`, though `StoreDeliveriesScreen` /
+  `ManageSubscriberSheet` import it. A compatibility shim (Button, Field, Sheet,
+  TextField, money, Chip, SectionTitle, StatTile, InfoRow, OptionCard,
+  SegmentedTabs) was added so the store workspace compiles — swap in the real
+  implementation when it lands.
+- Authenticated flows need role credentials; the previews otherwise render the
+  login/onboarding screens. Signing in with a real account (or the configured
+  `AAGAM_*` logins) exercises the full navigators against the live DB.
+- `playwright` needs the `chrome` channel (`npx playwright install chrome`) for
+  the MCP browser, not just `chromium-headless-shell`.
+
+

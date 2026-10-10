@@ -867,3 +867,46 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** the base delivery row keeps its slot; only the marker carries the
   add-on's target, which is why the `ADD-ON_PATTERN` trailing slot group is used
   rather than overwriting `deliverySlot`.
+
+### BUG-019 — Offline customer created from the store app was pinned to a hardcoded default, with no map in the form
+
+- **Found:** 2026-10-10 by openhands (react-native-web store preview session)
+- **Severity:** major
+- **Surface:** store app `StoreOfflineCustomerScreen` → `POST /api/store/subscriptions/manual-customer`
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Store app → Subscriptions → Offline customers → Add offline customer.
+  2. Fill name, phone, address, pick a plan, and submit. There is no map or
+     location control anywhere in the form.
+  3. Read back the created `CustomerAddress`.
+- **Observed:** every offline customer was saved with `latitude 17.6913 /
+  longitude 83.0039` regardless of the typed address. The screen's
+  `useState(17.6913)` / `useState(83.0039)` were never reassigned (no
+  `LeafletMap`, no `Geolocation`, no geocode), so the rider route for these
+  customers pinned them all to one Anakapalli point. Reproduced live: a new
+  offline customer read back `17.6913, 83.0039`; pre-fix rows share the same
+  point. Only 6 distinct coordinate pairs existed across 19 addresses.
+- **Expected:** the operator pins the real delivery location; the rider map
+  reflects it. The customer app already does this (`CheckoutScreen` renders
+  `LeafletMap` with `onPinChange` + `/geo/reverse` + `useLocation`), so the
+  store surface should match it instead of silently defaulting.
+- **Code path:** `apps/mobile-partners/src/screens/store/StoreOfflineCustomerScreen.tsx`
+  (hardcoded lat/lng initial state); backend
+  `subscription-admin-reporting.service.ts` `createOfflineCustomer()` only
+  applies `fallbackLat/fallbackLng` when the DTO omits coordinates — it does not
+  geocode, so it cannot correct a wrong-but-present value.
+- **Evidence:** after the fix, a customer created through the react-native-web
+  preview persisted `17.6868, 83.2185` (the pinned/GPS point) plus the
+  reverse-geocoded city/pincode, versus the pre-fix `17.6913, 83.0039`.
+- **Fix:** `StoreOfflineCustomerScreen` now renders `LeafletMap` with
+  `onPinChange`, a "Use current" GPS button, reverse-geocode fill of the address
+  fields, seeds the pin from the selected store's real coordinates (falling back
+  to the Anakapalli centre only when the store has none), and blocks submit until
+  a valid location is set. `locationSource` guards against re-seeding a
+  deliberately pinned location.
+- **Notes:** the backend `fallbackLat/fallbackLng` remain a last-resort default;
+  they should not be relied on for correctness. Coordinate persistence is the
+  same field the rider route/navigation reads, so this defect and "no customers
+  showing for a store" can compound.
+
