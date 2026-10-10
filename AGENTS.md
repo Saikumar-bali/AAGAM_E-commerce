@@ -43,6 +43,38 @@ Two rules that go with it:
    Anyone — human or another model — may update the skill the same way; that
    is the point of it.
 
+### Required stack skills
+
+Tasks in this repository must use the stack skills below. Load the matching
+skill **before** starting work in that area and follow it over ad-hoc habits.
+If a skill is not installed in the current environment, install it with the
+command shown (or ask the user) — do not skip it silently.
+
+| Area / folder | Skill to load | Install |
+| --- | --- | --- |
+| Turborepo, `turbo.json`, task caching | `turborepo` | `npx skills add vercel/turborepo@turborepo -g -y` |
+| `apps/api-gateway` — NestJS modules, DI, controllers, guards | `nestjs-best-practices` | `npx skills add kadajett/agent-nestjs-skills@nestjs-best-practices -g -y` |
+| `packages/database` — Prisma schema, client, migrations | `prisma-client-api`, `prisma-database-setup` | `npx skills add prisma/skills@prisma-client-api -g -y` |
+| Postgres SQL, indexes, migrations (any host) | `supabase-postgres-best-practices` | `npx skills add supabase/agent-skills@supabase-postgres-best-practices -g -y` |
+| `apps/admin-dashboard` — React 19 / Next.js pages and data flow | `vercel-react-best-practices` | `npx skills add vercel-labs/agent-skills@vercel-react-best-practices -g -y` |
+| Next.js App Router structure, server/client boundaries | `nextjs-app-router-patterns` | `npx skills add wshobson/agents@nextjs-app-router-patterns -g -y` |
+| Tailwind UI and the `@aagam/ui` design system | `tailwind-design-system` | `npx skills add wshobson/agents@tailwind-design-system -g -y` |
+| `apps/mobile-customer`, `apps/mobile-partners` — React Native | `react-native-best-practices`, `vercel-react-native-skills` | `npx skills add callstackincubator/agent-skills@react-native-best-practices -g -y` |
+| Playwright end-to-end specs | `playwright-best-practices` | `npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices -g -y` |
+| `.github/workflows` — CI/CD changes | `github-actions` | `npx skills add callstackincubator/agent-skills@github-actions -g -y` |
+| Complex TypeScript types and generics | `typescript-advanced-types` | `npx skills add wshobson/agents@typescript-advanced-types -g -y` |
+| Implementing a feature / reviewing / debugging | `tdd`, then `code-review`, then `diagnosing-bugs` | `npx skills add mattpocock/skills@tdd -g -y` |
+
+Rules for these skills:
+
+1. The in-repo `aagam-testing` skill stays the mandatory skill for end-to-end
+   testing of the four role surfaces; the table above adds stack-specific
+   skills on top of it.
+2. A task that spans several areas loads every matching skill, not just the
+   first one.
+3. Never rename an installed skill to collide with a built-in skill; skills
+   are enabled and disabled by name, and a collision disables both.
+
 ## Running the api-gateway tests
 
 The suite needs a reachable Postgres. Without `DATABASE_URL` you get ~604
