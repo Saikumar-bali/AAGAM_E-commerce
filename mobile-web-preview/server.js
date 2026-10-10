@@ -162,12 +162,26 @@ function injectEnv(html, name) {
   );
 }
 
+// The injected index is built once and cached; the request handler serves the
+// cached string, so no request path reads the filesystem. The cache is rebuilt
+// below whenever the watcher sees a new build.
+const indexCache = new Map();
+function buildIndex(name) {
+  const file = path.join(DIST, name, 'index.html');
+  if (!fs.existsSync(file)) {
+    indexCache.set(name, null);
+    return;
+  }
+  indexCache.set(name, injectEnv(fs.readFileSync(file, 'utf8'), name));
+}
+
 for (const name of APPS) {
   const dir = path.join(DIST, name);
+  buildIndex(name);
   app.get(`/preview/${name}/`, (_req, res) => {
-    const file = path.join(dir, 'index.html');
-    if (!fs.existsSync(file)) return res.status(503).send(`${name} not built yet. Run the build command.`);
-    res.type('html').send(injectEnv(fs.readFileSync(file, 'utf8'), name));
+    const html = indexCache.get(name);
+    if (!html) return res.status(503).send(`${name} not built yet. Run the build command.`);
+    res.type('html').send(html);
   });
   app.use(`/preview/${name}`, express.static(dir, { index: false }));
   app.get(`/preview/${name}`, (_req, res) => res.redirect(`/preview/${name}/`));
@@ -186,7 +200,10 @@ let reloadTimer = null;
 if (fs.existsSync(DIST)) {
   fs.watch(DIST, { recursive: true }, () => {
     clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => clients.forEach((client) => client.write('data: reload\n\n')), 250);
+    reloadTimer = setTimeout(() => {
+      for (const name of APPS) buildIndex(name);
+      clients.forEach((client) => client.write('data: reload\n\n'));
+    }, 250);
   });
 }
 
