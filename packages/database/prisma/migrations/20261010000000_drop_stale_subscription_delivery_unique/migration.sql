@@ -1,0 +1,14 @@
+-- The offline-subscription migration (20260908000000) intended to replace the
+-- one-delivery-per-date unique key with a slot-aware one. It ran
+-- `ALTER TABLE ... DROP CONSTRAINT IF EXISTS "SubscriptionDelivery_subscriptionId_serviceDate_key"`,
+-- but that key is a unique INDEX (created with CREATE UNIQUE INDEX in
+-- 20260806090000), not a constraint. Postgres therefore raised no error, the
+-- DROP was a no-op, and the old index survived alongside the new
+-- (subscriptionId, serviceDate, deliverySlot) index.
+--
+-- Consequence: a subscription with both AM and PM slots on the same date
+-- (deliverySlot 'BOTH') could only persist one row per date. Prisma
+-- `createMany({ skipDuplicates: true })` silently dropped the rest, so a
+-- 4-delivery AM/PM plan generated only 2 rows. Drop the stale index so the
+-- slot-aware unique key is authoritative.
+DROP INDEX IF EXISTS "SubscriptionDelivery_subscriptionId_serviceDate_key";

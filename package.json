@@ -50,7 +50,8 @@
     },
     "@firebase/firestore": {
       "@grpc/grpc-js": "1.14.5"
-    }
+    },
+    "handlebars": "4.7.10"
   },
   "scripts": {
     "lint": "eslint apps packages scripts --ext .ts,.tsx,.js",
