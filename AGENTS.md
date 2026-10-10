@@ -324,6 +324,23 @@ survives a timeout, and treat 20 minutes as their own deadline.
   **not** deploy, so `https://aagaam.in` keeps serving whatever `main` last
   built. A fix can be correct in the branch and still absent from the live site —
   check `git log origin/main..origin/bugs` before trusting a live repro.
+- The release is compiled on the GitHub runner and shipped to the VPS as
+  `aagam-build-artifacts-<sha>.tgz`; `deploy.sh` never builds on the host. The
+  VPS is a 2 vCPU / ~1.9 GB instance, and an on-host `nest build` for
+  `@aagam/api-gateway` took 33–43 minutes of swap-throttled tsc (turbo cache
+  `duration` values: 2,000,281 ms on run #380, 2,578,653 ms on run #381), which
+  pushed the remote step into the job's 45-minute timeout and produced the
+  "cancelled" deploy run #381. Keep the build on the runner. The deploy
+  workflow restores the CI-saved `.turbo` cache for the same SHA so
+  api-gateway/worker/package builds replay from cache; only admin-dashboard
+  rebuilds (its production `NEXT_PUBLIC_*` values are declared in
+  `apps/admin-dashboard/turbo.json`, which changes its Turbo hash). `deploy.sh`
+  skips `npm ci` when `package-lock.json` is unchanged (stamp at
+  `node_modules/.aagam-package-lock.sha256`); when it runs, it is scoped to the
+  three deployed workspaces with `--omit=dev` (~1.3 GB, mobile workspaces
+  excluded) under a temporary swap file that is released immediately. The VPS
+  artifact is staged on `/var/tmp` — `/tmp` is a RAM-backed tmpfs. Deploys end
+  with best-effort `apt-get clean` / `git gc --auto` and print disk usage.
 - To reproduce a store-owner issue against the live API without the browser:
   `POST /api/auth/login` with `{email,password}` returns an HttpOnly
   `access_token` cookie; save it with `curl -c` and reuse with `curl -b` against

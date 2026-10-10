@@ -11,12 +11,15 @@ DEPLOY_LOCK_FILE="${DEPLOY_LOCK_FILE:-/tmp/aagam-production-deploy.lock}"
 DEPLOY_NODE_VERSION="${DEPLOY_NODE_VERSION:-22.22.3}"
 DEPLOY_NODE_CACHE_DIR="${DEPLOY_NODE_CACHE_DIR:-$HOME/.cache/aagam-node}"
 DEPLOY_NODE_HEAP_MB="${DEPLOY_NODE_HEAP_MB:-1536}"
-DEPLOY_BUILD_NODE_HEAP_MB="${DEPLOY_BUILD_NODE_HEAP_MB:-$(( DEPLOY_NODE_HEAP_MB + 1024 ))}"
-DEPLOY_BUILD_REQUIRED_MEMORY_MB="${DEPLOY_BUILD_REQUIRED_MEMORY_MB:-$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))}"
-DEPLOY_MIN_AVAILABLE_MEMORY_MB="${DEPLOY_MIN_AVAILABLE_MEMORY_MB:-$DEPLOY_BUILD_REQUIRED_MEMORY_MB}"
-DEPLOY_SWAP_MB="${DEPLOY_SWAP_MB:-4096}"
+# The monorepo is compiled on the GitHub runner (4 vCPU, 16 GB) and shipped as
+# a prebuilt archive. The 2 vCPU / 2 GB VPS only installs runtime dependencies,
+# runs migrations and restarts pm2; it never builds. Deploying required tsc to
+# run on the host, which needs 30-40 minutes and multi-gigabyte swap files.
+DEPLOY_ARTIFACT_ARCHIVE="${DEPLOY_ARTIFACT_ARCHIVE:-}"
+# Deployment swap files were a build-time fixture of the old VPS-side build.
+# They are no longer created, but leftovers from an interrupted deploy are still
+# cleaned up so the 19 GB volume does not keep carrying a 4 GB file.
 DEPLOY_SWAP_FILE="${DEPLOY_SWAP_FILE:-/var/tmp/aagam-deploy.swap}"
-DEPLOY_SUPPLEMENTAL_SWAP_MB="${DEPLOY_SUPPLEMENTAL_SWAP_MB:-2048}"
 DEPLOY_SUPPLEMENTAL_SWAP_FILE="${DEPLOY_SUPPLEMENTAL_SWAP_FILE:-${DEPLOY_SWAP_FILE}.extra}"
 
 cd "$APP_DIR"
@@ -25,12 +28,14 @@ on_error() {
   local exit_code=$?
   trap - ERR
   echo "Deployment failed with exit code $exit_code."
-  # Restore the previously-live build artifacts so a failed build (which can
-  # wipe dist via nest deleteOutDir) never leaves the VPS unable to serve the
-  # old release. Always restore to disk, then bring processes back.
+  # Restore the previously-live build artifacts so a failed release never leaves
+  # the VPS unable to serve the old one. Artifact installs replace dist/.next in
+  # place, so the previous build is kept in DIST_BACKUP_DIR until the new
+  # release passes every health check. Always restore to disk, then bring
+  # processes back.
   if [[ -n "${DIST_BACKUP_DIR:-}" && -d "$DIST_BACKUP_DIR" ]]; then
     echo "Restoring previous build artifacts from $DIST_BACKUP_DIR"
-    for rel_dir in "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
+    for rel_dir in "packages/types/dist" "packages/utils/dist" "packages/ui/dist" "packages/database/dist" "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
       if [[ -e "$DIST_BACKUP_DIR/$rel_dir" ]]; then
         rm -rf "$rel_dir" || true
         cp -a "$DIST_BACKUP_DIR/$rel_dir" "$rel_dir" 2>/dev/null || true
@@ -40,7 +45,7 @@ on_error() {
   fi
   # Bring the (restored) old release back up so a failed deploy never leaves
   # production down.
-  if [[ "${BUILD_STOPPED_PROCESSES:-0}" == "1" ]] || [[ -n "${DIST_BACKUP_DIR:-}" ]]; then
+  if [[ -n "${DIST_BACKUP_DIR:-}" ]]; then
     echo "Restoring pm2 processes to the previous release."
     pm2 startOrReload ecosystem.config.js --update-env --interpreter "$(command -v node)" >/dev/null 2>&1 || true
     pm2 restart admin-dashboard --update-env >/dev/null 2>&1 || true
@@ -52,9 +57,9 @@ on_error() {
     pm2 status || true
     pm2 logs api-gateway --lines 80 --nostream || true
   fi
-  # A failed deploy must not strand the build swap on disk either: it is the
-  # single largest file on a 19 GB volume and the next deploy recreates it.
-  # Guarded because this trap can fire before the function is parsed.
+  # A deploy that fails before touching anything must still not leave a stale
+  # deployment swap on the volume. Guarded because this trap can fire before
+  # the function is parsed; the function itself is best-effort.
   if declare -F release_deploy_swap >/dev/null 2>&1; then
     release_deploy_swap || true
   fi
@@ -121,149 +126,31 @@ ensure_node_runtime() {
   fi
 }
 
-available_memory_mb() {
-  awk '
-    /MemAvailable:/ { memory = $2 }
-    /SwapFree:/ { swap = $2 }
-    END { printf "%d\n", (memory + swap) / 1024 }
-  ' /proc/meminfo
-}
-
 swap_is_active() {
   local swap_file="$1"
-  sudo swapon --show=NAME --noheadings | awk '{$1=$1};1' | grep -Fxq "$swap_file"
+  sudo -n swapon --show=NAME --noheadings 2>/dev/null | awk '{$1=$1};1' | grep -Fxq "$swap_file"
 }
 
-create_swap_file() {
-  local swap_file="$1"
-  local swap_mb="$2"
-  local swap_dir
-  swap_dir="$(dirname "$swap_file")"
-  local free_disk_mb
-  free_disk_mb="$(df -Pm "$swap_dir" | awk 'NR == 2 { print $4 }')"
-  if (( free_disk_mb < swap_mb + 512 )); then
-    local max_possible=$(( free_disk_mb - 512 ))
-    if (( max_possible >= 1024 )); then
-      echo "Clamping requested swap from ${swap_mb} MB to ${max_possible} MB to safely fit on disk (${free_disk_mb} MB free)."
-      swap_mb="$max_possible"
-    else
-      echo "Not enough disk space to create ${swap_mb} MB deployment swap at ${swap_file}."
-      echo "Free disk: ${free_disk_mb} MB; required: $((swap_mb + 512)) MB."
-      exit 1
-    fi
-  fi
+# Deployment swap files belonged to the era when the VPS compiled the release.
+# The build now happens on the GitHub runner, so this helper only removes files
+# left behind by an interrupted older deploy.
 
-  echo "Creating ${swap_mb} MB deployment swap file at ${swap_file}."
-  sudo swapoff "$swap_file" >/dev/null 2>&1 || true
-  sudo rm -f "$swap_file"
-  if command -v fallocate >/dev/null 2>&1; then
-    sudo fallocate -l "${swap_mb}M" "$swap_file"
-  else
-    sudo dd if=/dev/zero of="$swap_file" bs=1M count="$swap_mb" status=none
-  fi
-  sudo chmod 600 "$swap_file"
-  sudo mkswap -f "$swap_file" >/dev/null
-}
-
-ensure_swap_file() {
-  local swap_file="$1"
-  local swap_mb="$2"
-  local desired_bytes=$((swap_mb * 1024 * 1024))
-  local existing_bytes=0
-  if [[ -f "$swap_file" ]]; then
-    existing_bytes="$(stat -c '%s' "$swap_file" 2>/dev/null || echo 0)"
-  fi
-
-  if (( existing_bytes < desired_bytes )); then
-    if swap_is_active "$swap_file"; then
-      local swap_used_kb=0
-      if [[ -r /proc/meminfo ]]; then
-        swap_used_kb="$(awk '/SwapTotal:/ { t=$2 } /SwapFree:/ { f=$2 } END { print (t-f) }' /proc/meminfo 2>/dev/null || echo 0)"
-      fi
-      if (( swap_used_kb < 65536 )); then
-        echo "Active swap file ${swap_file} (${existing_bytes} bytes) has minimal usage (${swap_used_kb} kB); recreating at ${swap_mb} MB."
-        create_swap_file "$swap_file" "$swap_mb"
-      else
-        echo "Active swap file ${swap_file} is smaller than the requested ${swap_mb} MB and in use (${swap_used_kb} kB); leaving it active instead of risking swapoff under memory pressure."
-      fi
-    else
-      create_swap_file "$swap_file" "$swap_mb"
-    fi
-  fi
-
-  if ! swap_is_active "$swap_file"; then
-    sudo swapon "$swap_file"
-  fi
-}
-
-ensure_deploy_memory() {
-  local required_mb="${1:-$DEPLOY_MIN_AVAILABLE_MEMORY_MB}"
-  local available_mb
-  available_mb="$(available_memory_mb)"
-  echo "Deployment memory available: ${available_mb} MB (target: ${required_mb} MB)"
-  if (( available_mb >= required_mb )); then
-    return
-  fi
-
-  for command_name in sudo swapon mkswap stat df; do
-    require_command "$command_name"
-  done
-  if ! sudo -n true >/dev/null 2>&1; then
-    echo "At least ${required_mb} MB combined free memory/swap is required."
-    echo "Passwordless sudo is required to activate deployment swap files."
-    exit 1
-  fi
-
-  ensure_swap_file "$DEPLOY_SWAP_FILE" "$DEPLOY_SWAP_MB"
-
-  available_mb="$(available_memory_mb)"
-  echo "Deployment memory available after primary swap activation: ${available_mb} MB"
-  if (( available_mb >= required_mb )); then
-    return
-  fi
-
-  if [[ "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" == "$DEPLOY_SWAP_FILE" ]]; then
-    echo "DEPLOY_SUPPLEMENTAL_SWAP_FILE must be different from DEPLOY_SWAP_FILE."
-    exit 1
-  fi
-
-  local shortfall_mb=$((required_mb - available_mb))
-  local supplemental_mb="$DEPLOY_SUPPLEMENTAL_SWAP_MB"
-  # Keep a little breathing room above the hard gate so normal runtime activity
-  # does not make a deployment oscillate around the threshold by a few MB.
-  if (( supplemental_mb < shortfall_mb + 128 )); then
-    supplemental_mb=$((shortfall_mb + 128))
-  fi
-
-  echo "Primary deployment swap is active but the host is still ${shortfall_mb} MB below the memory budget."
-  echo "Provisioning ${supplemental_mb} MB supplemental deployment swap at ${DEPLOY_SUPPLEMENTAL_SWAP_FILE}."
-  ensure_swap_file "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" "$supplemental_mb"
-
-  available_mb="$(available_memory_mb)"
-  echo "Deployment memory available after supplemental swap activation: ${available_mb} MB"
-  if (( available_mb < required_mb )); then
-    echo "Warning: combined available memory (${available_mb} MB) is below the preferred budget of ${required_mb} MB after supplemental swap."
-    if (( available_mb < 2048 )); then
-      echo "Unable to provide minimum memory threshold of 2048 MB to safely perform build."
-      exit 1
-    fi
-  fi
-}
-
-# Deployment swap is a build-time fixture only. The 1.9 GB host cannot compile
-# the release without ~4 GB of extra headroom, but that file has no business
-# occupying 4 GB of a 19 GB volume while the site is simply running: on this
-# host it sat permanently at 4.1 GB holding 167 MB of pages, and the volume
-# reached 100% during the 2026-10-01 outage.
-#
-# Release it once the deploy is over — on success and on failure alike. The
-# next deploy recreates it in ~1s via fallocate. Only the deployment-owned
-# files are touched; /var/swap/aagam.swap (persistent runtime swap) is never
-# removed.
+# The 1.9 GB host cannot compile the release without ~4 GB of extra swap, but
+# that file has no business occupying 4 GB of a 19 GB volume while the site is
+# simply running: on this host it sat permanently at 4.1 GB holding 167 MB of
+# pages, and the volume reached 100% during the 2026-10-01 outage.
 #
 # Best-effort by design: cleanup must never turn a successful deploy into a
-# failed one, so every failure path here is swallowed.
+# failed one, so every failure path here is swallowed. Only the
+# deployment-owned files are touched; /var/swap/aagam.swap (persistent runtime
+# swap) is never removed.
 release_deploy_swap() {
+  # Cleanup is optional; on hosts without passwordless sudo (or sudo at all)
+  # leave the file alone instead of prompting or failing the deploy.
+  if ! sudo -n true >/dev/null 2>&1; then
+    return 0
+  fi
+
   local swap_file
   for swap_file in "$DEPLOY_SUPPLEMENTAL_SWAP_FILE" "$DEPLOY_SWAP_FILE"; do
     [[ -n "$swap_file" && -f "$swap_file" ]] || continue
@@ -281,9 +168,10 @@ release_deploy_swap() {
       [[ "$available_kb" =~ ^[0-9]+$ ]] || available_kb=0
 
       # swapoff migrates those pages straight back into RAM. Refuse rather
-      # than hand them to the OOM killer: keep 512 MB of headroom after the
+      # than hand them to the OOM killer: keep 256 MB of headroom after the
       # migration so the live release is never put at risk by housekeeping.
-      if (( used_kb + 524288 > available_kb )); then
+      # (The host no longer compiles releases, so it needs far less reserve.)
+      if (( used_kb + 262144 > available_kb )); then
         echo "Leaving deployment swap in place: $swap_file holds ${used_kb} kB which cannot safely migrate into ${available_kb} kB MemAvailable."
         continue
       fi
@@ -302,6 +190,48 @@ release_deploy_swap() {
   if command -v df >/dev/null 2>&1; then
     echo "Disk after deployment swap release: $(df -Ph / | awk 'NR == 2 { print $4 " free (" $5 ")" }')"
   fi
+}
+
+create_swap_file() {
+  local swap_file="$1"
+  local swap_mb="$2"
+  sudo -n swapoff "$swap_file" >/dev/null 2>&1 || true
+  sudo -n rm -f "$swap_file"
+  sudo -n fallocate -l "${swap_mb}M" "$swap_file"
+  sudo -n chmod 600 "$swap_file"
+  sudo -n mkswap -f "$swap_file" >/dev/null
+  sudo -n swapon "$swap_file"
+}
+
+# `npm ci` on the full workspace tree peaks above the 1.9 GB host's free RAM and
+# was previously able to trigger the OOM killer. Provision a temporary swap file
+# only for the duration of a dependency install, then release it in the same
+# deploy so the 19 GB volume does not carry it at rest.
+ensure_install_swap() {
+  if ! sudo -n true >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local available_mb
+  available_mb="$(awk '/MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null || echo 0)"
+  if (( available_mb >= 1024 )); then
+    return 0
+  fi
+
+  local swap_mb=2048
+  local free_disk_mb
+  free_disk_mb="$(df -Pm /var/tmp | awk 'NR == 2 { print $4 }')"
+  if (( free_disk_mb < swap_mb + 512 )); then
+    echo "Not enough free disk for a temporary install swap (${free_disk_mb} MB free)."
+    return 0
+  fi
+
+  if swap_is_active "$DEPLOY_SWAP_FILE"; then
+    return 0
+  fi
+
+  echo "Memory is tight (${available_mb} MB available); provisioning ${swap_mb} MB temporary swap for the dependency install."
+  create_swap_file "$DEPLOY_SWAP_FILE" "$swap_mb"
 }
 
 redis_target_host() {
@@ -384,6 +314,45 @@ ensure_redis_runtime() {
   exit 1
 }
 
+# Swap the runner-built release outputs into place. The archive is unpacked
+# into a staging directory on the same filesystem as the app, verified, and
+# then each output directory is moved into position. A failed extraction
+# therefore leaves the previous dist/.next untouched.
+install_build_artifacts() {
+  local archive="$DEPLOY_ARTIFACT_ARCHIVE"
+  local staging
+  staging="$(mktemp -d "$APP_DIR/.deploy-artifacts.XXXXXX")"
+
+  tar -xzf "$archive" -C "$staging"
+
+  local required_dir
+  for required_dir in apps/api-gateway/dist apps/worker-service/dist apps/admin-dashboard/.next; do
+    if [[ ! -d "$staging/$required_dir" ]]; then
+      echo "Prebuilt artifact archive $archive is missing $required_dir."
+      rm -rf "$staging"
+      exit 1
+    fi
+  done
+
+  local rel_dir
+  for rel_dir in \
+    packages/types/dist \
+    packages/utils/dist \
+    packages/ui/dist \
+    packages/database/dist \
+    apps/api-gateway/dist \
+    apps/worker-service/dist \
+    apps/admin-dashboard/.next; do
+    if [[ -d "$staging/$rel_dir" ]]; then
+      rm -rf "$rel_dir"
+      mv "$staging/$rel_dir" "$rel_dir"
+    fi
+  done
+
+  rm -rf "$staging"
+  echo "Installed prebuilt build artifacts from $archive."
+}
+
 for command_name in git curl tar sha256sum uname flock awk grep; do
   require_command "$command_name"
 done
@@ -430,10 +399,10 @@ if [[ -n "$DEPLOY_PUBLIC_API_URL" ]]; then
   export NEXT_PUBLIC_API_URL="$DEPLOY_PUBLIC_API_URL"
 fi
 
-# Remove stale .env.local files that shadow deploy-time env vars.
-# Next.js .env.local overrides process env vars at build time, which means
-# a leftover .env.local with an incorrect API URL will silently break the
-# build even when NEXT_PUBLIC_API_URL is correctly exported here.
+# Remove stale .env.local files that shadow deploy-time env vars. Next.js
+# .env.local overrides process env vars, so a leftover .env.local with an
+# incorrect API URL can silently break what the release serves even when
+# NEXT_PUBLIC_API_URL is correctly exported here.
 find apps -maxdepth 2 -name '.env.local' -delete 2>/dev/null || true
 
 echo "Deploying AAGAM commit $DEPLOY_SHA"
@@ -442,90 +411,84 @@ npm --version
 
 npm run check:env:prod
 ensure_redis_runtime
-ensure_deploy_memory
 
-# Build tooling is stored in devDependencies, so production deployment must
-# install it before compiling. Runtime processes still run with NODE_ENV=production.
-# Back up the currently-live build artifacts first: nest build uses deleteOutDir,
-# so a failed compile can wipe the dist that the old release is running from.
-# The backup lets a failed deploy restore the previous release instead of
-# leaving the VPS with only a 502.
+# Release any deployment swap file left behind by an interrupted deploy, or by
+# the dependency install below. Best-effort: this is the first command that
+# touches sudo, so a host without passwordless sudo just skips it.
+release_deploy_swap || true
+
+if [[ -z "$DEPLOY_ARTIFACT_ARCHIVE" || ! -s "$DEPLOY_ARTIFACT_ARCHIVE" ]]; then
+  echo "Prebuilt artifact archive is missing (DEPLOY_ARTIFACT_ARCHIVE=${DEPLOY_ARTIFACT_ARCHIVE:-unset})."
+  echo "The GitHub workflow compiles the monorepo on the runner and uploads it before this script runs."
+  exit 1
+fi
+
+# Resolve the Prisma CLI version from the committed lockfile and run it through
+# npx so the generated client always matches @prisma/client, even though the
+# runtime install below omits devDependencies.
+PRISMA_VERSION="$(node -e "process.stdout.write((require('./package-lock.json').packages['node_modules/prisma'] || {}).version || '')")"
+if [[ -z "$PRISMA_VERSION" ]]; then
+  echo "Unable to determine the pinned Prisma version from package-lock.json."
+  exit 1
+fi
+run_prisma() {
+  npx --yes --prefer-offline "prisma@${PRISMA_VERSION}" "$@"
+}
+
+# Install dependencies only when package-lock.json changed since the last
+# successful install, and install only what this host actually runs. The mobile
+# workspaces are excluded and devDependencies omitted, which keeps node_modules
+# at ~1.3 GB instead of ~1.8 GB on a 19 GB volume. When the lockfile does
+# change, the install runs under a temporary swap file (see ensure_install_swap)
+# that is released immediately afterwards.
+INSTALL_STAMP_VERSION="scoped-prod-v1"
+LOCK_STAMP="node_modules/.aagam-package-lock.sha256"
+lock_sha="$(sha256sum package-lock.json | awk '{print $1}')"
+stamp_expectation="${lock_sha} ${INSTALL_STAMP_VERSION}"
+if [[ -d node_modules && -f "$LOCK_STAMP" && "$(cat "$LOCK_STAMP" 2>/dev/null)" == "$stamp_expectation" ]]; then
+  echo "package-lock.json ($lock_sha) is unchanged; keeping installed dependencies."
+else
+  echo "Installing runtime dependencies for the deployed workspaces."
+  ensure_install_swap
+  if npm ci \
+    --workspace=@aagam/api-gateway \
+    --workspace=@aagam/admin-dashboard \
+    --workspace=@aagam/worker-service \
+    --include-workspace-root \
+    --omit=dev \
+    --no-audit --no-fund --prefer-offline; then
+    :
+  else
+    echo "Scoped runtime install failed; falling back to the full dev-inclusive install."
+    npm ci --include=dev --no-audit --no-fund --prefer-offline
+  fi
+  printf '%s\n' "$stamp_expectation" > "$LOCK_STAMP"
+  # Return the temporary install swap immediately; it must not sit on disk
+  # until the next deploy.
+  release_deploy_swap || true
+fi
+
+run_prisma generate --schema packages/database/prisma/schema.prisma
+run_prisma validate --schema packages/database/prisma/schema.prisma
+
+# Back up the currently-live build artifacts before the prebuilt archive is
+# unpacked over them, so a failed release can roll back to the previous one
+# instead of leaving the VPS with only a 502.
 DIST_BACKUP_DIR="$(mktemp -d)"
 echo "Backing up current build artifacts to $DIST_BACKUP_DIR"
-for rel_dir in "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
+for rel_dir in "packages/types/dist" "packages/utils/dist" "packages/ui/dist" "packages/database/dist" "apps/api-gateway/dist" "apps/worker-service/dist" "apps/admin-dashboard/.next"; do
   if [[ -d "$rel_dir" ]]; then
     mkdir -p "$DIST_BACKUP_DIR/$(dirname "$rel_dir")"
     cp -a "$rel_dir" "$DIST_BACKUP_DIR/$rel_dir" 2>/dev/null || true
   fi
 done
 
-npm ci --include=dev --no-audit --no-fund
-
-npx prisma generate --schema packages/database/prisma/schema.prisma
-npx prisma validate --schema packages/database/prisma/schema.prisma
-
-# The production VPS is intentionally small. Building the new release while the
-# old one is live can OOM the host: `nest build` spawns a tsc child whose heap is
-# capped independently of the parent, so one workspace can need up to ~2x the
-# heap cap plus overhead. When the host cannot offer that much headroom, stop
-# the old release for the duration of the build and bring it back before the
-# restart step. The old release only runs the (previous) JS output; stopping it
-# frees RAM without losing state, and pm2 brings all three apps back.
-BUILD_STOPPED_PROCESSES=0
-build_required_mb="${DEPLOY_BUILD_REQUIRED_MEMORY_MB:-$(( DEPLOY_BUILD_NODE_HEAP_MB * 2 + 512 ))}"
-build_available_mb="$(available_memory_mb)"
-echo "Build memory available: ${build_available_mb} MB (required budget: ${build_required_mb} MB)"
-if (( build_available_mb < build_required_mb )); then
-  echo "Memory is tight; stopping old pm2 processes to free RAM for the build."
-  pm2 stop admin-dashboard --update-env >/dev/null 2>&1 || true
-  pm2 stop api-gateway --update-env >/dev/null 2>&1 || true
-  pm2 stop worker-service --update-env >/dev/null 2>&1 || true
-  BUILD_STOPPED_PROCESSES=1
-  build_available_mb="$(available_memory_mb)"
-  echo "Build memory available after stopping old release: ${build_available_mb} MB"
-  if (( build_available_mb < build_required_mb )); then
-    ensure_deploy_memory "$build_required_mb"
-  fi
-fi
-
-# Build one workspace at a time. `nest build` (used by @aagam/api-gateway)
-# spawns a tsc child that needs a larger heap than the runtime cap: the
-# codebase keeps growing (e.g. subscriptions/store-delivery), and the default
-# 1536 MB runtime cap is now below tsc's compile-time peak. Use a larger heap
-# for the build phase only, then restore the runtime cap before pm2 restarts.
-# Strip any previous max-old-space-size so the larger value unambiguously wins.
-RUNTIME_NODE_OPTIONS="$NODE_OPTIONS"
-export NODE_OPTIONS="$(printf '%s' "$NODE_OPTIONS" | sed -E 's/--max-old-space-size=[0-9]+//')"
-export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--max-old-space-size=${DEPLOY_BUILD_NODE_HEAP_MB}"
-echo "Beginning turbo build with heap cap ${DEPLOY_BUILD_NODE_HEAP_MB} MB..."
-if [[ -r /proc/meminfo ]]; then
-  awk '/MemAvailable:|SwapFree:|SwapTotal:/ { printf "%s %s %s\n", $1, $2, $3 }' /proc/meminfo || true
-fi
-npx turbo build \
-  --filter=@aagam/api-gateway \
-  --filter=@aagam/admin-dashboard \
-  --filter=@aagam/worker-service \
-  --cache-dir=.turbo \
-  --concurrency=1 \
-  --force
-# Restore the original NODE_OPTIONS (runtime heap cap) for the pm2 restart.
-export NODE_OPTIONS="$RUNTIME_NODE_OPTIONS"
-
-if [[ "$BUILD_STOPPED_PROCESSES" == "1" ]]; then
-  echo "Build finished; restoring old release before migrations/restart."
-  pm2 startOrReload ecosystem.config.js --update-env --interpreter "$(command -v node)" >/dev/null 2>&1 || true
-  pm2 restart admin-dashboard --update-env >/dev/null 2>&1 || true
-fi
-
-# Next.js keeps its incremental/full-route cache (.next/cache) across releases.
-# A stale prerender - e.g. a 404 cached while a route did not exist in an older
-# build - survives `next build` and is served as HTTP 200 with a soft-404 body
-# from the new release. Purge the cache so every request renders fresh.
-rm -rf apps/admin-dashboard/.next/cache
+# Unpack the release that was compiled on the GitHub runner.
+install_build_artifacts
 
 # Deploy only checked-in migrations. Never use prisma db push in production.
-npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
-npx prisma migrate status --schema packages/database/prisma/schema.prisma
+run_prisma migrate deploy --schema packages/database/prisma/schema.prisma
+run_prisma migrate status --schema packages/database/prisma/schema.prisma
 
 deploy_node="$(command -v node)"
 pm2 startOrReload ecosystem.config.js --update-env --interpreter "$deploy_node"
@@ -597,9 +560,8 @@ for readiness_path in ready ready/realtime ready/notifications; do
   echo "Readiness check passed: $readiness_url"
 done
 
-# Hand the build swap back to the volume now that nothing needs it. The runtime
-# keeps its persistent /var/swap/aagam.swap, so this costs nothing at rest and
-# returns ~4 GB of a 19 GB disk on every deploy.
+# Best-effort cleanup of any leftover deployment swap from an older deploy.
+# The runtime keeps its persistent /var/swap/aagam.swap, which is never touched.
 release_deploy_swap || true
 
 pm2 status
@@ -608,10 +570,26 @@ echo "Deployment completed successfully for commit $DEPLOY_SHA"
 # Everything is healthy, so this release is definitely superseded and the
 # previous release's backup is dead weight. Removed only after the final
 # failure-capable verification (pm2 status) so on_error() can still restore the
-# build artifacts if that check fails. on_error() removes it on the failure path;
-# the success path never did, so every successful deploy leaked a ~32 MB mktemp
-# directory that nothing ever collected (three had piled up).
+# build artifacts if that check fails.
 if [[ -n "${DIST_BACKUP_DIR:-}" && -d "$DIST_BACKUP_DIR" ]]; then
   echo "Removing build artifact backup $DIST_BACKUP_DIR"
   rm -rf "$DIST_BACKUP_DIR" || true
 fi
+
+# The release is compiled on the GitHub runner, so the VPS-side turbo cache is
+# dead weight on a 92%-full volume. Reclaim it; it is regenerated locally if
+# anyone ever builds on the host again.
+rm -rf .turbo || true
+
+# The uploaded archive is single-use.
+if [[ -n "$DEPLOY_ARTIFACT_ARCHIVE" && -f "$DEPLOY_ARTIFACT_ARCHIVE" ]]; then
+  rm -f "$DEPLOY_ARTIFACT_ARCHIVE" || true
+fi
+
+# Best-effort housekeeping so the 19 GB volume does not creep full again:
+# package caches and the repository's object store grow with every upgrade and
+# deploy. Neither command can fail the deploy.
+sudo -n apt-get clean >/dev/null 2>&1 || true
+git gc --auto >/dev/null 2>&1 || true
+
+echo "Disk after deploy: $(df -Ph / | awk 'NR == 2 { print $3 " used, " $4 " free (" $5 ")" }')"
