@@ -917,6 +917,8 @@ sudo redis-server --daemonize yes --port 6379   # the gateway refuses to boot wi
 DATABASE_URL="postgresql://postgres:postgres@localhost:5433/aagam_local?schema=public" \
   npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 source apps/api-gateway/.env.demo   # DATABASE_URL, JWT_SECRET, PORT, demo logins, AAGAM_RIDER_TOKEN
+# .env.demo is gitignored; a fresh clone copies apps/api-gateway/.env.demo.example
+# to .env.demo first and fills in its own values.
 node packages/database/seed.js
 (cd apps/api-gateway && npx ts-node --transpile-only --project tsconfig.json demo-seed.flow.ts)
 
