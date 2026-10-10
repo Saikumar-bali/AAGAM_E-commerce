@@ -138,7 +138,7 @@ Every store capability, enumerated. Legend for mobile status:
 ## 6. Subscribers list
 
 89. Columns Customer / Phone / Plan / Store / Delivery / Status / Progress / Collected-due / Actions — 🟡 (name/plan/status/due/funded only)
-90. Source filter **All / Online / Offline** — ❌
+90. Source filter **All / Online / Offline** — ✅ (isOfflineSubscription)
 91. Status filter **All / Active / Paused / Cancelled** — ✅ (segments)
 92. **Add Offline Customer** button — ✅
 93. **Recycle Bin** quick link — 📦 (via offline directory)
@@ -260,9 +260,9 @@ Every store capability, enumerated. Legend for mobile status:
 169. Store profile edit (name/address/phone) — ✅ (mobile ahead of web)
 170. Location coordinates display — ✅
 171. Store snapshot (orders/revenue) — ✅
-172. **Operating Hours** editor (weekly schedule, open/closed, Add window, Remove) — ❌
-173. **Timezone** select — ❌
-174. Open/closed status summary ("Open now", "Closed · Opens …") — ❌
+172. **Operating Hours** editor (weekly schedule, open/closed, Add window, Remove) — ✅ (StoreOperatingHoursScreen)
+173. **Timezone** select — ✅ (StoreOperatingHoursScreen)
+174. Open/closed status summary — ✅ (StoreOperatingHoursScreen)
 175. **Recycle Bin** tab entry — 📦
 
 ---
@@ -283,8 +283,8 @@ Every store capability, enumerated. Legend for mobile status:
 
 183. Create offline customer — ✅
 184. List + search — ✅
-185. **Move to Recycle Bin** (delete) — 📦
-186. **Recycle Bin** toggle (Bin {n}) — 📦
+185. **Move to Recycle Bin** (delete) — ✅ (StoreOfflineCustomersScreen)
+186. **Recycle Bin** toggle (Bin {n}) — ✅ (StoreOfflineCustomersScreen)
 187. **Restore** — 📦
 188. **Delete Forever** (purge) — 📦
 189. Customer **detail view** (stats, address, subscriptions) — ❌

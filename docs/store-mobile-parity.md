@@ -329,34 +329,23 @@ These are **not** web-parity items (web lacks them too) but are common asks:
 
 ## 15. Store-reachable endpoint coverage snapshot
 
-Present on mobile today: grid, subscribers (read), plans (read), calendar (no
-UI), runs/demand/exceptions/cash-batches, packing, pickup, cash-batch verify,
-preparation + readiness, offline customers CRUD (create/list/delete/restore/
-purge), manual-customer, manual-subscribe, rider assignments, available riders,
-dispatch-to-rider, auto-dispatch, default/temporary rider, orders (store-owner),
-order status/ready/store-delivery, item unavailable/substitutes, assortment,
+Present on mobile today: grid (+ export-csv, dispatch-summary), subscribers
+(read + renew/cancel, record-payment), plans (read), calendar (StoreCalendarScreen),
+analytics (StoreAnalyticsScreen), runs/demand/exceptions/cash-batches, packing,
+pickup, cash-batch verify, preparation + readiness, offline customers CRUD
+(create/list/delete/restore/purge + recycle-bin filter), manual-customer,
+manual-subscribe, rider assignments, available riders, dispatch-to-rider,
+auto-dispatch, default/temporary rider, orders (store-owner),
+order status/ready/store-delivery, deliveries quick-action, store-self-delivery
+(queue/start/complete/fail/update), item unavailable/substitutes, assortment,
 catalog, inventory update, store profile, notifications inbox.
 
 Store-reachable endpoints **not used by mobile** (all API-ready):
-`GET /store/subscriptions/grid/export-csv`,
-`GET /store/subscriptions/calendar`,
-`GET /store/subscriptions/analytics`,
-`GET /store/subscriptions/dispatch-summary`,
 `GET /store/subscriptions/customer/:id/statement`,
 `GET /store/subscriptions/subscribers/:id/history`,
 `GET /store/subscriptions/subscribers/:id/audit`,
-`POST /store/subscriptions/deliveries/:id/quick-action`,
-`POST /store/subscriptions/subscribers/:id/renew`,
-`POST /store/subscriptions/subscribers/:id/cancel`,
-`POST /store/subscriptions/subscribers/:id/record-payment`,
 `PATCH /store/subscriptions/subscribers/:id/manual-edit`,
 `POST /store/subscriptions/custom-subscribe`,
 `POST /store/subscription-operations/runs/:runId/stops/:stopId/return`,
-`GET /store-self-delivery/*` (queue, start, complete, fail, update),
-`GET /store-owner/stores/:id/operating-hours`,
-`PUT /store-owner/stores/:id/operating-hours`,
-`GET/PATCH /notifications/preferences`,
-`POST/GET/DELETE /notifications/push/subscriptions`,
-`GET /upload/evidence-url` (proof viewer),
 `GET /stores/:id/orders`,
 `GET /orders/:id/tracking`.

@@ -214,7 +214,7 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
                 <View style={styles.cardActions}>
                   <TouchableOpacity style={styles.ghostBtn} onPress={() => navigation.navigate('StoreMilkGrid' as never)}>
                     <CalendarDays size={15} color={palette.teal700} />
-                    <Text style={styles.ghostText}>Track</Text>
+                    <Text style={styles.ghostText}>Milk grid</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.primaryBtn} onPress={() => setManaging(item)}>
                     <Settings2 size={15} color="#FFFFFF" />

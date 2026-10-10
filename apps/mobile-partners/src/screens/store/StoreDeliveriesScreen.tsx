@@ -38,7 +38,8 @@ export const StoreDeliveriesScreen = ({ navigation }: { navigation: any }) => {
   const queryClient = useQueryClient();
   const storesQuery = useQuery({ queryKey: ['my-stores'], queryFn: storeService.getMyStores, retry: 1 });
   const stores = Array.isArray(storesQuery.data) ? storesQuery.data : [];
-  const storeId = stores[0]?.id;
+  const [storeId, setStoreId] = useState<string | undefined>(undefined);
+  const activeStoreId = storeId || stores[0]?.id;
 
   const [group, setGroup] = useState<StatusGroup>('all');
   const [slotFilter, setSlotFilter] = useState<'ALL' | 'AM' | 'PM'>('ALL');
@@ -57,13 +58,13 @@ export const StoreDeliveriesScreen = ({ navigation }: { navigation: any }) => {
   const [editNotes, setEditNotes] = useState('');
 
   const queue = useQuery({
-    queryKey: ['store-self-delivery', storeId],
-    queryFn: () => subscriptionOperationsService.getSelfDeliveryQueue(storeId as string),
-    enabled: !!storeId,
+    queryKey: ['store-self-delivery', activeStoreId],
+    queryFn: () => subscriptionOperationsService.getSelfDeliveryQueue(activeStoreId as string),
+    enabled: !!activeStoreId,
     retry: 1,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['store-self-delivery', storeId] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['store-self-delivery', activeStoreId] });
 
   const start = useMutation({
     mutationFn: (id: string) => subscriptionOperationsService.startSelfDelivery(id),
@@ -141,6 +142,16 @@ export const StoreDeliveriesScreen = ({ navigation }: { navigation: any }) => {
         </TouchableOpacity>
       </GradientSurface>
 
+      {stores.length > 1 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupRow}>
+          {stores.map((s: any) => (
+            <TouchableOpacity key={s.id} style={[styles.groupChip, activeStoreId === s.id && styles.groupChipActive]} onPress={() => setStoreId(s.id)}>
+              <Text style={[styles.groupText, activeStoreId === s.id && styles.groupTextActive]}>{s.name || 'Store'}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupRow}>
         {GROUPS.map((g) => (
           <TouchableOpacity key={g.key} style={[styles.groupChip, group === g.key && styles.groupChipActive]} onPress={() => setGroup(g.key)}>
@@ -171,7 +182,7 @@ export const StoreDeliveriesScreen = ({ navigation }: { navigation: any }) => {
 
       {storesQuery.isLoading || queue.isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={palette.teal700} /><Text style={styles.muted}>Loading deliveries…</Text></View>
-      ) : !storeId ? (
+      ) : !activeStoreId ? (
         <View style={styles.center}><Text style={styles.errorTitle}>No store</Text><Text style={styles.muted}>An admin must assign a store first.</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={queue.isRefetching} onRefresh={() => void queue.refetch()} />}>
