@@ -129,7 +129,9 @@ async function main() {
   console.log('🧹 clearing previous demo data…');
   await cleanupDemo();
 
-  const ownerUser = await prisma.user.findUniqueOrThrow({ where: { email: 'store@aagam.com' } });
+  const ownerUser = await prisma.user.findUniqueOrThrow({
+    where: { email: process.env.STORE_EMAIL || 'store@aagam.com' },
+  });
   const ownerId = ownerUser.id;
   const owner = () => ({ id: ownerId, role: Role.STORE_OWNER });
 
@@ -147,7 +149,9 @@ async function main() {
   });
   await prisma.inventory.create({ data: { storeId, productId: product.id, quantity: 500, isListed: true } });
 
-  const riderUser = await prisma.user.findUniqueOrThrow({ where: { email: 'rider@aagam.com' } });
+  const riderUser = await prisma.user.findUniqueOrThrow({
+    where: { email: process.env.RIDER_EMAIL || 'rider@aagam.com' },
+  });
   await prisma.riderProfile.update({ where: { userId: riderUser.id }, data: { approvalStatus: 'APPROVED', status: 'OFFLINE' } });
   const riderProfileId = (await prisma.riderProfile.findUniqueOrThrow({ where: { userId: riderUser.id } })).id;
   // The gateway's eligibility gate refuses ONLINE/heartbeat until all four

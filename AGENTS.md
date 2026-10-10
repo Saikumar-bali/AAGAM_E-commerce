@@ -787,6 +787,46 @@ disambiguate by labelling every stop with its own plan (`subscription.plan.name`
 slot, plus a "2 subscriptions" badge on the duplicated customer's cards/rail chips.
 The gateway `ownedRun(...)` payload includes the subscription plan/slot for this.
 
+### Local demo / preview environment (ports 12000 + 12001)
+
+The partner web previews need both a static server and a **local, seeded** API:
+
+- **12000** — `python3 -m http.server 12000` in `agent_demo_shots/`; serves the
+  rider UI/UX design prototypes. `index.html` links the key deliverable,
+  `run-console.html` ("Rider Run Console — single-page map": all customers pinned on
+  one Leaflet/OSM map, tap-to-deliver, sequence rail).
+- **12001** — `node server.js` in `agent_demo_shots/rn-preview/`. It serves
+  `dist-live/` and proxies `/api/*`. It MUST be started with
+  `API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 MAPBOX_TOKEN=<pk...>`
+  (`run.sh` holds the Mapbox token) or the map has no token and there is no data.
+  Proxying to `https://aagaam.in` only serves that server's own (usually empty) data.
+- **3005** — the API gateway. Run from the prebuilt bundle with the demo DB:
+  `source apps/api-gateway/.env.demo` (or export the vars), then
+  `node dist/src/main.js`. Requires `DATABASE_URL` and `JWT_SECRET` (≥32 chars).
+  `nest start` fails unless `@nestjs/cli` is installed at the root — prefer `dist/src/main.js`.
+
+Reprovision the demo database (Postgres on `:5433`):
+
+```
+createdb -h /tmp -p 5433 aagam_local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/aagam_local?schema=public \
+  npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+# base catalog + accounts, using the configured demo logins
+STORE_EMAIL=... STORE_PASSWORD=... RIDER_EMAIL=... RIDER_PASSWORD=... \
+  ADMIN_EMAIL=... ADMIN_PASSWORD=... CUSTOMER_EMAIL=... CUSTOMER_PASSWORD=... \
+  NODE_ENV=development node packages/database/seed.js
+# subscription/delivery demo flow (creates today's run + deliveries); honours the
+# same STORE_EMAIL / RIDER_EMAIL overrides
+cd apps/api-gateway && npx ts-node --transpile-only --project tsconfig.json demo-seed.flow.ts
+```
+
+`scripts/seed-demo.sh` runs both seeders in one step. The demo login emails are the
+configured accounts (`AAGAM_CREDENTIALS`), not the `*@aagam.com` defaults; the
+seeder reads the passwords from `ADMIN_PASSWORD` / `STORE_PASSWORD` /
+`CUSTOMER_PASSWORD` / `RIDER_PASSWORD` (or one shared `SEED_DEMO_PASSWORD`) and never
+prints them. The guardian rider route-board is date-scoped, so a stale run from a
+previous day shows an empty board — re-run the demo flow to create today's run.
+
 Demo route note: the seeded `m009` run (`Anakapalle Hub`) drifts into an inconsistent
 state after repeated QA (stop `READY` but `deliveryJob`/`order` `DELIVERED`), which
 makes `/arrive` return `409 Delivery job is not approaching the customer` or

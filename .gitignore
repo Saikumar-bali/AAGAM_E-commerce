@@ -137,3 +137,6 @@ dump.rdb
 # local test-run recordings / screenshots (served, not committed)
 agent_demo_shots/
 .agent_tmp/
+
+# local demo credentials (never commit)
+.env.demo
