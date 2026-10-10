@@ -2216,11 +2216,22 @@ export class DeliveryOperationsService {
               },
             });
           }
+          const overrideOperation = await this.createOperation(tx, {
+            deliveryJobId,
+            orderId: job.orderId,
+            type: "FAILURE_RESOLUTION_DECIDED",
+            actor: { id: actor.id, role: actor.role } as Actor,
+            idempotencyKey: `rider-return-decision:${deliveryJobId}:${randomUUID()}`,
+            details: {
+              riderInitiated: true,
+              decidedAction: DeliveryResolutionAction.RETURN_TO_STORE,
+            },
+          });
           effectiveDecision = await tx.deliveryFailureDecision.create({
             data: {
               deliveryJobId,
               orderId: job.orderId,
-              failureOperationId: `rider-return:${deliveryJobId}:${randomUUID()}`,
+              failureOperationId: overrideOperation.id,
               reason: decision?.reason || job.failureDecisions?.[0]?.reason,
               recommendedAction:
                 decision?.recommendedAction ||

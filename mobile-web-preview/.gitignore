@@ -1,0 +1,4 @@
+node_modules/
+dist/
+dist-live/
+*.log

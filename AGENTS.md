@@ -43,6 +43,38 @@ Two rules that go with it:
    Anyone — human or another model — may update the skill the same way; that
    is the point of it.
 
+### Required stack skills
+
+Tasks in this repository must use the stack skills below. Load the matching
+skill **before** starting work in that area and follow it over ad-hoc habits.
+If a skill is not installed in the current environment, install it with the
+command shown (or ask the user) — do not skip it silently.
+
+| Area / folder | Skill to load | Install |
+| --- | --- | --- |
+| Turborepo, `turbo.json`, task caching | `turborepo` | `npx skills add vercel/turborepo@turborepo -g -y` |
+| `apps/api-gateway` — NestJS modules, DI, controllers, guards | `nestjs-best-practices` | `npx skills add kadajett/agent-nestjs-skills@nestjs-best-practices -g -y` |
+| `packages/database` — Prisma schema, client, migrations | `prisma-client-api`, `prisma-database-setup` | `npx skills add prisma/skills@prisma-client-api -g -y` |
+| Postgres SQL, indexes, migrations (any host) | `supabase-postgres-best-practices` | `npx skills add supabase/agent-skills@supabase-postgres-best-practices -g -y` |
+| `apps/admin-dashboard` — React 19 / Next.js pages and data flow | `vercel-react-best-practices` | `npx skills add vercel-labs/agent-skills@vercel-react-best-practices -g -y` |
+| Next.js App Router structure, server/client boundaries | `nextjs-app-router-patterns` | `npx skills add wshobson/agents@nextjs-app-router-patterns -g -y` |
+| Tailwind UI and the `@aagam/ui` design system | `tailwind-design-system` | `npx skills add wshobson/agents@tailwind-design-system -g -y` |
+| `apps/mobile-customer`, `apps/mobile-partners` — React Native | `react-native-best-practices`, `vercel-react-native-skills` | `npx skills add callstackincubator/agent-skills@react-native-best-practices -g -y` |
+| Playwright end-to-end specs | `playwright-best-practices` | `npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices -g -y` |
+| `.github/workflows` — CI/CD changes | `github-actions` | `npx skills add callstackincubator/agent-skills@github-actions -g -y` |
+| Complex TypeScript types and generics | `typescript-advanced-types` | `npx skills add wshobson/agents@typescript-advanced-types -g -y` |
+| Implementing a feature / reviewing / debugging | `tdd`, then `code-review`, then `diagnosing-bugs` | `npx skills add mattpocock/skills@tdd -g -y` |
+
+Rules for these skills:
+
+1. The in-repo `aagam-testing` skill stays the mandatory skill for end-to-end
+   testing of the four role surfaces; the table above adds stack-specific
+   skills on top of it.
+2. A task that spans several areas loads every matching skill, not just the
+   first one.
+3. Never rename an installed skill to collide with a built-in skill; skills
+   are enabled and disabled by name, and a collision disables both.
+
 ## Running the api-gateway tests
 
 The suite needs a reachable Postgres. Without `DATABASE_URL` you get ~604
@@ -163,6 +195,22 @@ whole subscription (the "Full Due" preset), so a lump sum on one cell is valid.
   kept the stop.
 - `customer-cancel-teardown.e2e.spec.ts` covers both the customer and
   store-owner cancel paths against a dispatched delivery.
+
+## Prisma interactive transactions have a 15s/30s default
+
+Prisma defaults an interactive `$transaction(fn)` to a **5s** budget (maxWait
+2s, timeout 5s). Against the remote Supabase pooler each round-trip is tens of
+ms, so any action that fans out into ~8+ sequential queries (subscription
+skip/pause/cancel teardown, dispatch, store grid quick-actions, run packing,
+order generation) blows the budget and surfaces as an opaque HTTP 500 —
+`Transaction already closed: A query cannot be executed on an expired
+transaction` or `Transaction not found`.
+
+`packages/database/src/index.ts` (`transactionWithSerializableRetry`) now
+applies `{ maxWait: 15000, timeout: 30000 }` to every interactive transaction
+that does not pass its own options. New services are therefore safe by default;
+do **not** re-add a bare `$transaction` timeout, and prefer this central default
+over per-service `{maxWait,timeout}` literals.
 
 ## Migrations
 
@@ -568,7 +616,13 @@ commands below run. It is not required to build or test the app.
 
 The gallery above renders individual screens from mock data. To run the *whole*
 app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClient`
-— wired to the live `https://aagaam.in/api`, use the second, separate config:
+— wired to the live `https://aagaam.in/api`, use the second, separate config.
+
+> **Staging only for mutation-capable runs.** The `?sim=1` flow, the handover
+> sheet, and the RouteConsole all perform real rider writes (delivery state,
+> subscription entitlements, COD records, customer-visible order status). Run
+> them against a local or staging `API_ORIGIN` only — never point a
+> write-capable probe at the production host.
 
 - Build: `EXPO_PUBLIC_MAPBOX_TOKEN=pk.… ../../node_modules/.bin/webpack --config webpack.preview.config.js`
   → `dist-live/`. Entry `src/web-entry.js` mounts `<App/>` (with an error
@@ -580,6 +634,14 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
   origin and the app's `API_URL` is baked to `/api`. It also injects
   `window.__ENV__` (Mapbox token) into `index.html` at serve time, so no rebuild
   is needed to change the token. `run.sh` does build + serve in one step.
+- Live rebuild while developing: `node dev-server.js` is `server.js` plus a
+  webpack **watch** compiler, so saving any file under `apps/mobile-partners`
+  (or `packages/mobile-shared`) recompiles the bundle and connected browsers
+  reload automatically (Server-Sent Events on `/__live`; the injected client
+  polls `/__build-id`). Run it with the same env as `server.js`
+  (`PORT`, `API_ORIGIN`, `STRIP_API_PREFIX=1`, `MAPBOX_TOKEN`,
+  `AAGAM_RIDER_TOKEN`) and share the work-host URL — edits appear in seconds
+  with no manual rebuild. It binds port `12001`, so stop `server.js` first.
 - `@react-navigation/native-stack` must alias to `mocks/navigation.js`
   (`createNativeStackNavigator`); a dummy passthrough `Screen` renders nothing.
 - Probes: `node probe-live.js` (render + errors + backend calls),
@@ -716,9 +778,6 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
 - Login is email+password or phone-OTP against live `/auth/mobile/login`; the
   seed default (`rider@aagam.com`) is *not* a production credential, so the
   authenticated rider dashboard needs a supplied test account password.
-  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
-  source for QA test accounts if present in the production DB.
-
 - Login is email+password or phone-OTP against the environment's
   `/auth/mobile/login`; the seed default (`rider@aagam.com`) is *not* a
   credential there, so the authenticated rider dashboard needs a supplied test
@@ -804,9 +863,141 @@ disambiguate by labelling every stop with its own plan (`subscription.plan.name`
 slot, plus a "2 subscriptions" badge on the duplicated customer's cards/rail chips.
 The gateway `ownedRun(...)` payload includes the subscription plan/slot for this.
 
+### Local demo / preview environment (ports 12000 + 12001)
+
+The partner web previews need both a static server and a **local, seeded** API:
+
+- **12000** — `python3 -m http.server 12000` in `agent_demo_shots/`; serves the
+  rider UI/UX design prototypes. `index.html` links the key deliverable,
+  `run-console.html` ("Rider Run Console — single-page map": all customers pinned on
+  one Leaflet/OSM map, tap-to-deliver, sequence rail).
+- **12001** — `node server.js` in `agent_demo_shots/rn-preview/`. It serves
+  `dist-live/` and proxies `/api/*`. It MUST be started with
+  `API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 MAPBOX_TOKEN=<pk...>`
+  (`run.sh` holds the Mapbox token) or the map has no token and there is no data.
+  Proxying to `https://aagaam.in` only serves that server's own (usually empty) data.
+  To render the gallery pages with *live* data, also pass `AAGAM_RIDER_TOKEN=<rider JWT>`;
+  the proxy injects it as `window.__ENV__.AAGAM_TOKEN`. Mint a fresh one against the
+  **local** API (the JWT arrives as the `access_token` cookie, not in the body):
+  `curl -c jar -X POST localhost:3005/auth/login -H 'content-type: application/json' \
+   -d '{"email":"<RIDER_EMAIL>","password":"<RIDER_PASSWORD>"}'` then read `access_token` from the jar.
+- **3005** — the API gateway. Run from the prebuilt bundle with the demo DB:
+  `source apps/api-gateway/.env.demo` (or export the vars), then
+  `node dist/src/main.js`. Requires `DATABASE_URL` and `JWT_SECRET` (≥32 chars).
+  `nest start` fails unless `@nestjs/cli` is installed at the root — prefer `dist/src/main.js`.
+
+Reprovision the demo database (Postgres on `:5433`):
+
+```
+createdb -h /tmp -p 5433 aagam_local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/aagam_local?schema=public \
+  npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+# base catalog + accounts, using the configured demo logins
+STORE_EMAIL=... STORE_PASSWORD=... RIDER_EMAIL=... RIDER_PASSWORD=... \
+  ADMIN_EMAIL=... ADMIN_PASSWORD=... CUSTOMER_EMAIL=... CUSTOMER_PASSWORD=... \
+  NODE_ENV=development node packages/database/seed.js
+# subscription/delivery demo flow (creates today's run + deliveries); honours the
+# same STORE_EMAIL / RIDER_EMAIL overrides
+cd apps/api-gateway && npx ts-node --transpile-only --project tsconfig.json demo-seed.flow.ts
+```
+
+`scripts/seed-demo.sh` runs both seeders in one step. The demo login emails are the
+configured accounts (`AAGAM_CREDENTIALS`), not the `*@aagam.com` defaults; the
+seeder reads the passwords from `ADMIN_PASSWORD` / `STORE_PASSWORD` /
+`CUSTOMER_PASSWORD` / `RIDER_PASSWORD` (or one shared `SEED_DEMO_PASSWORD`) and never
+prints them. The guardian rider route-board is date-scoped, so a stale run from a
+previous day shows an empty board — re-run the demo flow to create today's run.
+
 Demo route note: the seeded `m009` run (`Anakapalle Hub`) drifts into an inconsistent
 state after repeated QA (stop `READY` but `deliveryJob`/`order` `DELIVERED`), which
 makes `/arrive` return `409 Delivery job is not approaching the customer` or
 `409 Order is DELIVERED`. Reset stops 3-8 to `READY`/`PLANNED`,
 `deliveryJob=OUT_FOR_DELIVERY`, `order=OUT_FOR_DELIVERY` before testing arrival.
+
+### Restoring the local stack from cold (sandbox restarts wipe it)
+
+A sandbox restart stops every process and drops the ephemeral services, which the
+preview proxy surfaces as **"Bad Gateway"**. The whole stack is local and must be
+brought back in order — Postgres and Redis are NOT provisioned by default:
+
+```
+# 1. Postgres (installs 17), listen on 5433 to match DATABASE_URL
+sudo apt-get update && sudo apt-get install -y postgresql redis-server
+sudo sed -i 's/^port = .*/port = 5433/' /etc/postgresql/17/main/postgresql.conf
+sudo pg_ctlcluster 17 main start
+sudo -u postgres psql -p 5433 -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+sudo -u postgres createdb -p 5433 aagam_local
+sudo redis-server --daemonize yes --port 6379   # the gateway refuses to boot without it
+
+# 2. Schema + data (from repo root)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/aagam_local?schema=public" \
+  npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+source apps/api-gateway/.env.demo   # DATABASE_URL, JWT_SECRET, PORT, demo logins, AAGAM_RIDER_TOKEN
+# .env.demo is gitignored; a fresh clone copies apps/api-gateway/.env.demo.example
+# to .env.demo first and fills in its own values.
+node packages/database/seed.js
+(cd apps/api-gateway && npx ts-node --transpile-only --project tsconfig.json demo-seed.flow.ts)
+
+# 3. Gateway (prebuilt bundle — `nest start` is unavailable)
+cd apps/api-gateway && set -a && source .env.demo && set +a && node dist/src/main.js &
+
+# 4. Preview on 12001 (dev-server.js = webpack watch + /api proxy), static on 12000
+#    Mint the rider JWT from the LOCAL gateway first (arrives as the access_token cookie):
+#    curl -c jar -X POST localhost:3005/auth/login -H 'content-type: application/json' \
+#      -d '{"email":"<RIDER_EMAIL>","password":"<RIDER_PASSWORD>"}'
+cd agent_demo_shots/rn-preview
+PORT=12001 API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 \
+  MAPBOX_TOKEN=<pk from run.sh> AAGAM_RIDER_TOKEN=<rider JWT> node dev-server.js &
+cd agent_demo_shots && python3 -m http.server 12000 &
+```
+
+The Playwright browser cache is also wiped on restart: re-run
+`npx playwright install chromium-headless-shell` before capture/probe scripts.
+
+## Browser preview of the mobile apps (react-native-web)
+
+`mobile-web-preview/` bundles the real `apps/mobile-customer` and
+`apps/mobile-partners` code with react-native-web and serves them through a
+same-origin proxy to the api-gateway. `./run.sh` builds both and serves on
+`:12001`: partners at `/preview/mobile-partners/`, customer at
+`/preview/mobile-customer/`. `server.js` forwards `/api/*` and `/socket.io/*` to
+`API_ORIGIN` (default `http://127.0.0.1:3005`) with `STRIP_API_PREFIX=1` (local
+gateway has no `/api` prefix), injects `window.__ENV__`, and streams live
+reload. `API_URL` is baked to `/api` so the bundle is same-origin.
+
+Key points:
+- `mocks/navigation.js` reuses the real `@react-navigation/core` builder;
+  `Screen`/`Group` come from `createNavigatorFactory` because core's public index
+  does not export them (a `Stack.Screen` of `undefined` throws inside the nav).
+- `mocks/keychain.js` must expose named exports (`setGenericPassword`, …)
+  because `mobile-shared/store/authStore.ts` uses `import * as Keychain`.
+- `apps/mobile-partners/src/components/StoreKit.tsx` does not exist on this
+  branch or on `main`/`bugs`, though `StoreDeliveriesScreen` /
+  `ManageSubscriberSheet` import it. A compatibility shim (Button, Field, Sheet,
+  TextField, money, Chip, SectionTitle, StatTile, InfoRow, OptionCard,
+  SegmentedTabs) was added so the store workspace compiles — swap in the real
+  implementation when it lands.
+- Authenticated flows need role credentials; the previews otherwise render the
+  login/onboarding screens. Signing in with a real account (or the configured
+  `AAGAM_*` logins) exercises the full navigators against the live DB.
+- `playwright` needs the `chrome` channel (`npx playwright install chrome`) for
+  the MCP browser, not just `chromium-headless-shell`.
+- `mocks/geolocation.js` position must sit **inside the store's delivery
+  radius** (env `SUBSCRIPTION_STORE_DELIVERY_RADIUS_KM`, default 25km). The
+  AAGAAM store is at 17.7333, 82.9849; the old mock point (17.6868, 83.2185) is
+  ~30km away and makes every online self-subscribe `POST /api/customer/subscriptions`
+  (and its `.../quote` preflight) return `409 Eligible stores are outside the
+  configured delivery radius`. Offline/manual subs bypass this because the store
+  chooses the address. The customer app has no hand-entered-coordinate path — it
+  saves the address from `Geolocation` (map unavailable without a Mapbox token),
+  so the mock point is what the customer gets. Rebuild the bundle after editing
+  a mock (`APP=mobile-customer ../node_modules/.bin/webpack --config webpack.config.js`).
+- Online customer with no address: `SubscriptionReviewScreen` disables
+  "Request subscription" (needs `addressId`). Add one first via
+  `POST /api/customer/addresses` (CreateAddressDto: recipientName, phoneE164,
+  line1, city, state, pincode, optional latitude/longitude + locationSource).
+- The gateway in this sandbox runs with `DATABASE_URL = $AAGAAM_DATABASE`
+  (live Supabase `aws-0-ap-south-1` pooler), i.e. the preview writes to the same
+  DB as the live site. `psql "$AAGAAM_DATABASE"` reads it directly.
+
 

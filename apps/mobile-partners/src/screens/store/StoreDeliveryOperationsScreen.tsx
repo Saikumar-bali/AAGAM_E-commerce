@@ -26,6 +26,8 @@ import {
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { buildInspectionLines, operationCompleted } from '../../domain/deliveryOperations';
 import { GradientSurface } from '../../components/GradientSurface';
+import { StoreBackButton } from '../../components/StoreHubKit';
+import { goBackOrHome } from '../../navigation/partnerNavigationRef';
 
 type QuantityState = Record<string, Record<string, {
   sellable: string;
@@ -142,7 +144,8 @@ export const StoreDeliveryOperationsScreen = () => {
       refreshControl={<RefreshControl refreshing={queueQuery.isRefetching} onRefresh={() => void queueQuery.refetch()} />}
     >
       <GradientSurface preset="teal" style={styles.hero}>
-        <View>
+        <StoreBackButton testID="store_returns_back" onPress={() => goBackOrHome(navigation)} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
           <Text style={styles.title}>Returns & COD</Text>
           <Text style={styles.subtitle}>Confirm physical returns, inspect stock, and settle rider cash</Text>

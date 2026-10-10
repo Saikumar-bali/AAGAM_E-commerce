@@ -725,7 +725,7 @@ export class StoreMilkGridService {
         await this.syncRunStopForQuickAction(delivery, 'DELIVERED', tx);
         await this.advanceOrderForQuickAction(delivery.deliveryJobId, actor, tx);
         return { nextDelivery: consumed ?? nextDelivery, sub: advancedSub };
-      });
+      }, { maxWait: 10000, timeout: 20000 });
 
       return { success: true, delivery: updated.nextDelivery, subscription: updated.sub };
     }
@@ -775,7 +775,11 @@ export class StoreMilkGridService {
           },
         });
         return [nextDelivery, nextSub] as const;
-      });
+        // Skip tears down the order, job and run stop (and reconciles the
+        // rider), which is several sequential round-trips; the default 5s
+        // interactive budget expires against a remote pooler and rolls the skip
+        // back with an opaque 500, so it looks like "Mark Skipped" does nothing.
+      }, { maxWait: 10000, timeout: 20000 });
 
       return { success: true, delivery: updated[0], subscription: updated[1] };
     }
@@ -1078,11 +1082,32 @@ export class StoreMilkGridService {
       DeliveryJobStatus.RIDER_AT_CUSTOMER,
       DeliveryJobStatus.STORE_DELIVERING,
     ];
-    if (!deliverable.includes(job.status as any)) return;
-    await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
-      skipRoleCheck: true,
-      metadata: { source: 'store-grid-quick-action' },
-    });
+    if (deliverable.includes(job.status as any)) {
+      await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
+        skipRoleCheck: true,
+        metadata: { source: 'store-grid-quick-action' },
+      });
+      return;
+    }
+    // Same-day dispatch hands the job off as RIDER_AT_STORE, which the workflow
+    // cannot jump straight to DELIVERED. Walk it through the store handoff and
+    // out-for-delivery hops first so the linked Order advances too; otherwise
+    // the delivery/stop read DELIVERED while the customer's order (and history)
+    // stay at RIDER_ASSIGNED.
+    if (job.status === DeliveryJobStatus.RIDER_AT_STORE) {
+      await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.PICKUP_VERIFIED, actor, {
+        skipRoleCheck: true,
+        metadata: { source: 'store-grid-quick-action' },
+      });
+      await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.OUT_FOR_DELIVERY, actor, {
+        skipRoleCheck: true,
+        metadata: { source: 'store-grid-quick-action' },
+      });
+      await this.workflow.transitionWithinTransaction(tx, deliveryJobId, DeliveryJobStatus.DELIVERED, actor, {
+        skipRoleCheck: true,
+        metadata: { source: 'store-grid-quick-action' },
+      });
+    }
   }
 
   /**
@@ -1724,6 +1749,7 @@ export class StoreMilkGridService {
             customer: true,
             homeStore: { select: { id: true, ownerId: true, name: true, address: true, latitude: true, longitude: true } },
             plan: true,
+            address: true,
           },
         },
         order: { include: { items: true, payment: true } },
@@ -1745,6 +1771,12 @@ export class StoreMilkGridService {
     const store = first.subscription.homeStore || await prisma.store.findFirst({ where: { ownerId: actor.id } });
     if (!store) throw new BadRequestException('Store could not be determined for dispatch');
 
+    // Each stop issues O(1) sequential round-trips (order, job, delivery, COD
+    // ledger, run stop, rider sync) plus the run create/totals, so N stops can
+    // exceed Prisma's default 5s interactive-transaction budget against a remote
+    // pooler. The transaction then expires mid-loop ("Transaction already
+    // closed") and surfaces as an opaque 500 that looks like a broken rider
+    // assignment.
     return prisma.$transaction(async (tx) => {
       if (dto.saveAsDefaultRider) {
         const subIds = Array.from(new Set(deliveries.map((d) => d.subscriptionId)));
@@ -1772,7 +1804,8 @@ export class StoreMilkGridService {
         const [dateStr, slot] = groupKey.split('_');
         const serviceDate = groupDeliveries[0].serviceDate;
         const cleanStoreName = (store.name || 'STORE').replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase();
-        const routeCode = `RUN-${cleanStoreName}-${slot}-${dateStr}-${rider.id.slice(-4)}`;
+        const baseRouteCode = `RUN-${cleanStoreName}-${slot}-${dateStr}-${rider.id.slice(-4)}`;
+        let routeCode = baseRouteCode;
 
         let run = await tx.deliveryRun.findFirst({
           where: {
@@ -1783,6 +1816,27 @@ export class StoreMilkGridService {
             status: { not: 'CANCELLED' },
           },
         });
+
+        if (!run) {
+          // routeCode is unique. A prior run for this store/slot/rider may exist
+          // but be CANCELLED (e.g. its only stop was skipped, which cancels the
+          // emptied run). Reuse that row so a re-dispatch after a skip/undo does
+          // not collide on the deterministic code and roll back with a 500.
+          const cancelledRun = await tx.deliveryRun.findFirst({
+            where: { routeCode: baseRouteCode, status: 'CANCELLED' },
+          });
+          if (cancelledRun) {
+            run = await tx.deliveryRun.update({
+              where: { id: cancelledRun.id },
+              data: { status: 'PLANNED', completedAt: null, version: { increment: 1 } },
+            });
+          } else {
+            // A stale non-cancelled row could still squat the exact code; suffix
+            // it so the create succeeds instead of failing the whole dispatch.
+            const taken = await tx.deliveryRun.findFirst({ where: { routeCode: baseRouteCode } });
+            if (taken) routeCode = `${baseRouteCode}-${Date.now().toString(36).slice(-4)}`;
+          }
+        }
 
         if (!run) {
           const slotStart = new Date(serviceDate);
@@ -1941,6 +1995,13 @@ export class StoreMilkGridService {
             });
           }
 
+          // The delivery's own address coordinates are what the rider map, nav
+          // panel and ETA read; without them a dispatched route has no pins.
+          // Prefer the order's pinned point, fall back to the subscription
+          // address, matching regional-route-planning.service.ts.
+          const stopLatitude = d.order?.deliveryLat ?? d.subscription.address?.latitude ?? null;
+          const stopLongitude = d.order?.deliveryLng ?? d.subscription.address?.longitude ?? null;
+
           let stop = await tx.deliveryRunStop.findUnique({
             where: { subscriptionDeliveryId: d.id },
           });
@@ -1957,6 +2018,8 @@ export class StoreMilkGridService {
                 expectedItemCount: 1,
                 expectedParcelCount: 1,
                 status: 'READY',
+                deliveryLatitude: stopLatitude,
+                deliveryLongitude: stopLongitude,
               },
             });
           } else if (stop.deliveryRunId !== run.id) {
@@ -1970,6 +2033,11 @@ export class StoreMilkGridService {
                 movedFromRunId: stop.deliveryRunId,
                 lastMovedAt: new Date(),
                 status: 'READY',
+                // Only fill coordinates when the stop does not already have a
+                // (possibly planner-set) point.
+                ...(stop.deliveryLatitude == null || stop.deliveryLongitude == null
+                  ? { deliveryLatitude: stopLatitude, deliveryLongitude: stopLongitude }
+                  : {}),
                 version: { increment: 1 },
               },
             });
@@ -2051,7 +2119,7 @@ export class StoreMilkGridService {
         dispatchedCount: deliveries.length,
         riderName: rider.user.name,
       };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
   }
 
   /**

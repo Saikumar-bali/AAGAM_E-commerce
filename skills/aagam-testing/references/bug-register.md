@@ -867,3 +867,288 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** the base delivery row keeps its slot; only the marker carries the
   add-on's target, which is why the `ADD-ON_PATTERN` trailing slot group is used
   rather than overwriting `deliverySlot`.
+
+### BUG-019 — Offline customer created from the store app was pinned to a hardcoded default, with no map in the form
+
+- **Found:** 2026-10-10 by openhands (react-native-web store preview session)
+- **Severity:** major
+- **Surface:** store app `StoreOfflineCustomerScreen` → `POST /api/store/subscriptions/manual-customer`
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Store app → Subscriptions → Offline customers → Add offline customer.
+  2. Fill name, phone, address, pick a plan, and submit. There is no map or
+     location control anywhere in the form.
+  3. Read back the created `CustomerAddress`.
+- **Observed:** every offline customer was saved with `latitude 17.6913 /
+  longitude 83.0039` regardless of the typed address. The screen's
+  `useState(17.6913)` / `useState(83.0039)` were never reassigned (no
+  `LeafletMap`, no `Geolocation`, no geocode), so the rider route for these
+  customers pinned them all to one Anakapalli point. Reproduced live: a new
+  offline customer read back `17.6913, 83.0039`; pre-fix rows share the same
+  point. Only 6 distinct coordinate pairs existed across 19 addresses.
+- **Expected:** the operator pins the real delivery location; the rider map
+  reflects it. The customer app already does this (`CheckoutScreen` renders
+  `LeafletMap` with `onPinChange` + `/geo/reverse` + `useLocation`), so the
+  store surface should match it instead of silently defaulting.
+- **Code path:** `apps/mobile-partners/src/screens/store/StoreOfflineCustomerScreen.tsx`
+  (hardcoded lat/lng initial state); backend
+  `subscription-admin-reporting.service.ts` `createOfflineCustomer()` only
+  applies `fallbackLat/fallbackLng` when the DTO omits coordinates — it does not
+  geocode, so it cannot correct a wrong-but-present value.
+- **Evidence:** after the fix, a customer created through the react-native-web
+  preview persisted `17.6868, 83.2185` (the pinned/GPS point) plus the
+  reverse-geocoded city/pincode, versus the pre-fix `17.6913, 83.0039`.
+- **Fix:** `StoreOfflineCustomerScreen` now renders `LeafletMap` with
+  `onPinChange`, a "Use current" GPS button, reverse-geocode fill of the address
+  fields, seeds the pin from the selected store's real coordinates (falling back
+  to the Anakapalli centre only when the store has none), and blocks submit until
+  a valid location is set. `locationSource` guards against re-seeding a
+  deliberately pinned location.
+- **Notes:** the backend `fallbackLat/fallbackLng` remain a last-resort default;
+  they should not be relied on for correctness. Coordinate persistence is the
+  same field the rider route/navigation reads, so this defect and "no customers
+  showing for a store" can compound.
+
+
+
+
+### BUG-020 — Store grid "Mark Skipped" 500s on a generated/assigned day, so skipping looks like a no-op
+
+- **Found:** 2026-10-10 by openhands (react-native-web store preview session)
+- **Severity:** major
+- **Surface:** `POST /api/store/subscriptions/deliveries/:id/quick-action` `{type:'SKIP'}`; store grid cell sheet "Mark Skipped (Not Taken)"
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Store grid -> open a day cell whose delivery already has an `Order` +
+     `DeliveryJob` + `DeliveryRunStop` (a generated or dispatched stop).
+  2. Tap **Mark Skipped (Not Taken)**.
+- **Observed:** HTTP 500
+  `Transaction API error: Transaction not found. Transaction ID is invalid,
+  refers to an old closed transaction...`. The transaction had already expired:
+  `Invalid tx.customerSubscription.update() invocation ... Transaction API error`.
+  The cell stays `SCHEDULED`. Reproduced live for delivery
+  `cmv2cl5as01mdpcx6raemh378`.
+- **Expected:** the day is marked `SKIPPED` and the order/job/run stop are torn
+  down in the same action.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `executeQuickAction` SKIP branch - the `prisma.$transaction` ran with the
+  default 5s interactive timeout. The update + `cancelRiderArtifactsWithinTransaction`
+  + subscription update exceed it against the remote Supabase pooler.
+- **Evidence:** post-fix, the same call returns `{"success":true, ... status:"SKIPPED"}`;
+  the linked `Order`, `DeliveryJob`, `DeliveryRunStop` and the emptied
+  `DeliveryRun` all read `CANCELLED`, and the rider board drops back to
+  `assigned: 0`.
+- **Fix:** SKIP (and TOGGLE_DELIVERED) now run with
+  `{ maxWait: 10000, timeout: 20000 }`. This is a timeout-class failure, not a
+  logic bug: the SKIP branch itself was already correct.
+- **Notes:** a plain `SCHEDULED` cell with no job/order/already-skipped cell
+  always succeeded - only the generated/assigned case tripped the 5s budget,
+  which is why it read as intermittent "sometimes works".
+
+### BUG-021 — "Assign to rider" 500s (transaction timeout) and re-dispatch 500s on the deterministic `routeCode`
+
+- **Found:** 2026-10-10 by openhands (react-native-web store preview session)
+- **Severity:** blocker
+- **Surface:** `POST /api/store/subscriptions/dispatch-to-rider`
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Assign any unassigned day to a rider.
+  2. Then skip that stop (which cancels the emptied run) and try to assign
+     another day to the same rider/slot/date.
+- **Observed:** first call: HTTP 500 `Transaction API error: Transaction already
+  closed ... The timeout for this transaction was 5000 ms, however 5232 ms passed`.
+  Second call: HTTP 500 `Unique constraint failed on the fields: (routeCode)`.
+  Either way the store sees "unable to assign the orders to the rider".
+- **Expected:** the stop is assigned (a `DeliveryRunStop` on a rider-owned run,
+  `order.riderId` set) and a re-dispatch after a skip succeeds.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `dispatchToRider`. Per stop it issues ~8 sequential round-trips, blowing the
+  default 5s interactive timeout; and `routeCode` is
+  `RUN-<store>-<slot>-<date>-<riderTail>` with `@unique`, so a `CANCELLED` run
+  (from a skip that emptied it) still holds the code the next dispatch tries to
+  create.
+- **Evidence:** post-fix, dispatch returns
+  `{"success":true,"runId":"cmv2eehzl...","routeCode":"RUN-AAGA-AM-2026-10-10-f5dc","dispatchedCount":2}`;
+  `GET /store/subscriptions/rider-assignments?date=2026-10-10` reports the stop
+  under `riders[]` (`assigned` > 0).
+- **Fix:** dispatch transaction now runs with
+  `{ maxWait: 10000, timeout: 30000 }`; and when no live run exists the dispatch
+  reuses a same-`routeCode` `CANCELLED` run (reopening it `PLANNED`) instead of
+  creating a colliding row, suffixing the code only if a stale live run squats it.
+- **Notes:** distinct from BUG-013/BUG-014 (multiple riders per slot; the
+  `riderId`-scoped unique key). Those were about two *different* riders; this is
+  the same rider re-dispatched after a skip emptied the prior run.
+
+### BUG-022 — Store "Mark Delivered" leaves a just-dispatched stop's `Order` at `RIDER_ASSIGNED`
+
+- **Found:** 2026-10-10 by openhands (react-native-web store preview session)
+- **Severity:** major
+- **Surface:** `POST /api/store/subscriptions/deliveries/:id/quick-action` `{type:'TOGGLE_DELIVERED'}`
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Dispatch a day to a rider (the job is handed off as `RIDER_AT_STORE`).
+  2. With the rider not having picked up, tap **Mark Delivered** in the grid.
+  3. Read back the linked `Order` / `DeliveryJob` / `DeliveryRunStop`.
+- **Observed:** the delivery and run stop read `DELIVERED` but the `Order` stays
+  `RIDER_ASSIGNED` (job `RIDER_AT_STORE`). Reproduced live for delivery
+  `cmv2dc37u02kkpcx614r8dkyc`.
+- **Expected:** the order advances to `DELIVERED` with its status history, the
+  same as every other completion path.
+- **Code path:** `advanceOrderForQuickAction` only transitions the job when its
+  status is in `[OUT_FOR_DELIVERY, RIDER_AT_CUSTOMER, STORE_DELIVERING]`; a
+  freshly-dispatched `RIDER_AT_STORE` job is not in that list, so the order is
+  left untouched and is another grid-vs-rider split.
+- **Evidence:** the fixed path walks the job through the workflow to `DELIVERED`
+  so the order (and history) advance.
+- **Fix:** when the job is `RIDER_AT_STORE`, the quick action first advances it
+  through `PICKUP_VERIFIED` -> `OUT_FOR_DELIVERY` (store handoff + out-for-delivery,
+  both `skipRoleCheck`) and then to `DELIVERED` via
+  `DeliveryWorkflowService.transitionWithinTransaction`.
+- **Notes:** same class as the "every completion writer must advance the order"
+  note; the earlier fix covered `OUT_FOR_DELIVERY`/`RIDER_AT_CUSTOMER` but not
+  the pre-pickup `RIDER_AT_STORE` that same-day dispatch now produces.
+
+### BUG-023 — Default 5s Prisma interactive-transaction budget 500s every multi-step write
+
+- **Found:** 2026-10-10 by openhands (systematic endpoint sweep, live Supabase)
+- **Severity:** blocker
+- **Surface:** any `$transaction` closure without explicit `timeout` — e.g.
+  `POST /api/store/subscription-operations/runs/:id/packing`,
+  `POST /api/customer/subscriptions/:id/deliveries/:deliveryId/skip`,
+  `POST /api/customer/subscriptions/:id/cancel`,
+  `POST /api/store/subscriptions/deliveries/:id/quick-action`
+- **Role:** store | customer | rider | admin
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. `POST /store/subscription-operations/runs/<run>/packing` with
+     `{expectedBagCount:4,packedBagCount:4,version:8}`.
+  2. `POST /customer/subscriptions/<id>/deliveries/<id>/skip` with `{reason:"..."}`.
+- **Observed:** HTTP 500 `Prisma deliveryRun.update() invocation … Transaction API
+  error: Transaction already closed: A query cannot be executed on an expired
+  transaction` (or `Transaction not found`). The default interactive budget is
+  5000 ms; a remote pooler round-trip is tens of ms, so ~8+ sequential queries
+  exceed it. The write had no effect.
+- **Expected:** the action completes (201) and persists.
+- **Code path:** `packages/database/src/index.ts` `transactionWithSerializableRetry`
+  passed `options` straight through, so most callers inherited Prisma's 5s default.
+- **Evidence:** pre-fix packing/skip/cancel 500; post-fix all return 201
+  (`{"success":true,...}` / revised end date / `status:"CANCELLED"`).
+- **Fix:** the shared wrapper now defaults every interactive transaction to
+  `{ maxWait: 15000, timeout: 30000 }`; callers may still override.
+- **Notes:** umbrella cause of the earlier one-off per-service timeout patches
+  (the dispatch fix, BUG-013/014). Fixing it centrally means new services are
+  safe by default.
+
+### BUG-024 — Rider stop `reorder` 500s on the `sequenceNumber > 0` check constraint
+
+- **Found:** 2026-10-10 by openhands (rider run sweep)
+- **Severity:** major
+- **Surface:** `POST /api/rider/delivery-runs/:runId/stops/:stopId/reorder`
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Start a run so a stop is `IN_PROGRESS`.
+  2. `POST …/reorder` with `{newSequenceNumber:1, reason:"qa reorder", version:<stop.version>}`.
+- **Observed:** HTTP 500 `prisma.deliveryRunStop.update() … violates check
+  constraint "DeliveryRunStop_sequence_check"` (failing row had `sequenceNumber` 0).
+- **Expected:** the stop moves to position 1 (201) and the run order changes.
+- **Code path:** `apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts`
+  `reorder()` parked the moving stop at `sequenceNumber: 0` before shifting the
+  others; the live DB check is `"sequenceNumber" > 0`.
+- **Evidence:** post-fix returns 201 and the stop's `sequenceNumber` becomes 1
+  with the freed slot reused.
+- **Fix:** park the stop at `max(sequenceNumber)+1` for the run instead of 0.
+
+### BUG-025 — Rider return-to-store 500s on the `failureOperationId` FK
+
+- **Found:** 2026-10-10 by openhands (rider failure sweep)
+- **Severity:** major
+- **Surface:** `POST /api/orders/delivery-operations/jobs/:id/return/start`
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Fail a stop as the rider (`POST …/stops/:stopId/fail` with
+     `reason:"CUSTOMER_UNREACHABLE"`).
+  2. `POST /orders/delivery-operations/jobs/<jobId>/return/start` as the rider.
+- **Observed:** HTTP 500 `prisma.deliveryFailureDecision.create() … Foreign key
+  constraint violated: DeliveryFailureDecision_failureOperationId_fkey`.
+- **Expected:** the rider-initiated return is authorized (201) and the job moves
+  to `RETURNING_TO_STORE`.
+- **Code path:** `apps/api-gateway/src/orders/delivery-operations.service.ts`
+  `startReturn()` wrote a synthetic `failureOperationId` string
+  (`rider-return:<job>:<uuid>`), but the column FKs to `DeliveryOperation(id)`.
+- **Evidence:** post-fix returns 201 with a `RETURN_STARTED` operation; the job
+  reaches `RETURNING_TO_STORE`.
+- **Fix:** create a real `DeliveryOperation` (type `FAILURE_RESOLUTION_DECIDED`)
+  first and point `failureOperationId` at its id.
+
+
+### BUG-026 — Store "dispatch to rider" never writes stop coordinates, so the dispatched route has no destination pins
+
+- **Found:** 2026-10-10 by openhands (store→rider E2E on the react-native-web preview)
+- **Severity:** minor (delivery still completes; the rider map/ETA has no pin)
+- **Surface:** `POST /api/store/subscriptions/dispatch-to-rider` (store app / milk grid `dispatchToRider`)
+- **Role:** store (rider-facing symptom)
+- **Status:** FIXED (2026-10-10, working tree; not yet deployed)
+- **Repro:**
+  1. As the store, generate orders for a day and confirm packing.
+  2. Dispatch the four deliveries to one rider via the milk grid.
+  3. Read the created `DeliveryRunStop` rows.
+- **Observed:** every stop created by the store dispatch path had
+  `deliveryLatitude = null` / `deliveryLongitude = null` — including the stops
+  that were later DELIVERED. The stop's `proofMode` was `RIDER_PHOTO_GPS`, so
+  completion still advanced (handover is proved by the rider's own physical GPS
+  + photo), but the run had no per-stop destination coordinates for the map,
+  the nav panel or `RiderRouteMap`.
+- **Expected:** each dispatched stop carries the subscription address's
+  coordinates, matching the planner path
+  (`regional-route-planning.service.ts` sets `deliveryLatitude/Longitude` from
+  `order.deliveryLat ?? subscription.address.latitude`).
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `dispatchToRider()` — the `tx.deliveryRunStop.create({…})` inside the group
+  loop sets `sequenceNumber`, `proofMode`, `cashDuePaise`, item/parcel counts and
+  `status` but omits `deliveryLatitude` / `deliveryLongitude`; the
+  `subscription` include already loads `homeStore` coords yet the block never
+  reads the customer address lat/lng.
+- **Evidence:** run `RUN-AAGA-AM-2026-10-10-f5dc`, revision on `main` branch
+  tip, 8 stops; Prisma read of the run's stops returned
+  `deliveryLatitude: null, deliveryLongitude: null` for all of them
+  (seq 3-8 DELIVERED, seq 1 FAILED, seq 2 CANCELLED).
+- **Fix:** `dispatchToRider()` now writes the delivery's own address
+  coordinates onto the created `DeliveryRunStop` (falling back to the
+  subscription address relation), so each pin matches its stop rather than the
+  store. Verified post-fix by a fresh store→rider E2E: 4 newly dispatched stops
+  (seq 9-12) each carried the exact lat/lng of their created destination
+  address (0.15-0.61 km from the store) instead of `null`.
+- **Regression:** covered by the E2E in
+  `references/CHANGELOG.md` (2026-10-10 entry).
+
+### BUG-027 — Rider `arrive` accepts an out-of-sequence stop, so the run can be driven out of order
+
+- **Found:** 2026-10-10 by openhands (store→rider E2E on the react-native-web preview)
+- **Severity:** minor (operational ordering; no data loss)
+- **Surface:** `POST /api/rider/delivery-runs/:runId/stops/:stopId/arrive`
+- **Role:** rider
+- **Status:** OPEN
+- **Repro:**
+  1. Start a run whose stops are `PLANNED` in sequence 5,6,7,8.
+  2. `arrive` on sequence 6 before sequence 5.
+- **Observed:** HTTP 201 — the server marked seq 6 `ARRIVED` while seq 5 was
+  still `PLANNED`. There is no guard that the targeted stop is the run's next
+  expected stop (lowest still-open sequence).
+- **Expected:** either reject with a 409 ("stop is not the next in sequence")
+  or only warn; the run's `reorder` operation exists precisely to change the
+  expected order, so a plain out-of-order `arrive` should be deliberate.
+- **Code path:** `apps/api-gateway/src/subscriptions/delivery-run-operations.service.ts`
+  `arrive()` — validates run/stop status and takes the optimistic-lock advisory
+  but does not compare the target `sequenceNumber` against the run's next open
+  stop.
+- **Evidence:** run `RUN-AAGA-AM-2026-10-10-f5dc`; `arrive` on seq 6 while seq 5
+  was `PLANNED` returned 201 and set seq 6 `ARRIVED`. Stops were subsequently
+  all delivered, so the run still completed correctly.
+- **Fix:** — (open)
+

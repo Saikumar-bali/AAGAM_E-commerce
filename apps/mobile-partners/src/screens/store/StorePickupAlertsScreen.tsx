@@ -23,6 +23,8 @@ import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 import { AagamBrand } from '../../components/AagamBrand';
 import { GradientSurface } from '../../components/GradientSurface';
+import { StoreBackButton } from '../../components/StoreHubKit';
+import { goBackOrHome } from '../../navigation/partnerNavigationRef';
 import {
   StorePickupTab,
   orderCustomerName,
@@ -93,6 +95,7 @@ export const StorePickupAlertsScreen = () => {
       <GradientSurface preset="teal" style={styles.header}>
         <View style={styles.headerGlow} />
         <View style={styles.headerRow}>
+          <StoreBackButton testID="store_pickup_alerts_back" onPress={() => goBackOrHome(navigation)} />
           <View style={styles.flex}>
             <Text style={styles.eyebrow}>STORE OPERATIONS</Text>
             <Text style={styles.title}>Pickup alerts</Text>
@@ -244,7 +247,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
   headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56, gap: 12 },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
   title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },
   subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },

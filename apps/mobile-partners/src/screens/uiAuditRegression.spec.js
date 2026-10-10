@@ -23,6 +23,88 @@ describe('partner mobile UI audit regressions', () => {
     expect(navigator).not.toContain("tabBarStyle: { display: 'none' }");
   });
 
+  it('orders the Store tabs Home, Subscriptions, Orders, Operations, More with a dashboard Home icon', () => {
+    const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
+    const home = navigator.indexOf('name="Dashboard"');
+    const subs = navigator.indexOf('name="Subscriptions"');
+    const orders = navigator.indexOf('name="Orders"');
+    const operations = navigator.indexOf('name="Operations"');
+    const more = navigator.indexOf('name="More"');
+    expect(home).toBeGreaterThan(-1);
+    expect(home).toBeLessThan(subs);
+    expect(subs).toBeLessThan(orders);
+    expect(orders).toBeLessThan(operations);
+    expect(operations).toBeLessThan(more);
+    // The Home tab must not reuse the old house glyph.
+    expect(navigator).toContain('LayoutDashboard');
+    expect(navigator).not.toContain('House');
+  });
+
+  it('gives every pushed Store screen a back affordance so none can strand the user', () => {
+    for (const file of [
+      'store/StoreInventoryScreen.tsx',
+      'store/StoreMilkGridScreen.tsx',
+      'store/StoreOfflineCustomerScreen.tsx',
+      'store/StoreOrderDetailsReferenceScreen.tsx',
+      'store/StoreOrderDetailsScreen.tsx',
+      'store/StorePickupAlertsScreen.tsx',
+      'store/StorePickupSuccessScreen.tsx',
+      'store/StorePickupVerificationScreen.tsx',
+      'store/StoreRiderAssignmentsScreen.tsx',
+      'store/StoreSettingsScreen.tsx',
+      'store/StoreSubscribersScreen.tsx',
+      'store/StoreSubscriptionOperationsScreen.tsx',
+      'store/StoreSubscriptionPlansScreen.tsx',
+      'store/StoreDeliveryOperationsScreen.tsx',
+      'store/StoreAnalyticsScreen.tsx',
+      'store/StoreCalendarScreen.tsx',
+      'store/StoreDeliveriesScreen.tsx',
+      'store/StoreNotificationSettingsScreen.tsx',
+      'store/StoreOfflineCustomersScreen.tsx',
+      'store/StoreOperatingHoursScreen.tsx',
+    ]) {
+      const text = screen(file);
+      const hasBack = /goBack|ArrowLeft|StoreBackButton|onBack/.test(text);
+      expect(`${file}:${hasBack}`).toBe(`${file}:true`);
+    }
+  });
+
+  it('renders the pushed Store screens inside the gradient workspace chrome', () => {
+    for (const file of [
+      'store/StoreInventoryScreen.tsx',
+      'store/StoreMilkGridScreen.tsx',
+      'store/StoreOfflineCustomerScreen.tsx',
+      'store/StoreOrderDetailsReferenceScreen.tsx',
+      'store/StoreOrderDetailsScreen.tsx',
+      'store/StorePickupAlertsScreen.tsx',
+      'store/StorePickupSuccessScreen.tsx',
+      'store/StorePickupVerificationScreen.tsx',
+      'store/StoreRiderAssignmentsScreen.tsx',
+      'store/StoreSettingsScreen.tsx',
+      'store/StoreSubscribersScreen.tsx',
+      'store/StoreSubscriptionOperationsScreen.tsx',
+      'store/StoreSubscriptionPlansScreen.tsx',
+      'store/StoreDeliveryOperationsScreen.tsx',
+      'store/StoreAnalyticsScreen.tsx',
+      'store/StoreCalendarScreen.tsx',
+      'store/StoreDeliveriesScreen.tsx',
+      'store/StoreNotificationSettingsScreen.tsx',
+      'store/StoreOfflineCustomersScreen.tsx',
+      'store/StoreOperatingHoursScreen.tsx',
+    ]) {
+      const text = screen(file);
+      expect(`${file}:${text.includes('GradientSurface')}`).toBe(`${file}:true`);
+    }
+  });
+
+  it('keeps the Rider pickup handoff escapable with an in-flow back control', () => {
+    const pickup = screen('rider/RiderPickupOperationsScreen.tsx');
+    expect(pickup).toContain('testID="rider_pickup_back"');
+    expect(pickup).toContain('ArrowLeft');
+    expect(pickup).toContain("onPress={() => navigation?.goBack?.()}");
+  });
+
+
   it('keeps Store headers separated and uses the teal workspace theme on details and More', () => {
     const brand = repoFile('apps/mobile-partners/src/components/AagamBrand.tsx');
     const details = screen('store/StoreOrderDetailsScreen.tsx');
@@ -183,5 +265,76 @@ describe('partner mobile UI audit regressions', () => {
     expect(text).toContain('if (callback)');
     expect(text).toContain('socket?.off(event);');
     expect(text).not.toContain('socketRef.current');
+  });
+
+  it('exposes offline-customer deletion the way the web store portal does', () => {
+    const list = screen('store/StoreOfflineCustomersScreen.tsx');
+    expect(list).toContain('deleteOfflineCustomer');
+    expect(list).toContain('restoreOfflineCustomer');
+    expect(list).toContain('purgeOfflineCustomer');
+    expect(list).toContain('Trash2');
+    // The screen must be reachable and registered as a real route.
+    const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
+    expect(navigator).toContain('StoreOfflineCustomersScreen');
+    expect(navigator).toContain('name="StoreOfflineCustomers"');
+    const hub = screen('store/StoreSubscriptionsHubScreen.tsx');
+    expect(hub).toContain("navigate('StoreOfflineCustomers')");
+    const service = repoFile('apps/mobile-partners/src/api/subscriptionOperationsService.ts');
+    expect(service).toContain('/store/subscriptions/offline-customers/');
+    expect(service).toContain('/permanent');
+  });
+
+  it('renders the milk grid with status symbols and per-cell litre amounts', () => {
+    const grid = screen('store/StoreMilkGridScreen.tsx');
+    // Glyphs replace the old status dots.
+    expect(grid).toContain('Check');
+    expect(grid).toContain('Minus');
+    expect(grid).not.toContain('getStatusDot');
+    expect(grid).not.toContain('styles.dot');
+    // Litres are surfaced in the cell and the detail sheet.
+    expect(grid).toContain('litreLabel');
+    expect(grid).toContain('cellLitres');
+    expect(grid).toContain('Total milk');
+    expect(grid).toContain('baseQuantity');
+  });
+
+  it('shows dashboard metrics as icon cards rather than flat colour blocks', () => {
+    const dashboard = screen('store/StoreDashboard.tsx');
+    expect(dashboard).toContain('function DashboardStat');
+    expect(dashboard).toContain('icon={ShoppingCart}');
+    expect(dashboard).toContain('icon={IndianRupee}');
+    expect(dashboard).toContain('<GradientSurface preset={preset} radius={radius.md} style={styles.statIcon}>');
+    expect(dashboard).toContain('<Icon size={20} color="#FFFFFF" />');
+  });
+
+  it('gives every GradientSurface a unique SVG gradient id so same-preset tiles never fall back to a flat block', () => {
+    const gradient = fs.readFileSync(
+      path.join(__dirname, '..', 'components', 'GradientSurface.tsx'),
+      'utf8',
+    );
+    // The per-instance id must be generated, not read from the shared preset map.
+    expect(gradient).toContain('gradientSeq');
+    expect(gradient).toContain('useRef');
+    expect(gradient).not.toContain('const { id, stops } = gradients[preset];');
+  });
+
+  it('pins the partner app to LTR so an RTL device locale cannot mirror the layout', () => {
+    const index = repoFile('apps/mobile-partners/index.js');
+    expect(index).toContain('I18nManager');
+    expect(index).toContain('.forceRTL(false)');
+
+    const manifest = repoFile('apps/mobile-partners/android/app/src/main/AndroidManifest.xml');
+    expect(manifest).not.toContain('android:supportsRtl="true"');
+    expect(manifest).toContain('android:supportsRtl="false"');
+  });
+
+  it('pins the customer app to LTR so an RTL device locale cannot mirror the layout', () => {
+    const index = repoFile('apps/mobile-customer/index.js');
+    expect(index).toContain('I18nManager');
+    expect(index).toContain('.forceRTL(false)');
+
+    const manifest = repoFile('apps/mobile-customer/android/app/src/main/AndroidManifest.xml');
+    expect(manifest).not.toContain('android:supportsRtl="true"');
+    expect(manifest).toContain('android:supportsRtl="false"');
   });
 });

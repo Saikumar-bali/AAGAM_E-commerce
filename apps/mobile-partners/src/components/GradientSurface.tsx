@@ -23,6 +23,8 @@ export const gradients: Record<GradientPreset, { id: string; stops: [string, str
  * Absolute-fill SVG gradient backdrop. Drop it behind any View as the first
  * child; content renders on top because the SVG is not interactive.
  */
+let gradientSeq = 0;
+
 export function GradientSurface({
   preset = 'hero',
   style,
@@ -34,7 +36,15 @@ export function GradientSurface({
   radius?: number;
   children?: ReactNode;
 }) {
-  const { id, stops } = gradients[preset];
+  const { stops } = gradients[preset];
+  // SVG gradient ids are global to the document/root view, not scoped per
+  // <Svg>. Two mounted surfaces of the same preset would then collide, and
+  // react-native-svg resolves `url(#id)` to whichever definition registered
+  // first — which can drop a gradient to a flat colour block. A per-instance
+  // id keeps every surface independent.
+  const rid = React.useRef<string | null>(null);
+  if (rid.current === null) rid.current = `aagamGrad${gradientSeq++}`;
+  const id = rid.current;
   return (
     <View style={[styles.wrap, radius !== undefined && { borderRadius: radius }, style]}>
       <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height="100%">

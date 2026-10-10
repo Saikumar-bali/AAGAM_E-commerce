@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  PermissionsAndroid,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -10,13 +12,35 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ArrowLeft, Check, X } from 'lucide-react-native';
+import Geolocation from 'react-native-geolocation-service';
+import { EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, EXPO_PUBLIC_MAPBOX_TOKEN } from '@env';
+import { ArrowLeft, Check, Crosshair, MapPin, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { apiClient, LeafletMap } from '@aagam/mobile-shared';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
 import { storeService } from '../../api/storeService';
 import { GradientSurface } from '../../components/GradientSurface';
+
+const validCoordinate = (latitude: number, longitude: number) =>
+  Number.isFinite(latitude) &&
+  Number.isFinite(longitude) &&
+  Math.abs(latitude) > 0.0001 &&
+  Math.abs(longitude) > 0.0001 &&
+  Math.abs(latitude) <= 90 &&
+  Math.abs(longitude) <= 180;
+
+// The store's own location is the sensible default pin for a customer who walks
+// in; the rider route starts from the store anyway. A store with no saved
+// coordinates falls back to the Anakapalle centre used elsewhere in the app.
+const storeCoordinates = (store: any): { latitude: number; longitude: number } => {
+  const latitude = Number(store?.latitude);
+  const longitude = Number(store?.longitude);
+  return validCoordinate(latitude, longitude)
+    ? { latitude, longitude }
+    : { latitude: 17.6913, longitude: 83.0039 };
+};
 
 export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
@@ -32,6 +56,10 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
   const [pincode, setPincode] = useState('531001');
   const [latitude, setLatitude] = useState(17.6913);
   const [longitude, setLongitude] = useState(83.0039);
+  // Starts as 'none' so the store cannot publish an offline customer onto the
+  // default point without consciously pinning the real delivery location.
+  const [locationSource, setLocationSource] = useState<'DEFAULT' | 'MAP_PIN' | 'LIVE_GPS' | 'none'>('none');
+  const [locating, setLocating] = useState(false);
   const [deliverySlot, setDeliverySlot] = useState('MORNING');
   const [frequency, setFrequency] = useState('DAILY');
   const [note, setNote] = useState('');
@@ -57,6 +85,74 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
     // their store so the flow works without an extra tap.
     if (!selectedStoreId && stores.length > 0) setSelectedStoreId(stores[0].id);
   }, [stores, selectedStoreId]);
+
+  // Seed the pin with the selected store's coordinates, but never overwrite a
+  // location the operator has already confirmed (default seed, map tap or GPS).
+  useEffect(() => {
+    if (locationSource !== 'none') return;
+    const store = stores.find((entry: any) => entry.id === selectedStoreId);
+    if (!store) return;
+    const coords = storeCoordinates(store);
+    setLatitude(coords.latitude);
+    setLongitude(coords.longitude);
+    setLocationSource('DEFAULT');
+  }, [stores, selectedStoreId, locationSource]);
+
+  const applyLocation = useCallback(
+    async (nextLat: number, nextLng: number, source: 'MAP_PIN' | 'LIVE_GPS') => {
+      setLatitude(nextLat);
+      setLongitude(nextLng);
+      setLocationSource(source);
+      try {
+        const response = await apiClient.get('/geo/reverse', { params: { lat: nextLat, lng: nextLng } });
+        const resolved = response.data?.address;
+        if (resolved) {
+          setAddress((current) => current.trim() || resolved.line1 || current);
+          setCity((current) => (resolved.city ? resolved.city : current));
+          setState((current) => (resolved.state ? resolved.state : current));
+          setPincode((current) => (resolved.pincode ? resolved.pincode : current));
+        }
+      } catch {
+        // The pin is what matters; the operator can still type the address.
+      }
+    },
+    [],
+  );
+
+  const handlePinChange = useCallback(
+    (nextLat: number, nextLng: number) => {
+      if (!validCoordinate(nextLat, nextLng)) return;
+      void applyLocation(nextLat, nextLng, 'MAP_PIN');
+    },
+    [applyLocation],
+  );
+
+  const applyCurrentLocation = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
+        title: 'Allow delivery location',
+        message: 'Aagaam uses the store location to set this customer’s delivery point.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Not now',
+      });
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        Toast.show({ type: 'warning', text1: 'Location permission needed', text2: 'Allow precise location or tap the map to pin.' });
+        return;
+      }
+    }
+    setLocating(true);
+    Geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        void applyLocation(position.coords.latitude, position.coords.longitude, 'LIVE_GPS');
+      },
+      () => {
+        setLocating(false);
+        Toast.show({ type: 'error', text1: 'Location unavailable', text2: 'Turn on precise location or tap the map to pin.' });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+    );
+  }, [applyLocation]);
 
   // The plans endpoint returns every plan for the owner, plus unbound ACTIVE
   // plans. Narrow to plans the selected store is actually allowed by, using the
@@ -92,6 +188,10 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
     }
     if (!selectedPlanId || !applicablePlans.some((plan: any) => plan.id === selectedPlanId)) {
       Toast.show({ type: 'error', text1: 'Please select a plan', text2: '' });
+      return;
+    }
+    if (locationSource === 'none' || !validCoordinate(latitude, longitude)) {
+      Toast.show({ type: 'error', text1: 'Pin the delivery location', text2: 'Set the customer’s location on the map before saving.' });
       return;
     }
 
@@ -204,6 +304,54 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
           </View>
 
           <View style={styles.field}>
+            <View style={styles.mapHeader}>
+              <Text style={styles.label}>Delivery location</Text>
+              <TouchableOpacity
+                style={styles.locateBtn}
+                onPress={() => void applyCurrentLocation()}
+                disabled={locating}
+                accessibilityLabel="Use current location"
+              >
+                {locating ? (
+                  <ActivityIndicator size="small" color="#0F766E" />
+                ) : (
+                  <>
+                    <Crosshair size={13} color="#0F766E" />
+                    <Text style={styles.locateText}>Use current</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.helper}>
+              {locationSource === 'MAP_PIN'
+                ? 'Pinned on the map.'
+                : locationSource === 'LIVE_GPS'
+                  ? 'Using the current GPS location.'
+                  : 'Drag the map or tap to pin the exact delivery point.'}
+            </Text>
+            <View style={styles.mapWrap}>
+              <LeafletMap
+                latitude={latitude}
+                longitude={longitude}
+                onPinChange={handlePinChange}
+                mapboxToken={EXPO_PUBLIC_MAPBOX_TOKEN}
+                googleMapsApiKey={EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}
+                apiBaseUrl={String((apiClient.defaults.baseURL as unknown as string) || '')}
+                style={styles.mapView}
+              />
+            </View>
+            <View style={styles.coordRow}>
+              <MapPin size={13} color="#0F766E" />
+              <Text style={styles.coordText}>
+                {latitude.toFixed(5)}, {longitude.toFixed(5)}
+              </Text>
+            </View>
+            {locationSource === 'none' ? (
+              <Text style={styles.mapHint}>Pin the location to enable saving.</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.field}>
             <Text style={styles.label}>Landmark (optional)</Text>
             <TextInput
               style={styles.input}
@@ -274,6 +422,9 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
                   onPress={() => {
                     setSelectedStoreId(store.id);
                     setSelectedPlanId('');
+                    // Re-seed the pin from the newly chosen store unless the
+                    // operator has already laid a map pin or used GPS.
+                    setLocationSource((current) => (current === 'MAP_PIN' || current === 'LIVE_GPS' ? current : 'none'));
                   }}
                 >
                   <Text style={[styles.pillText, selectedStoreId === store.id && styles.pillTextActive]}>{store.name || store.id}</Text>
@@ -370,6 +521,15 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
   pillTextActive: { color: '#0F766E' },
   muted: { color: '#64748B', fontSize: 12 },
+  mapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  locateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#CCFBF1', borderWidth: 1, borderColor: '#0F766E' },
+  locateText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
+  helper: { color: '#64748B', fontSize: 11 },
+  mapWrap: { height: 200, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#D7DDDA', backgroundColor: '#EEF2F0' },
+  mapView: { flex: 1 },
+  coordRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  coordText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
+  mapHint: { color: '#B91C1C', fontSize: 11 },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 51, borderRadius: 14, backgroundColor: '#0F766E', marginTop: 8 },
   saveBtnDisabled: { opacity: 0.55 },
   saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },

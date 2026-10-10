@@ -15,11 +15,14 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { storeService } from '../../api/storeService';
 import { AagamBrand } from '../../components/AagamBrand';
 import { GradientSurface } from '../../components/GradientSurface';
+import { StoreBackButton } from '../../components/StoreHubKit';
+import { goBackOrHome } from '../../navigation/partnerNavigationRef';
 
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -33,6 +36,7 @@ function coordinate(value: unknown) {
 
 export const StoreSettingsScreen = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const queryClient = useQueryClient();
   const logout = useAuthStore((state) => state.logout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -146,7 +150,10 @@ export const StoreSettingsScreen = () => {
       >
         <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
           <View style={styles.heroShape} />
-          <AagamBrand compact caption="Fast Quality and Trust" inverse />
+          <View style={styles.heroTopRow}>
+            <StoreBackButton testID="store_settings_back" onPress={() => goBackOrHome(navigation)} />
+            <AagamBrand compact caption="Fast Quality and Trust" inverse />
+          </View>
           <Text style={styles.eyebrow}>STORE WORKSPACE</Text>
           <Text style={styles.title}>More</Text>
           <Text style={styles.subtitle}>Profile, location, alerts and secure account controls.</Text>
@@ -292,6 +299,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     overflow: 'hidden',
   },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroShape: {
     position: 'absolute',
     width: 240,

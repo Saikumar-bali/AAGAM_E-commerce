@@ -485,7 +485,7 @@ export class CustomerSubscriptionService {
         },
       });
       return { deliveryId, skippedDate: delivery.serviceDate, revisedEndDate: extensionDate };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   private async nextScheduledDate(tx: Prisma.TransactionClient, subscriptionId: string) {
@@ -536,7 +536,7 @@ export class CustomerSubscriptionService {
         metadata: { effectiveFrom: effective }, idempotencyKey: key,
       }});
       return this.publicSubscription(updated);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   async resume(customerId: string, id: string, dto: ResumeSubscriptionDto, idempotencyKey?: string) {
@@ -580,7 +580,7 @@ export class CustomerSubscriptionService {
         action: 'SUBSCRIPTION_RESUMED', metadata: { resumeFrom, shiftDays }, idempotencyKey: key,
       }});
       return this.publicSubscription(updated);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   async updatePreferences(customerId: string, id: string, dto: UpdateSubscriptionPreferencesDto, idempotencyKey?: string) {
@@ -620,7 +620,7 @@ export class CustomerSubscriptionService {
         action: 'DELIVERY_PREFERENCES_UPDATED', metadata: { method, startMinute, endMinute }, idempotencyKey: key,
       }});
       return this.publicSubscription(updated);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   async cancel(customerId: string, id: string, dto: CancelSubscriptionDto, idempotencyKey?: string) {
@@ -668,7 +668,7 @@ export class CustomerSubscriptionService {
         action: 'SUBSCRIPTION_CANCELLED', reason: dto.reason.trim(), idempotencyKey: key,
       }});
       return this.publicSubscription(updated);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 15000, timeout: 30000 });
   }
 
   async currentTracking(customerId: string, id: string) {
