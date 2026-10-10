@@ -846,3 +846,41 @@ makes `/arrive` return `409 Delivery job is not approaching the customer` or
 `409 Order is DELIVERED`. Reset stops 3-8 to `READY`/`PLANNED`,
 `deliveryJob=OUT_FOR_DELIVERY`, `order=OUT_FOR_DELIVERY` before testing arrival.
 
+### Restoring the local stack from cold (sandbox restarts wipe it)
+
+A sandbox restart stops every process and drops the ephemeral services, which the
+preview proxy surfaces as **"Bad Gateway"**. The whole stack is local and must be
+brought back in order — Postgres and Redis are NOT provisioned by default:
+
+```
+# 1. Postgres (installs 17), listen on 5433 to match DATABASE_URL
+sudo apt-get update && sudo apt-get install -y postgresql redis-server
+sudo sed -i 's/^port = .*/port = 5433/' /etc/postgresql/17/main/postgresql.conf
+sudo pg_ctlcluster 17 main start
+sudo -u postgres psql -p 5433 -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+sudo -u postgres createdb -p 5433 aagam_local
+sudo redis-server --daemonize yes --port 6379   # the gateway refuses to boot without it
+
+# 2. Schema + data (from repo root)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/aagam_local?schema=public" \
+  npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+source apps/api-gateway/.env.demo   # DATABASE_URL, JWT_SECRET, PORT, demo logins, AAGAM_RIDER_TOKEN
+node packages/database/seed.js
+(cd apps/api-gateway && npx ts-node --transpile-only --project tsconfig.json demo-seed.flow.ts)
+
+# 3. Gateway (prebuilt bundle — `nest start` is unavailable)
+cd apps/api-gateway && set -a && source .env.demo && set +a && node dist/src/main.js &
+
+# 4. Preview on 12001 (dev-server.js = webpack watch + /api proxy), static on 12000
+#    Mint the rider JWT from the LOCAL gateway first (arrives as the access_token cookie):
+#    curl -c jar -X POST localhost:3005/auth/login -H 'content-type: application/json' \
+#      -d '{"email":"<RIDER_EMAIL>","password":"<RIDER_PASSWORD>"}'
+cd agent_demo_shots/rn-preview
+PORT=12001 API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 \
+  MAPBOX_TOKEN=<pk from run.sh> AAGAM_RIDER_TOKEN=<rider JWT> node dev-server.js &
+cd agent_demo_shots && python3 -m http.server 12000 &
+```
+
+The Playwright browser cache is also wiped on restart: re-run
+`npx playwright install chromium-headless-shell` before capture/probe scripts.
+
