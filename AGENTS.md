@@ -800,6 +800,11 @@ The partner web previews need both a static server and a **local, seeded** API:
   `API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 MAPBOX_TOKEN=<pk...>`
   (`run.sh` holds the Mapbox token) or the map has no token and there is no data.
   Proxying to `https://aagaam.in` only serves that server's own (usually empty) data.
+  To render the gallery pages with *live* data, also pass `AAGAM_RIDER_TOKEN=<rider JWT>`;
+  the proxy injects it as `window.__ENV__.AAGAM_TOKEN`. Mint a fresh one against the
+  **local** API (the JWT arrives as the `access_token` cookie, not in the body):
+  `curl -c jar -X POST localhost:3005/auth/login -H 'content-type: application/json' \
+   -d '{"email":"<RIDER_EMAIL>","password":"<RIDER_PASSWORD>"}'` then read `access_token` from the jar.
 - **3005** — the API gateway. Run from the prebuilt bundle with the demo DB:
   `source apps/api-gateway/.env.demo` (or export the vars), then
   `node dist/src/main.js`. Requires `DATABASE_URL` and `JWT_SECRET` (≥32 chars).
