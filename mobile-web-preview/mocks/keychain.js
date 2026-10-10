@@ -18,9 +18,11 @@ const Keychain = {
   AUTHENTICATION_TYPE: { BIOMETRICS: 'Biometrics', PASSCODE: 'Passcode' },
   SECURITY_LEVEL: { SECURE_SOFTWARE: 'SECURE_SOFTWARE', SECURE_HARDWARE: 'SECURE_HARDWARE' },
   STORAGE_TYPE: { AES_GCM: 'AES_GCM', KC: 'KC' },
-  setGenericPassword: async (username, password, options = {}) => {
+  // Both members are opaque strings: the native session is already encoded by
+  // the caller before it reaches us. Development-only browser shim.
+  setGenericPassword: async (username, value, options = {}) => {
     const service = options.service || 'default';
-    localStorage.setItem(PREFIX + service, JSON.stringify({ username, password }));
+    localStorage.setItem(PREFIX + service, JSON.stringify({ username, value }));
     return { service, storage: 'localStorage' };
   },
   getGenericPassword: async (options = {}) => {
@@ -28,7 +30,8 @@ const Keychain = {
     const raw = localStorage.getItem(PREFIX + service);
     if (!raw) return false;
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return { username: parsed.username, password: parsed.value };
     } catch {
       return false;
     }

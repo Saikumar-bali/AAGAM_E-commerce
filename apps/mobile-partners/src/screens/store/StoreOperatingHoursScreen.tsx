@@ -68,12 +68,27 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
   const [tzTouched, setTzTouched] = useState(false);
   // Per-input draft text so a partially typed time (e.g. "06:3") is not
   // rejected and snapped back to the stored value mid-keystroke; committed on
-  // blur.
+  // blur. Keyed by window index too, so a day's second window does not share a
+  // draft slot with its first.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const draftKey = (dayOfWeek: number, field: 'open' | 'close') => `${dayOfWeek}-${field}`;
+  const draftKey = (dayOfWeek: number, field: 'open' | 'close', index: number) =>
+    `${dayOfWeek}-${field}-${index}`;
+
+  // Never edit one store's draft under another store's name: switching stores
+  // drops the in-flight draft so the refetched hours render and Save posts the
+  // store the rail is actually showing.
+  const switchStore = (id: string) => {
+    if (id === storeId) return;
+    setWeek(null);
+    setDrafts({});
+    setTzTouched(false);
+    setSelectedStoreId(id);
+  };
 
   const model = useMemo(() => {
-    if (week) return week;
+    // A draft only belongs to a store once its hours have loaded; otherwise a
+    // fast store switch could pair the new storeId with the previous draft.
+    if (week && hoursQuery.data) return week;
     if (!hoursQuery.data) return null;
     return buildWeek(hoursQuery.data);
   }, [week, hoursQuery.data]);
@@ -109,7 +124,7 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
     update((w) => w.map((x) => (x.dayOfWeek === dayOfWeek ? { ...x, windows: x.windows.map((win, i) => (i === index ? { ...win, ...patch } : win)) } : x)));
 
   const commitDraft = (dayOfWeek: number, field: 'open' | 'close', index: number) => {
-    const key = draftKey(dayOfWeek, field);
+    const key = draftKey(dayOfWeek, field, index);
     const draft = drafts[key];
     setDrafts((prev) => {
       const next = { ...prev };
@@ -148,7 +163,7 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
               <TouchableOpacity
                 key={store.id}
                 style={[styles.storeChip, selected && styles.storeChipActive]}
-                onPress={() => setSelectedStoreId(store.id)}
+                onPress={() => switchStore(store.id)}
               >
                 <Store size={15} color={selected ? '#FFFFFF' : '#0F766E'} />
                 <Text style={[styles.storeChipText, selected && styles.storeChipTextActive]} numberOfLines={1}>
@@ -185,8 +200,8 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
                       <View key={wi} style={styles.windowRow}>
                         <TextInput
                           style={styles.timeInput}
-                          value={drafts[draftKey(d.dayOfWeek, `open`)] ?? minutesToHHMM(win.openMinute)}
-                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `open`)]: t }))}
+                          value={drafts[draftKey(d.dayOfWeek, `open`, wi)] ?? minutesToHHMM(win.openMinute)}
+                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `open`, wi)]: t }))}
                           onBlur={() => commitDraft(d.dayOfWeek, 'open', wi)}
                           placeholder="06:00"
                           placeholderTextColor={palette.slate400}
@@ -194,8 +209,8 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
                         <Text style={styles.dash}>–</Text>
                         <TextInput
                           style={styles.timeInput}
-                          value={drafts[draftKey(d.dayOfWeek, `close`)] ?? minutesToHHMM(win.closeMinute)}
-                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `close`)]: t }))}
+                          value={drafts[draftKey(d.dayOfWeek, `close`, wi)] ?? minutesToHHMM(win.closeMinute)}
+                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `close`, wi)]: t }))}
                           onBlur={() => commitDraft(d.dayOfWeek, 'close', wi)}
                           placeholder="21:00"
                           placeholderTextColor={palette.slate400}

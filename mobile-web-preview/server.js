@@ -26,6 +26,29 @@ const DIST = path.resolve(__dirname, 'dist');
 const apiUrl = new URL(API_ORIGIN);
 const API_PROTOCOL = apiUrl.protocol.replace(':', '');
 
+// This is a developer-only local preview server (localhost), but its static
+// routes read files off disk, so throttle them per client to satisfy the
+// "missing rate limiting" scan and to avoid an accidental request storm from a
+// hot-reload loop. Kept dependency-free so a fresh clone needs no extra install.
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_REQUESTS = 600;
+const rateBuckets = new Map();
+function rateLimit(req, res, next) {
+  const key = req.socket?.remoteAddress || 'local';
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || now - bucket.start >= RATE_WINDOW_MS) {
+    rateBuckets.set(key, { start: now, count: 1 });
+    return next();
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_MAX_REQUESTS) {
+    res.status(429).type('text').send('Too many requests, slow down.');
+    return;
+  }
+  next();
+}
+
 function proxyHttp(req, res, targetPath) {
   const target = new URL(API_ORIGIN + targetPath);
   const headers = { ...req.headers };
@@ -97,6 +120,10 @@ app.get('/__live', (req, res) => {
 
 const APPS = ['mobile-partners', 'mobile-customer'];
 
+// Throttle only the disk-reading static preview routes; health/live/proxy stay
+// unthrottled so hot-reload and API traffic are never dropped.
+app.use('/preview', rateLimit);
+
 app.use('/api', (req, res) => {
   const targetPath = STRIP_API_PREFIX ? req.url : '/api' + req.url;
   proxyHttp(req, res, targetPath || '/');
@@ -118,9 +145,13 @@ function bundleVersion(dir) {
 }
 
 function injectEnv(html, name) {
+  // Client keys are read from the DOM at runtime, never baked into the bundle.
   const env = {
     MAPBOX_TOKEN,
     EXPO_PUBLIC_MAPBOX_TOKEN: MAPBOX_TOKEN,
+    GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_WEB_CLIENT_ID || '',
+    GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID || '',
   };
   const version = bundleVersion(path.join(DIST, name));
   const busted = html.replace(/(src=")(\/preview\/[^"]*\/bundle\.js)(")/, `$1$2?v=${version}$3`);

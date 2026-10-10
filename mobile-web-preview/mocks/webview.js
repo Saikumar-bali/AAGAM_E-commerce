@@ -11,7 +11,26 @@ export class WebView extends React.Component {
   constructor(props) {
     super(props);
     this.iframeRef = React.createRef();
+    this.handleWindowMessage = this.handleWindowMessage.bind(this);
+    // The injected Leaflet page posts its events (marker drag/click) to the
+    // parent window, the web equivalent of ReactNativeWebView.postMessage.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', this.handleWindowMessage);
+    }
     this.state = { html: props.source?.html || null, uri: props.source?.uri || null };
+  }
+
+  componentWillUnmount() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('message', this.handleWindowMessage);
+    }
+  }
+
+  handleWindowMessage(event) {
+    const iframe = this.iframeRef.current;
+    if (!iframe || event.source !== iframe.contentWindow) return;
+    const { onMessage } = this.props;
+    if (onMessage) onMessage({ nativeEvent: { data: event.data } });
   }
 
   injectJavaScript = (script) => {

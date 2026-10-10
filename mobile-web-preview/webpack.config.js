@@ -14,7 +14,6 @@ const appDir = path.resolve(ROOT, 'apps', APP);
 const appModuleDir = path.resolve(appDir, 'node_modules');
 
 const API_URL = process.env.API_URL || 'http://127.0.0.1:3005';
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || '';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
 const BASE = `/preview/${APP}`;
@@ -109,10 +108,6 @@ module.exports = {
       'process.env.__AAGAM_API_URL__': JSON.stringify(API_URL),
       'process.env.__AAGAM_APP_VARIANT__': JSON.stringify(APP === 'mobile-customer' ? 'CUSTOMER' : 'PARTNERS'),
       'process.env.__AAGAM_APP_VERSION_CODE__': JSON.stringify('0'),
-      'process.env.__AAGAM_MAPBOX_TOKEN__': JSON.stringify(MAPBOX_TOKEN),
-      'process.env.__AAGAM_GOOGLE_WEB_CLIENT_ID__': JSON.stringify(process.env.GOOGLE_WEB_CLIENT_ID || ''),
-      'process.env.__AAGAM_GOOGLE_ANDROID_CLIENT_ID__': JSON.stringify(process.env.GOOGLE_ANDROID_CLIENT_ID || ''),
-      'process.env.__AAGAM_GOOGLE_MAPS_API_KEY__': JSON.stringify(process.env.__AAGAM_GOOGLE_MAPS_API_KEY__ || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
     }),
     new webpack.ProvidePlugin({ process: here('mocks/process.js') }),
   ],

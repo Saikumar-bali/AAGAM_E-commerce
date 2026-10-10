@@ -29,7 +29,7 @@ describe('shared serializable transaction retry contract', () => {
 
   it('does not retry batch or non-serializable transactions', () => {
     expect(databaseClient).toContain('if (!isInteractive || !isSerializable)');
-    expect(databaseClient).toContain('return baseTransaction(input, options)');
+    expect(databaseClient).toContain('return baseTransaction(input, resolvedOptions)');
   });
 
   it('installs the retry wrapper on the single shared Prisma client', () => {
