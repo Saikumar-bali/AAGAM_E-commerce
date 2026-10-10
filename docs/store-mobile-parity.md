@@ -154,84 +154,29 @@ Parity acceptable. Web has a standalone tab with table + KPIs; mobile a modal.
 
 ## 5. Milk Grid (web `MilkDeliveryGrid`, 3472 lines vs mobile read-only)
 
-Mobile `StoreMilkGridScreen`: month nav, auto-dispatch button, read-only day-cell
-modal. Web is a full operations console.
+> **SHIPPED (this branch).** The mobile grid is now an operational console:
+> filters (search, slot, only-dues, channel), the 3-tab cell quick-action sheet
+> (Quick status / Add-on / Payment), statement + WhatsApp share, pack summary,
+> proof-of-delivery viewer, and CSV export via the OS share sheet. Every call
+> targets an endpoint the web already uses. See
+> `StoreMilkGridScreen.tsx` + `subscriptionOperationsService.quickAction`.
 
-### 5.1 Toolbar / views
+Mobile `StoreMilkGridScreen`: month nav, auto-dispatch, **and now** the full
+operations console. Web remains richer in the following residual areas:
 
-1. **View mode `Today's Route` (cards)** vs `31-Day Matrix`. Mobile has matrix
-   only. **MISSING**.
-2. **Slide to today** (`Today ({n})`) jump button. **MISSING**.
-3. **Pack Summary** modal (`Morning Packing & Dispatch Sheet`: Buffalo/Cow/Total
-   litres, route stops, completed). `GET /store/subscriptions/dispatch-summary`.
-   **MISSING (API-ready)**.
-4. **Export Sheets** → CSV download. `GET /store/subscriptions/grid/export-csv`.
-   **MISSING (API-ready)**.
-5. **Fullscreen** toggle. N/A-ish; **MISSING**.
+1. **Cards view (`Today's Route`)** — web toggles between a card checklist and
+   the 31-day matrix; mobile is matrix-first (cell sheet covers the same
+   actions). **RESIDUAL (cosmetic)**.
+2. **Full manual bulk-dispatch modal** — mobile has auto-dispatch + per-cell
+   reassign; the web's date-range multi-select modal is not replicated.
+   **RESIDUAL**, `POST /store/subscriptions/dispatch-to-rider` (API-ready).
+3. **Extra add-on catalog picker** — web lists store catalog products in the
+   add-on flow; mobile uses presets + custom entry + optional price.
+   **RESIDUAL**, catalogue already loaded by inventory (API-ready).
+4. **Fullscreen toggle** — N/A on a phone. **RESIDUAL**.
+5. **Monthly Bill**: web copies text to clipboard; mobile shares via the native
+   share sheet (`Share.share`), which is the platform equivalent.
 
-### 5.2 Filters / search
-
-1. **Search** `customer, phone, locality`. **MISSING**.
-2. **Slot filter** `All / AM / PM`. **MISSING**.
-3. **Filter Dues / ⚠️ Only Dues** toggle. **MISSING**.
-4. **Customer channel** `All / 🌐 Online / 🏪 Offline`. **MISSING**.
-5. **Sort** `Pending First` / `# Sequence`; **Hide Done ({n})**. **MISSING**.
-
-### 5.3 Per-cell quick actions — the core of the web grid
-
-Web cell modal has 3 tabs; mobile cell modal is read-only. All **MISSING
-(API-ready**, `POST /store/subscriptions/deliveries/:id/quick-action`**)**:
-
-1. **Quick Status** — `Mark Delivered ✓` / `Undo Delivery` (`TOGGLE_DELIVERED`).
-2. **Shift AM↔PM** (`TOGGLE_SLOT`).
-3. **Mark Skipped (Not Taken)** (`SKIP`).
-4. **Default rider** info + `Set {name} as permanent default rider`
-   (`POST /store/subscriptions/:subscriptionId/default-rider`).
-5. **Delegate Stop to Rider** (per-cell, with `Set as permanent default rider`).
-6. **Temporary Substitute Rider** (select + `From Date`/`To Date` + re-dispatch
-   checkbox). `POST /store/subscriptions/:subscriptionId/temporary-rider`.
-7. **Photo proof** `View Proof` → `GET /upload/evidence-url`.
-8. **Ledger snapshot** `Paid in Month` / `Current Outstanding Due`.
-9. **Extra / Shift Add-on** (full flow): unit modes `Grams/Kg`, `Bowls/Pk`,
-   `Liters/ml`, `Custom`; `Catalog Product` + `Custom Product / Manual Rate`;
-   `Unit Price (₹)`; `Consecutive Days`; `Shift Target`; buttons
-   `Attach {n} Days {slot} Delivery` (`ATTACH_EVENING_MILK`) and
-   `Add as Single Day Extra Today Only` (`EXTRA_MILK`).
-10. **Payment & Renew** — `Record Subscriber Payment` with presets
-    (`Full Due`, `₹80`, `₹160`, `₹500`, `₹1,000`), `Amount ₹`, mode
-    `Cash in Hand` / `PhonePe / UPI` (`RECORD_PAYMENT`); `Void Recorded Payment`
-    (`VOID_PAYMENT`); `Renew 30 Days`
-    (`POST /store/subscriptions/subscribers/:id/renew`).
-
-### 5.4 Grid row / card actions
-
-1. **Monthly Bill / Statement** per row (`Share2`) — `GET
-   /store/subscriptions/customer/:id/statement`; modal with `Customer`, `Plan`,
-   `Deliveries {delivered} · {skipped}`, `Extra Milk`, `Total Paid`,
-   `Balance Due`, `WhatsApp Preview`, `Copy Text`, `Send on WhatsApp`.
-   **MISSING (API-ready)**.
-2. **Proof of Delivery** viewer (`Captured At`, `GPS Coordinates` + Maps,
-   `GPS Accuracy`, `Cash Collected`). **MISSING (API-ready)**.
-3. **Card view KPIs** `Completed / Packed / Sold / Left` + progress bar +
-   `All Deliveries Completed for Today!`. **MISSING**.
-
-### 5.5 Bulk Dispatch modal — mobile has only auto-dispatch
-
-Web `Dispatch Deliveries to Rider`:
-1. **Target date** single (`Today`/`Tomorrow`/day select) vs **Date Range**
-   (`From (Day)`/`To (Day)`).
-2. **Auto-Dispatch** (`Pre-Assigned Default Riders ({n})` →
-   `POST /store/subscriptions/auto-dispatch-default-riders`).
-3. **Rider selector** (`No active, approved riders found…`).
-4. **Shift filter** `All Slots / AM / PM`, **Channel** `All / Online / Offline`.
-5. **Per-stop checkboxes** + `Select All` + `Clear`; summary `Selected: {n}`,
-   `Estimated Volume`, `Expected Cash`.
-6. **Save as temporary substitute rider** / **Save as permanent default rider**.
-   `POST /store/subscriptions/dispatch-to-rider`.
-
-Mobile: `StoreMilkGridScreen` "Dispatch" = auto-dispatch only; the full bulk
-modal (manual selection, date range, filters, save-as-default/temp) is
-**MISSING (API-ready)**.
 
 ---
 

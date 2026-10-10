@@ -620,8 +620,97 @@ export const subscriptionOperationsService = {
     riderProfileId: string;
     slot?: 'AM' | 'PM';
     saveAsDefaultRider?: boolean;
+    saveAsTemporaryRange?: boolean;
+    temporaryStartDate?: string;
+    temporaryEndDate?: string;
   }) => {
     const response = await apiClient.post('/store/subscriptions/dispatch-to-rider', input);
     return response.data;
+  },
+
+  // --- Milk-grid operations console -------------------------------------
+  // These mirror the web MilkDeliveryGrid so the store can run the day from
+  // the phone: act on a single delivery, re-assign it, settle cash, print a
+  // bill, or export the month. All of them target endpoints the web already
+  // uses, so nothing new is needed on the API.
+
+  quickAction: async (
+    deliveryId: string,
+    type:
+      | 'TOGGLE_DELIVERED'
+      | 'SKIP'
+      | 'EXTRA_MILK'
+      | 'TOGGLE_SLOT'
+      | 'RECORD_PAYMENT'
+      | 'VOID_PAYMENT'
+      | 'ATTACH_EVENING_MILK',
+    options?: {
+      extraQuantity?: string;
+      extraPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE';
+      amountPaise?: number;
+      note?: string;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
+    },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/deliveries/${encodeURIComponent(deliveryId)}/quick-action`,
+      { type, ...options },
+    );
+    return response.data;
+  },
+
+  getDispatchSummary: async (date?: string): Promise<any> => {
+    const response = await apiClient.get('/store/subscriptions/dispatch-summary', {
+      params: date ? { date } : undefined,
+    });
+    return response.data;
+  },
+
+  getCustomerStatement: async (subscriptionId: string): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/customer/${encodeURIComponent(subscriptionId)}/statement`,
+    );
+    return response.data;
+  },
+
+  renewThirtyDays: async (subscriptionId: string) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/renew`,
+      { isSamePlan: true, totalDeliveries: 30 },
+    );
+    return response.data;
+  },
+
+  setTemporaryRider: async (
+    subscriptionId: string,
+    input: { riderProfileId?: string; startDate?: string; endDate?: string; applyToScheduledDeliveries?: boolean },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/${encodeURIComponent(subscriptionId)}/temporary-rider`,
+      input,
+    );
+    return response.data;
+  },
+
+  // The web downloads a blob; React Native has no filesystem here, so the CSV
+  // is fetched as text and handed to the OS share sheet, which is the native
+  // equivalent of "Export Sheets".
+  exportGridCsv: async (year?: number, month?: number): Promise<string> => {
+    const params: Record<string, string> = {};
+    if (year != null) params.year = String(year);
+    if (month != null) params.month = String(month);
+    const response = await apiClient.get('/store/subscriptions/grid/export-csv', {
+      params,
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    });
+    return typeof response.data === 'string' ? response.data : String(response.data ?? '');
+  },
+
+  getEvidenceUrl: async (key: string): Promise<string | null> => {
+    const response = await apiClient.get('/upload/evidence-url', { params: { key } });
+    return response.data?.url || response.data?.signedUrl || null;
   },
 };
