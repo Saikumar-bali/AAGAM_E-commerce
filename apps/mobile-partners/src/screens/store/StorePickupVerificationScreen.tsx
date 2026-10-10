@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { deliveryOperationsService } from '../../api/deliveryOperationsService';
 import { pickupOperationsService } from '../../api/pickupOperationsService';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   buildStorePickupReceipt,
   formatStoreMoney,
@@ -174,7 +175,7 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={styles.header}>
+      <GradientSurface preset="teal" style={styles.header}>
         <View style={styles.headerGlow} />
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack?.()}>
@@ -188,7 +189,7 @@ export const StorePickupVerificationScreen = ({ navigation, route }: { navigatio
             <RefreshCw size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         style={styles.scroll}
@@ -308,7 +309,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  header: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
   headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 56, gap: 12 },
   backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

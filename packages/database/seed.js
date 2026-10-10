@@ -385,16 +385,34 @@ async function main() {
     ]);
     console.log('✅ Inventory created');
 
-    // Create sample orders
+    // Create sample orders.
+    //
+    // The partner apps read money from the paise fields (subtotalPaise,
+    // grandTotalPaise, …) first; totalAmount alone renders as ₹0 in the store
+    // console. Every sample order therefore carries the full rupee + paise set,
+    // with a flat ₹20 delivery fee, so the prep/pricing screens show real money.
+    const DELIVERY_FEE_PAISE = 2000;
+    const orderPricing = (subtotalPaise) => ({
+      totalAmount: (subtotalPaise + DELIVERY_FEE_PAISE) / 100,
+      subtotal: subtotalPaise / 100,
+      subtotalPaise,
+      deliveryFee: DELIVERY_FEE_PAISE / 100,
+      deliveryFeePaise: DELIVERY_FEE_PAISE,
+      discountAmount: 0,
+      discountPaise: 0,
+      grandTotal: (subtotalPaise + DELIVERY_FEE_PAISE) / 100,
+      grandTotalPaise: subtotalPaise + DELIVERY_FEE_PAISE,
+    });
+
     const order1 = await prisma.order.upsert({
       where: { id: 'order-1' },
-      update: {},
+      update: orderPricing(2395),
       create: {
         id: 'order-1',
         customerId: customer.id,
         storeId: 'store-1',
         status: 'DELIVERED',
-        totalAmount: 24.95,
+        ...orderPricing(2395),
         riderId: riderProfile1.id,
         deliveryLat: 40.7589,
         deliveryLng: -73.9851,
@@ -403,13 +421,13 @@ async function main() {
 
     const order2 = await prisma.order.upsert({
       where: { id: 'order-2' },
-      update: {},
+      update: orderPricing(2898),
       create: {
         id: 'order-2',
         customerId: customer.id,
         storeId: 'store-2',
         status: 'OUT_FOR_DELIVERY',
-        totalAmount: 28.98,
+        ...orderPricing(2898),
         riderId: riderProfile1.id,
         deliveryLat: 40.7589,
         deliveryLng: -73.9851,
@@ -418,13 +436,13 @@ async function main() {
 
     const order3 = await prisma.order.upsert({
       where: { id: 'order-3' },
-      update: {},
+      update: orderPricing(1197),
       create: {
         id: 'order-3',
         customerId: customer.id,
         storeId: 'store-1',
         status: 'CONFIRMED',
-        totalAmount: 12.97,
+        ...orderPricing(1197),
         deliveryLat: 40.7128,
         deliveryLng: -74.006,
       },
@@ -432,13 +450,13 @@ async function main() {
 
     const order4 = await prisma.order.upsert({
       where: { id: 'order-4' },
-      update: {},
+      update: orderPricing(1496),
       create: {
         id: 'order-4',
         customerId: customer.id,
         storeId: 'store-1',
         status: 'PENDING',
-        totalAmount: 19.97,
+        ...orderPricing(1496),
         deliveryLat: 40.7282,
         deliveryLng: -73.7949,
       },
@@ -446,13 +464,13 @@ async function main() {
 
     const order5 = await prisma.order.upsert({
       where: { id: 'order-5' },
-      update: {},
+      update: orderPricing(1399),
       create: {
         id: 'order-5',
         customerId: customer.id,
         storeId: 'store-2',
         status: 'PENDING',
-        totalAmount: 13.99,
+        ...orderPricing(1399),
         deliveryLat: 40.7128,
         deliveryLng: -74.006,
       },
@@ -460,82 +478,56 @@ async function main() {
 
     const order6 = await prisma.order.upsert({
       where: { id: 'order-6' },
-      update: {},
+      update: orderPricing(1397),
       create: {
         id: 'order-6',
         customerId: customer.id,
         storeId: 'store-1',
         status: 'CANCELLED',
-        totalAmount: 15.97,
+        ...orderPricing(1397),
         deliveryLat: 40.7589,
         deliveryLng: -73.9851,
       },
     });
     console.log('✅ Orders created');
 
-    // Create Order Items
-    await Promise.all([
-      prisma.orderItem.upsert({
-        where: { id: 'item-1-1' },
-        update: {},
-        create: { id: 'item-1-1', orderId: order1.id, productId: prod1.id, quantity: 2, price: 8.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-1-2' },
-        update: {},
-        create: { id: 'item-1-2', orderId: order1.id, productId: prod3.id, quantity: 1, price: 3.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-1-3' },
-        update: {},
-        create: { id: 'item-1-3', orderId: order1.id, productId: prod4.id, quantity: 2, price: 1.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-2-1' },
-        update: {},
-        create: { id: 'item-2-1', orderId: order2.id, productId: prod7.id, quantity: 1, price: 14.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-2-2' },
-        update: {},
-        create: { id: 'item-2-2', orderId: order2.id, productId: prod8.id, quantity: 1, price: 13.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-3-1' },
-        update: {},
-        create: { id: 'item-3-1', orderId: order3.id, productId: prod2.id, quantity: 1, price: 7.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-3-2' },
-        update: {},
-        create: { id: 'item-3-2', orderId: order3.id, productId: prod4.id, quantity: 2, price: 1.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-4-1' },
-        update: {},
-        create: { id: 'item-4-1', orderId: order4.id, productId: prod6.id, quantity: 2, price: 4.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-4-2' },
-        update: {},
-        create: { id: 'item-4-2', orderId: order4.id, productId: prod5.id, quantity: 2, price: 2.49 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-5-1' },
-        update: {},
-        create: { id: 'item-5-1', orderId: order5.id, productId: prod8.id, quantity: 1, price: 13.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-6-1' },
-        update: {},
-        create: { id: 'item-6-1', orderId: order6.id, productId: prod1.id, quantity: 1, price: 8.99 },
-      }),
-      prisma.orderItem.upsert({
-        where: { id: 'item-6-2' },
-        update: {},
-        create: { id: 'item-6-2', orderId: order6.id, productId: prod4.id, quantity: 3, price: 1.99 },
-      }),
-    ]);
+    // Create Order Items. unitPricePaise/lineTotalPaise mirror the rupee price
+    // so line totals, picking lists and cash math all agree.
+    const item = (id, orderId, productId, quantity, price) => ({
+      where: { id },
+      create: {
+        id,
+        orderId,
+        productId,
+        quantity,
+        price,
+        unitPricePaise: Math.round(price * 100),
+        lineTotalPaise: Math.round(price * 100) * quantity,
+      },
+    });
+    const itemUpdates = [
+      item('item-1-1', order1.id, prod1.id, 2, 8.99),
+      item('item-1-2', order1.id, prod3.id, 1, 3.99),
+      item('item-1-3', order1.id, prod4.id, 2, 1.99),
+      item('item-2-1', order2.id, prod7.id, 1, 14.99),
+      item('item-2-2', order2.id, prod8.id, 1, 13.99),
+      item('item-3-1', order3.id, prod2.id, 1, 7.99),
+      item('item-3-2', order3.id, prod4.id, 2, 1.99),
+      item('item-4-1', order4.id, prod6.id, 2, 4.99),
+      item('item-4-2', order4.id, prod5.id, 2, 2.49),
+      item('item-5-1', order5.id, prod8.id, 1, 13.99),
+      item('item-6-1', order6.id, prod1.id, 1, 8.99),
+      item('item-6-2', order6.id, prod4.id, 3, 1.99),
+    ];
+    await Promise.all(
+      itemUpdates.map(({ where, create }) =>
+        prisma.orderItem.upsert({
+          where,
+          update: { unitPricePaise: create.unitPricePaise, lineTotalPaise: create.lineTotalPaise },
+          create,
+        }),
+      ),
+    );
     console.log('✅ Order items created');
 
     console.log('--------------------------------------------------');

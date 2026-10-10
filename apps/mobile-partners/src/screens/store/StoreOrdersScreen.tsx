@@ -27,6 +27,7 @@ import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
 import { AagamBrand } from '../../components/AagamBrand';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   StoreOrderTab,
   formatStoreMoney,
@@ -189,7 +190,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={styles.header}>
+      <GradientSurface preset="teal" style={styles.header}>
         <View style={styles.headerGlow} />
         <View style={styles.headerRow}>
           <View style={styles.flex}>
@@ -210,7 +211,7 @@ export const StoreOrdersScreen = ({ navigation, route }: { navigation?: any; rou
             ) : null}
           </TouchableOpacity>
         </View>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         horizontal
@@ -429,7 +430,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
+  header: { paddingHorizontal: 20, paddingBottom: 20, overflow: 'hidden', position: 'relative' },
   headerGlow: { position: 'absolute', top: -60, right: -60, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)' },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },

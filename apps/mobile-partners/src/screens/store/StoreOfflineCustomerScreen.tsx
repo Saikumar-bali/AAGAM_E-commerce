@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
 import { storeService } from '../../api/storeService';
+import { GradientSurface } from '../../components/GradientSurface';
 
 export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
@@ -154,7 +155,7 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+        <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
           <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
             <ArrowLeft size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -162,7 +163,7 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
             <Text style={styles.eyebrow}>SUBSCRIPTION MANAGEMENT</Text>
             <Text style={styles.title}>Add Offline Customer</Text>
           </View>
-        </View>
+        </GradientSurface>
 
         <View style={styles.body}>
           <Text style={styles.sectionTitle}>Customer details</Text>
@@ -350,7 +351,7 @@ export const StoreOfflineCustomerScreen = ({ navigation }: { navigation: any }) 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { paddingBottom: 40 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },

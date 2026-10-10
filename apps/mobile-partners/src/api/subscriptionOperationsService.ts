@@ -116,12 +116,17 @@ export type DeliveryRunStop = {
   subscriptionDelivery: {
     id: string;
     serviceDate: string;
+    deliverySlot?: string | null;
+    cashDuePaise?: number;
+    cashCollectedPaise?: number;
     subscription: {
       id: string;
       customerId: string;
       addressSnapshot?: Record<string, unknown> | null;
       deliveryMethod: 'TRUSTED_DROP' | 'PERSONAL_HANDOVER' | 'SECURITY_RECEPTION';
       trustedDropInstructions?: string | null;
+      itemsSnapshot?: Record<string, unknown> | null;
+      plan?: { name?: string | null } | null;
     };
   };
 };
@@ -331,6 +336,42 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+  skipStop: async (runId: string, stopId: string, input: { reason?: string; note?: string; version: number }) => {
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/skip`,
+      input,
+      requestHeaders(mutationKey('skip', stopId, input.version)),
+    );
+    return response.data;
+  },
+
+  // Collect cash at the door. The rider holds the money and hands it to the
+  // store later; the server caps the amount at the day's outstanding due so an
+  // over-collection is a 400, not a 500.
+  recordStopPayment: async (
+    runId: string,
+    stopId: string,
+    input: { version: number; amountPaise: number; paymentMode?: 'CASH' | 'PHONE_PE'; note?: string },
+  ) => {
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/record-payment`,
+      input,
+      requestHeaders(mutationKey('payment', stopId, input.version)),
+    );
+    return response.data;
+  },
+
+  // Reverse a mistaken completion or skip. The server restores the stop to
+  // ARRIVED (undo deliver) or PLANNED (undo skip) and unwinds the counters.
+  undoStop: async (runId: string, stopId: string, input: { version: number; reason?: string }) => {
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/undo`,
+      input,
+      requestHeaders(mutationKey('undo', stopId, input.version)),
+    );
+    return response.data;
+  },
+
   finishRun: async (runId: string, version: number) => {
     const response = await apiClient.post(`/rider/delivery-runs/${encodeURIComponent(runId)}/finish`, { version });
     return response.data;
@@ -433,7 +474,20 @@ export const subscriptionOperationsService = {
 
   getSubscribers: async (): Promise<any[]> => {
     const response = await apiClient.get('/store/subscriptions/subscribers');
-    return Array.isArray(response.data) ? response.data : [];
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.subscribers)) return data.subscribers;
+    return [];
+  },
+
+  // The subscribers endpoint returns `{ subscribers, counts }`; expose both so
+  // the hub can show server-computed totals instead of re-deriving them.
+  getSubscriberSnapshot: async (): Promise<{ subscribers: any[]; counts: Record<string, number> }> => {
+    const response = await apiClient.get('/store/subscriptions/subscribers');
+    const data = response.data ?? {};
+    const subscribers = Array.isArray(data) ? data : (Array.isArray(data.subscribers) ? data.subscribers : []);
+    const counts = data.counts ?? {};
+    return { subscribers, counts };
   },
 
   getPlans: async (): Promise<any[]> => {

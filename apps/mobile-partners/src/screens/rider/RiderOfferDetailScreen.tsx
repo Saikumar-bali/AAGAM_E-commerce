@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -129,11 +130,11 @@ export const RiderOfferDetailScreen = ({ route, navigation }: { route: any; navi
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider offers" style={styles.back} onPress={() => navigation.goBack()}><ArrowLeft size={22} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>CANONICAL DELIVERY OFFER</Text><Text style={styles.title}>Review assignment</Text></View>
         <Text style={styles.timer}>{remaining == null ? 'Open' : `${remaining}s`}</Text>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}

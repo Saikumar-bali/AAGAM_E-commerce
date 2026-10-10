@@ -24,6 +24,15 @@ function getMapboxToken(explicitToken?: string | null): string | null {
 
 type BuildRiderMapHtmlOptions = {
   initialStyle?: RiderMapStyleId;
+  stops?: RiderMapStop[];
+};
+
+export type RiderMapStop = {
+  latitude: number;
+  longitude: number;
+  sequence: number;
+  label?: string;
+  state?: 'done' | 'current' | 'upcoming';
 };
 
 export const buildRiderMapHtml = (
@@ -37,6 +46,17 @@ export const buildRiderMapHtml = (
     return `<!doctype html><html><body style="display:flex;align-items:center;justify-content:center;height:100%;margin:0;color:#999;font-family:system-ui;">Map unavailable – missing Mapbox token</body></html>`;
   }
   const safeLabelJson = JSON.stringify(label);
+  const stopsJson = JSON.stringify(
+    (options.stops || [])
+      .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+      .map((stop) => ({
+        latitude: Number(stop.latitude),
+        longitude: Number(stop.longitude),
+        sequence: Number(stop.sequence) || 0,
+        label: stop.label || '',
+        state: stop.state || 'upcoming',
+      })),
+  );
   const initialStyle: RiderMapStyleId = options.initialStyle && RIDER_MAP_STYLES[options.initialStyle] ? options.initialStyle : 'satellite';
   return `<!doctype html>
 <html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
@@ -57,8 +77,17 @@ html,body,#map{height:100%;margin:0;background:#e8f3ef}
 @keyframes riderPulse{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1.45);opacity:0}}
 .dest-pin{position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;background:#dc2626;border:3px solid #fff;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(2,6,23,.45)}
 .dest-pin::after{content:'';position:absolute;top:7.5px;left:7.5px;width:8px;height:8px;border-radius:50%;background:#fff}
+.stop-marker{position:relative;width:26px;height:26px;border-radius:50%;background:#0f766e;border:3px solid #fff;box-shadow:0 2px 6px rgba(2,6,23,.45);display:flex;align-items:center;justify-content:center;color:#fff;font:700 11px/1 system-ui,-apple-system,sans-serif}
+.stop-marker.done{background:#94a3b8}
+.stop-marker.current{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.28),0 2px 6px rgba(2,6,23,.45)}
+.stop-label{position:absolute;top:30px;left:50%;transform:translateX(-50%);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:9px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.12);color:#0f172a;font:600 10px/1.3 system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(15,23,42,.18)}
+.stop-marker.current .stop-label{background:#dc2626;border-color:#dc2626;color:#fff}
+.map-progress{position:absolute;left:10px;bottom:10px;z-index:6;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;background:rgba(11,27,58,.92);color:#fff;font:600 11px/1 system-ui,-apple-system,sans-serif;box-shadow:0 4px 14px rgba(2,6,23,.34)}
+.map-progress .bar{position:relative;width:74px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
+.map-progress .bar > i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:#34d399}
 </style>
 </head><body><div id="map"></div>
+<div class="map-progress" id="map-progress" style="display:none"><div class="bar"><i id="map-progress-fill" style="width:0%"></i></div><span id="map-progress-text"></span></div>
 <div class="map-nav-banner" id="map-nav-banner"><div class="map-nav-arrow" id="map-nav-arrow">&#9650;</div><div class="map-nav-copy"><div class="map-nav-instruction" id="map-nav-instruction">Starting…</div><div class="map-nav-meta" id="map-nav-meta"></div></div></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.js"></script><script>
 mapboxgl.accessToken = '${token}';
@@ -100,6 +129,44 @@ new mapboxgl.Marker({ element: destEl, anchor: 'bottom' })
   .setLngLat(destination)
   .setPopup(new mapboxgl.Popup({ offset: 18, closeButton: false }).setText(destLabel))
   .addTo(map);
+
+// Ordered delivery stops: keep the pin label as a sequence hint while coloured
+// by state (done / current / upcoming) so the rider can read the plan at a glance.
+var STOP_STATE_LABEL = { done: 'Delivered', current: 'Current stop', upcoming: 'Upcoming stop' };
+var routeStops = ${stopsJson};
+var stopMarkers = [];
+for (var si = 0; si < routeStops.length; si++) {
+  (function (stop) {
+    var el = document.createElement('div');
+    el.className = 'stop-marker' + (stop.state === 'done' ? ' done' : stop.state === 'current' ? ' current' : '');
+    el.textContent = String(stop.sequence || '');
+    if (stop.label) {
+      var nameEl = document.createElement('div');
+      nameEl.className = 'stop-label';
+      nameEl.textContent = stop.label;
+      el.appendChild(nameEl);
+    }
+    var popupText = (stop.label ? stop.label + ' · ' : '') + (STOP_STATE_LABEL[stop.state] || 'Stop');
+    stopMarkers.push(new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([stop.longitude, stop.latitude])
+      .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false }).setText(popupText))
+      .addTo(map));
+  })(routeStops[si]);
+}
+
+// Mirror the run's progress bar on the map so the stop sheet keeps the same
+// progress context the main screen shows without repeating the header stats.
+window.setRouteProgress = function (done, total) {
+  var box = document.getElementById('map-progress');
+  if (!box) return;
+  var safeTotal = total > 0 ? total : 1;
+  var pct = Math.max(0, Math.min(100, Math.round((done / safeTotal) * 100)));
+  var fill = document.getElementById('map-progress-fill');
+  var text = document.getElementById('map-progress-text');
+  if (fill) fill.style.width = pct + '%';
+  if (text) text.textContent = done + ' / ' + safeTotal + ' delivered';
+  box.style.display = 'flex';
+};
 
 function arrowForManeuver(maneuver) {
   if (!maneuver) return '&#9650;';
@@ -282,6 +349,7 @@ function fitOverview(point, dest) {
   var bounds = new mapboxgl.LngLatBounds();
   bounds.extend(point);
   bounds.extend(dest);
+  for (var k = 0; k < routeStops.length; k++) bounds.extend([routeStops[k].longitude, routeStops[k].latitude]);
   try { map.fitBounds(bounds, { padding: { top: 56, bottom: 72, left: 48, right: 48 }, maxZoom: 16, duration: 500 }); } catch (e) {}
 }
 

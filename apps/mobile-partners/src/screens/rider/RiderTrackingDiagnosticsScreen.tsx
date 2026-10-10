@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   AlertTriangle,
   BatteryCharging,
@@ -101,7 +102,7 @@ export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: an
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity accessibilityLabel="Go back" style={styles.back} onPress={() => navigation?.goBack?.()}>
           <ChevronLeft size={25} color="#FFFFFF" />
         </TouchableOpacity>
@@ -110,7 +111,7 @@ export const RiderTrackingDiagnosticsScreen = ({ navigation }: { navigation?: an
           <Text style={styles.title}>Tracking diagnostics</Text>
         </View>
         <Satellite size={25} color="#FFFFFF" />
-      </View>
+      </GradientSurface>
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={healthQuery.isRefetching} onRefresh={() => void healthQuery.refetch()} tintColor="#0F766E" />}>
         {healthQuery.isLoading ? <ActivityIndicator color="#0F766E" /> : healthQuery.isError ? (
@@ -180,7 +181,7 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F4F7FB' },
   flex: { flex: 1 },
-  header: { minHeight: 116, paddingHorizontal: 18, paddingBottom: 18, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { minHeight: 116, paddingHorizontal: 18, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 38, height: 38, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1.2 },
   title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 4 },

@@ -83,6 +83,7 @@ import {
   SetDefaultRiderDto,
   SetTemporaryRiderDto,
   AutoDispatchDefaultRidersDto,
+  UndoRunStopDto,
 } from './subscriptions.dto';
 
 type AuthenticatedRequest = { user: { id: string; role: Role } };
@@ -405,6 +406,16 @@ export class RiderDeliveryRunsController {
   ) {
     return this.runs.skipStop(runId, stopId, body, req.user);
   }
+
+  @Post(':runId/stops/:stopId/undo')
+  undoStop(
+    @Param('runId') runId: string,
+    @Param('stopId') stopId: string,
+    @Body() body: UndoRunStopDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.runs.undoStop(runId, stopId, body, req.user);
+  }
 }
 
 @Controller('store/subscription-operations')
@@ -568,6 +579,20 @@ export class StoreSubscriptionsController {
   @Get('customer/:id/statement')
   customerStatement(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.milkGrid.getCustomerStatement(req.user, id);
+  }
+
+  /** Audit trail: who changed what money on a subscription, and when. */
+  @Get('subscribers/:subscriptionId/audit')
+  subscriberAudit(
+    @Req() req: AuthenticatedRequest,
+    @Param('subscriptionId') subscriptionId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reporting.subscriptionAuditTrail(
+      req.user,
+      subscriptionId,
+      parseIntQuery(limit, 'limit', { min: 1, max: 200 }),
+    );
   }
 
   @Get('grid/export-csv')

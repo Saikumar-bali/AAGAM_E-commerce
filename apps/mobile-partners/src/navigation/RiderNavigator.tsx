@@ -1,11 +1,9 @@
 import React from 'react';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Bell, BriefcaseBusiness, House, Route, UserRound } from 'lucide-react-native';
+import { BarChart3, House, Navigation, Route, UserRound } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { notificationService } from '../api/notificationService';
-import { PARTNER_NOTIFICATION_QUERY_KEY, PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
+import { PartnerNotificationsScreen } from '../screens/PartnerNotificationsScreen';
 import { RiderAccountStatusScreen } from '../screens/rider/RiderAccountStatusScreen';
 import { RiderCodScreen } from '../screens/rider/RiderCodScreen';
 import { RiderDashboard } from '../screens/rider/RiderDashboard';
@@ -19,6 +17,7 @@ import { RiderRunsScreen } from '../screens/rider/RiderRunsScreen';
 import { RiderPayoutHistoryScreen } from '../screens/rider/RiderPayoutHistoryScreen';
 import { RiderProfileDetailsScreen } from '../screens/rider/RiderProfileDetailsScreen';
 import { RiderProfileScreen } from '../screens/rider/RiderProfileScreen';
+import { RouteConsoleScreen } from '../screens/rider/RouteConsoleScreen';
 import { RiderScheduleScreen } from '../screens/rider/RiderScheduleScreen';
 import { RiderSupportConversationScreen } from '../screens/rider/RiderSupportConversationScreen';
 import { RiderSupportScreen } from '../screens/rider/RiderSupportScreen';
@@ -32,13 +31,6 @@ const hidden = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as
 
 export const RiderNavigator = () => {
   const insets = useSafeAreaInsets();
-  const inboxQuery = useQuery({
-    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
-    queryFn: () => notificationService.getInbox(1),
-    staleTime: 10_000,
-    retry: 1,
-  });
-  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const bottomPadding = Math.max(insets.bottom, 6);
 
   return (
@@ -79,19 +71,16 @@ export const RiderNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Operations"
-        component={RiderOperationsRouterScreen}
-        options={({ route }) => ({
-          title: 'Jobs',
-          tabBarButtonTestID: 'tab_deliveries',
-          tabBarAccessibilityLabel: 'Rider jobs and deliveries',
+        name="Route"
+        component={RouteConsoleScreen}
+        options={{
+          title: 'Route',
+          tabBarButtonTestID: 'tab_route',
+          tabBarAccessibilityLabel: 'Live route console',
           tabBarIcon: ({ color, size, focused }) => (
-            <BriefcaseBusiness size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
+            <Navigation size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
-          tabBarStyle: ['RiderActiveJob', 'RiderPickup', 'RiderDelivery', 'RiderReturn'].includes(getFocusedRouteNameFromRoute(route) || 'RiderJobs')
-            ? { display: 'none' }
-            : undefined,
-        })}
+        }}
       />
       <Tab.Screen
         name="Runs"
@@ -102,28 +91,6 @@ export const RiderNavigator = () => {
           tabBarAccessibilityLabel: 'Subscription delivery runs',
           tabBarIcon: ({ color, size, focused }) => (
             <Route size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Alerts"
-        component={PartnerNotificationsScreen}
-        options={{
-          title: 'Alerts',
-          tabBarButtonTestID: 'tab_alerts',
-          tabBarAccessibilityLabel: 'Rider alerts',
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: '#EF1D25',
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '600',
-            minWidth: 20,
-            height: 20,
-            lineHeight: 20,
-          },
-          tabBarIcon: ({ color, size, focused }) => (
-            <Bell size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -151,7 +118,20 @@ export const RiderNavigator = () => {
           ),
         }}
       />
+      <Tab.Screen
+        name="Operations"
+        component={RiderOperationsRouterScreen}
+        options={({ route }) => ({
+          ...hidden,
+          // Keep the immersive full-screen delivery experience: hide the tab
+          // bar while the rider is inside an active job flow.
+          tabBarStyle: ['RiderActiveJob', 'RiderPickup', 'RiderDelivery', 'RiderReturn'].includes(getFocusedRouteNameFromRoute(route) || 'RiderJobs')
+            ? { display: 'none' }
+            : undefined,
+        })}
+      />
       <Tab.Screen name="RiderRunDetail" component={RiderRunDetailScreen} options={hidden} />
+      <Tab.Screen name="Notifications" component={PartnerNotificationsScreen} options={hidden} />
       <Tab.Screen name="NotificationSettings" component={RiderNotificationSettingsScreen} options={hidden} />
       <Tab.Screen name="TrackingDiagnostics" component={RiderTrackingDiagnosticsScreen} options={hidden} />
       <Tab.Screen name="RiderProfileDetails" component={RiderProfileDetailsScreen} options={hidden} />

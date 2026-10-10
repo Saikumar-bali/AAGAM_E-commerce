@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   ArrowLeft,
   Camera,
@@ -97,11 +98,11 @@ export const RiderSupportScreen = ({ route, navigation }: { route: any; navigati
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider profile" style={styles.headerButton} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>RIDER SUPPORT</Text><Text style={styles.title}>Conversations</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh support tickets" style={styles.headerButton} onPress={() => void query.refetch()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -174,7 +175,7 @@ export const RiderSupportScreen = ({ route, navigation }: { route: any; navigati
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' }, content: { padding: 14 },
   linkedCard: { borderRadius: 15, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#99F6E4', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }, linkedTitle: { color: '#0F172A', fontSize: 12, fontWeight: '600' }, linkedText: { color: '#475569', fontSize: 9, marginTop: 4 },
   newButton: { minHeight: 51, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, newButtonText: { color: '#FFFFFF', fontWeight: '600' },

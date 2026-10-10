@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   AlertTriangle,
   Camera,
@@ -258,10 +259,10 @@ export const RiderPickupOperationsScreen = ({ navigation, deliveryJobId }: { nav
         automaticallyAdjustKeyboardInsets
         refreshControl={<RefreshControl refreshing={pickupQuery.isRefetching || workspaceQuery.isRefetching} onRefresh={() => void refresh()} />}
       >
-      <View style={styles.hero}>
+      <GradientSurface preset="teal" style={styles.hero}>
         <View style={styles.flex}><Text style={styles.eyebrow}>RIDER PICKUP</Text><Text style={styles.title}>Verify exact handoff</Text><Text style={styles.subtitle}>Count every unit, then verify the owning store.</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh pickup" style={styles.refreshButton} onPress={() => void refresh()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       {pickupQuery.isLoading && !job ? (
         <State loading title="Loading pickup task" text="Reading the canonical store handoff." />
@@ -324,7 +325,7 @@ function State({ loading = false, title, text }: { loading?: boolean; title: str
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingBottom: 20 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#0F172A', paddingTop: 24, paddingHorizontal: 18, paddingBottom: 22, flexDirection: 'row', alignItems: 'center', gap: 12 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 23, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#CBD5E1', fontSize: 11, marginTop: 4 }, refreshButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  hero: { paddingTop: 24, paddingHorizontal: 18, paddingBottom: 22, flexDirection: 'row', alignItems: 'center', gap: 12 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 23, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#CBD5E1', fontSize: 11, marginTop: 4 }, refreshButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   summaryCard: { margin: 14, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16, flexDirection: 'row', alignItems: 'center' }, orderCode: { color: '#0F766E', fontSize: 10, fontWeight: '600' }, storeName: { color: '#0F172A', fontSize: 17, fontWeight: '600', marginTop: 4 }, summaryText: { color: '#64748B', fontSize: 10, marginTop: 4 }, badge: { borderRadius: 11, paddingHorizontal: 10, paddingVertical: 8 }, badgeReady: { backgroundColor: '#DCFCE7' }, badgePending: { backgroundColor: '#FEF3C7' }, badgeText: { color: '#0F172A', fontSize: 10, fontWeight: '600' },
   card: { margin: 14, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 }, sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600' }, sectionText: { color: '#64748B', fontSize: 10, lineHeight: 15, marginTop: 4 },
   handoffCard: { borderColor: '#5EEAD4', backgroundColor: '#FCFFFE' }, completedChecklist: { marginTop: 12, borderRadius: 12, backgroundColor: '#F0FDF4', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, completedChecklistText: { flex: 1, color: '#166534', fontSize: 11, fontWeight: '600' },

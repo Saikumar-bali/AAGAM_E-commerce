@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { ArrowLeft, ExternalLink, FileClock, RefreshCw } from 'lucide-react-native';
 import React from 'react';
 import {
@@ -40,11 +41,11 @@ export const RiderDocumentPreviewScreen = ({ route, navigation }: { route: any; 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Rider documents" style={styles.headerButton} onPress={() => navigation.goBack()}><ArrowLeft size={23} color="#FFFFFF" /></TouchableOpacity>
         <View style={styles.flex}><Text style={styles.eyebrow}>SIGNED PRIVATE PREVIEW</Text><Text style={styles.title}>{document ? label(document.type) : 'Document preview'}</Text></View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh document preview" style={styles.headerButton} onPress={() => void query.refetch()}><RefreshCw size={20} color="#FFFFFF" /></TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       {query.isLoading ? (
         <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.stateText}>Creating a short-lived preview…</Text></View>
@@ -91,7 +92,7 @@ function Fact({ label: factLabel, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }, headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 21, fontWeight: '600' },
   previewFrame: { height: 430, margin: 14, borderRadius: 18, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1' }, webview: { flex: 1, backgroundColor: '#FFFFFF' },
   pdfState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, pdfTitle: { color: '#0F172A', fontSize: 19, fontWeight: '600', marginTop: 12 }, pdfText: { color: '#64748B', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 8 },

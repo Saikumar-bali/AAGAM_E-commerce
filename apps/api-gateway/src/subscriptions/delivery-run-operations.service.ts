@@ -13,6 +13,8 @@ import {
   PaymentMethod,
   Prisma,
   Role,
+  CustomerSubscriptionStatus,
+  OrderStatus,
   SubscriptionDeliveryMethod,
   SubscriptionDeliveryStatus,
   SubscriptionProofMode,
@@ -31,8 +33,10 @@ import {
   RiderRecordPaymentDto,
   RiderToggleSlotDto,
   RunVersionDto,
+  UndoRunStopDto,
 } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
+import { computeVoidAdjustment } from './subscription-balances';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TrustedDropService } from './trusted-drop.service';
@@ -67,7 +71,21 @@ export class DeliveryRunOperationsService {
           orderBy: { sequenceNumber: 'asc' },
           include: {
             deliveryJob: { include: { order: { include: { customer: { select: { name: true, phone: true } }, payment: true, items: { include: { product: true } } } } } },
-            subscriptionDelivery: { include: { subscription: { select: { id: true, customerId: true, addressSnapshot: true, deliveryMethod: true, trustedDropInstructions: true } } } },
+            subscriptionDelivery: {
+              include: {
+                subscription: {
+                  select: {
+                    id: true,
+                    customerId: true,
+                    addressSnapshot: true,
+                    deliveryMethod: true,
+                    trustedDropInstructions: true,
+                    itemsSnapshot: true,
+                    plan: { select: { name: true } },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -1045,6 +1063,196 @@ export class DeliveryRunOperationsService {
 
       return { success: true, stopId };
     });
+  }
+
+  /**
+   * Reverse a stop the rider marked delivered (or skipped) by mistake. This is
+   * the field-safe counterpart to the store's quick-action revert: it restores
+   * the stop, its delivery job and the order, and gives back the funded
+   * entitlement so a day's count is not silently inflated by a mis-tap.
+   */
+  async undoStop(runId: string, stopId: string, dto: UndoRunStopDto, actor: Actor) {
+    const { rider, run } = await this.ownedRun(runId, actor);
+    const stop = run.stops.find((candidate) => candidate.id === stopId);
+    if (!stop) throw new NotFoundException('Run stop not found');
+    if (stop.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
+    if (stop.status !== DeliveryRunStopStatus.DELIVERED && stop.status !== DeliveryRunStopStatus.CANCELLED) {
+      throw new BadRequestException('Only a delivered or skipped stop can be undone');
+    }
+    const reason = (dto.reason || '').trim() || 'Reversed from the rider app';
+
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`delivery-run-stop-finalize:${stopId}`}))`);
+      const current = await tx.deliveryRunStop.findUnique({
+        where: { id: stopId },
+        include: { deliveryRun: { select: { riderId: true } } },
+      });
+      if (!current) throw new NotFoundException('Run stop not found');
+      if (current.deliveryRun.riderId !== rider.id) throw new NotFoundException('Assigned delivery run not found');
+      if (current.version !== dto.version) throw new ConflictException('Run stop changed; refresh and try again');
+      if (current.status !== DeliveryRunStopStatus.DELIVERED && current.status !== DeliveryRunStopStatus.CANCELLED) {
+        throw new BadRequestException('Only a delivered or skipped stop can be undone');
+      }
+
+      if (current.status === DeliveryRunStopStatus.DELIVERED) {
+        const delivery = await tx.subscriptionDelivery.findUnique({
+          where: { id: stop.subscriptionDeliveryId },
+          include: { subscription: { include: { planVersion: true } } },
+        });
+        const sub = delivery?.subscription;
+        const collectedCashPaise = delivery?.cashCollectedPaise || 0;
+        if (delivery && sub) {
+          const totalDeliveries = sub.planVersion.totalDeliveries;
+          // release the funded entitlement count, clamped so it can never go
+          // negative or exceed the plan size.
+          const completedDeliveries = Math.max(0, sub.completedDeliveries - 1);
+          const remainingFundedDeliveries = Math.min(totalDeliveries, sub.remainingFundedDeliveries + 1);
+          const completed = completedDeliveries >= totalDeliveries;
+          // The day cell is zeroed below, so only the part really present in
+          // the ledger may leave it; the rest is reconciliation drift that only
+          // ever existed on the cell. Removing it from the ledger too would
+          // understate collected cash and drop valid due, breaking the
+          // collected + due == price invariant.
+          const cash = computeVoidAdjustment(sub.amountCollectedPaise, collectedCashPaise);
+          const nextDelivery = await tx.subscriptionDelivery.findFirst({
+            where: {
+              subscriptionId: sub.id,
+              status: SubscriptionDeliveryStatus.SCHEDULED,
+              serviceDate: { gt: delivery.serviceDate },
+            },
+            orderBy: { serviceDate: 'asc' },
+          });
+          const nextCash = await tx.subscriptionDelivery.findFirst({
+            where: {
+              subscriptionId: sub.id,
+              status: SubscriptionDeliveryStatus.SCHEDULED,
+              serviceDate: { gt: delivery.serviceDate },
+              cashDuePaise: { gt: 0 },
+            },
+            orderBy: { serviceDate: 'asc' },
+          });
+          await tx.subscriptionDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: SubscriptionDeliveryStatus.OUT_FOR_DELIVERY,
+              deliveredAt: null,
+              cashCollectedPaise: 0,
+              cashCollectedAt: null,
+            },
+          });
+          await tx.customerSubscription.update({
+            where: { id: sub.id },
+            data: {
+              status: completed ? CustomerSubscriptionStatus.COMPLETED : CustomerSubscriptionStatus.ACTIVE,
+              completedDeliveries,
+              remainingFundedDeliveries,
+              amountDuePaise: Math.max(0, sub.amountDuePaise + cash.dueRestoredPaise),
+              amountCollectedPaise: cash.amountCollectedPaise,
+              nextDeliveryDate: completed ? null : nextDelivery?.serviceDate ?? null,
+              nextCashCollectionDate: completed ? null : nextCash?.serviceDate ?? null,
+            },
+          });
+        }
+
+        // Reverse any cash the rider recorded, so the accountability total
+        // falls back to what is actually still in the rider's hands.
+        const ledger = await tx.codLedger.findUnique({ where: { deliveryJobId: stop.deliveryJobId } });
+        if (ledger && ledger.collectedAmountPaise > 0) {
+          const reversalPaise = ledger.collectedAmountPaise;
+          const holdingAfterPaise = Math.max(0, ledger.riderHoldingBalancePaise - reversalPaise);
+          await tx.codLedger.update({
+            where: { id: ledger.id },
+            data: {
+              collectedAmountPaise: 0,
+              riderHoldingBalancePaise: holdingAfterPaise,
+              status: holdingAfterPaise > 0 ? 'HELD_BY_RIDER' : 'AWAITING_COLLECTION',
+            },
+          });
+          await tx.codLedgerEntry.create({
+            data: {
+              codLedgerId: ledger.id,
+              type: 'COMPENSATING_ADJUSTMENT',
+              amountPaise: reversalPaise,
+              holdingAfterPaise,
+              depositedAfterPaise: ledger.depositedAmountPaise,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
+              idempotencyKey: `undo-stop:${stop.id}:${reversalPaise}:${current.version}`,
+            },
+          });
+        }
+        if (stop.deliveryJobId) {
+          if (stop.proofMode === SubscriptionProofMode.RIDER_PHOTO_GPS) {
+            await tx.riderPhotoProof.deleteMany({ where: { deliveryRunStopId: stopId } });
+          }
+          await tx.deliveryJob.update({
+            where: { id: stop.deliveryJobId },
+            data: { status: DeliveryJobStatus.RIDER_AT_CUSTOMER, version: { increment: 1 } },
+          });
+          await tx.order.updateMany({
+            where: { id: stop.deliveryJob.orderId, status: OrderStatus.DELIVERED },
+            data: { status: OrderStatus.OUT_FOR_DELIVERY, deliveredAt: null },
+          });
+          await tx.orderStatusHistory.create({
+            data: {
+              orderId: stop.deliveryJob.orderId,
+              fromStatus: OrderStatus.DELIVERED,
+              toStatus: OrderStatus.OUT_FOR_DELIVERY,
+              actorUserId: actor.id,
+              actorRole: actor.role,
+              note: reason,
+              metadata: { source: 'rider-undo', deliveryRunId: runId, deliveryRunStopId: stopId },
+            },
+          });
+        }
+        await tx.deliveryRun.update({
+          where: { id: runId },
+          data: {
+            completedStopCount: { decrement: 1 },
+            collectedCashPaise: { decrement: collectedCashPaise },
+            version: { increment: 1 },
+          },
+        });
+        await tx.deliveryRunStop.update({
+          where: { id: stopId },
+          data: {
+            status: DeliveryRunStopStatus.ARRIVED,
+            deliveredAt: null,
+            failureReason: null,
+            version: { increment: 1 },
+          },
+        });
+        return { success: true, stopId, restoredStatus: DeliveryRunStopStatus.ARRIVED };
+      }
+
+      // Reverse a skip.
+      const skippedSub = await tx.customerSubscription.findUnique({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        select: { skippedDeliveries: true },
+      });
+      await tx.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: { status: SubscriptionDeliveryStatus.OUT_FOR_DELIVERY, skippedAt: null, skipReason: null },
+      });
+      await tx.customerSubscription.update({
+        where: { id: stop.subscriptionDelivery.subscriptionId },
+        data: { skippedDeliveries: Math.max(0, (skippedSub?.skippedDeliveries || 0) - 1) },
+      });
+      await tx.deliveryRun.update({
+        where: { id: runId },
+        data: { failedStopCount: Math.max(0, run.failedStopCount - 1), version: { increment: 1 } },
+      });
+      await tx.deliveryRunStop.update({
+        where: { id: stopId },
+        data: {
+          status: DeliveryRunStopStatus.PLANNED,
+          failureReason: null,
+          version: { increment: 1 },
+        },
+      });
+      return { success: true, stopId, restoredStatus: DeliveryRunStopStatus.PLANNED };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 }
 

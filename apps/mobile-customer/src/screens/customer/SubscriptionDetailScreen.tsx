@@ -31,10 +31,9 @@ import {
   ReceiptIndianRupee,
   RefreshCw,
   Route,
-  Settings2,
+  ShieldCheck,
   ShieldX,
   SkipForward,
-  Store,
   TriangleAlert,
   X,
 } from "lucide-react-native";
@@ -42,7 +41,6 @@ import {
   subscriptionService,
   type CustomerSubscription,
   type SubscriptionDelivery,
-  type SubscriptionDeliveryMethod,
 } from "../../api/subscriptionService";
 import type { CustomerStackParamList } from "../../navigation/customerNavigationTypes";
 import { getUserSafeError, notify } from "../../ui/notify";
@@ -85,7 +83,7 @@ const issueTypes = [
   { value: "OTHER", label: "Other" },
 ];
 
-type Sheet = "issue" | "preferences" | "cancel" | "trustedQr" | null;
+type Sheet = "issue" | "cancel" | "trustedQr" | null;
 type LifecycleAction = "skip" | "pause" | "resume";
 
 export const SubscriptionDetailScreen = () => {
@@ -100,9 +98,6 @@ export const SubscriptionDetailScreen = () => {
   const [issueType, setIssueType] = useState("MISSING_DELIVERY");
   const [issueDescription, setIssueDescription] = useState("");
   const [cancelReason, setCancelReason] = useState("");
-  const [preferenceMethod, setPreferenceMethod] =
-    useState<SubscriptionDeliveryMethod>("PERSONAL_HANDOVER");
-  const [dropInstructions, setDropInstructions] = useState("");
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null);
 
@@ -206,29 +201,6 @@ export const SubscriptionDetailScreen = () => {
         getUserSafeError(error, "Please try again.")
       ),
   });
-  const preferences = useMutation({
-    mutationFn: () =>
-      subscriptionService.preferences(id, {
-        deliveryMethod: preferenceMethod,
-        trustedDropInstructions:
-          preferenceMethod === "TRUSTED_DROP"
-            ? dropInstructions.trim()
-            : undefined,
-      }),
-    onSuccess: async () => {
-      notify.success(
-        "Preferences updated",
-        "Future eligible deliveries will use the new handover preference."
-      );
-      setSheet(null);
-      await refresh();
-    },
-    onError: (error) =>
-      notify.error(
-        "Update failed",
-        getUserSafeError(error, "Please try again.")
-      ),
-  });
   const showQr = useMutation({
     mutationFn: async (rotate: boolean) => {
       const nextDelivery = deliveries.find((delivery) =>
@@ -311,12 +283,6 @@ export const SubscriptionDetailScreen = () => {
   const scrollBottomInset =
     bottomNavScrollClearance + Math.max(insets.bottom, 8);
 
-  const openPreferences = () => {
-    setPreferenceMethod(subscription.deliveryMethod);
-    setDropInstructions(subscription.trustedDropInstructions ?? "");
-    setSheet("preferences");
-  };
-
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -327,15 +293,6 @@ export const SubscriptionDetailScreen = () => {
           <Text style={styles.eyebrow}>SUBSCRIPTION</Text>
           <Text style={styles.title}>{subscription.plan.name}</Text>
         </View>
-        {!subscription.storeDelivery ? (
-          <Pressable
-            style={styles.icon}
-            onPress={openPreferences}
-            accessibilityLabel="Edit subscription preferences"
-          >
-            <Settings2 size={21} color="#173D32" />
-          </Pressable>
-        ) : null}
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -457,11 +414,6 @@ export const SubscriptionDetailScreen = () => {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Delivery preferences</Text>
-            {canChange && !subscription.storeDelivery ? (
-              <Pressable onPress={openPreferences}>
-                <Text style={styles.link}>Edit</Text>
-              </Pressable>
-            ) : null}
           </View>
           <Info
             icon={<Clock3 size={18} color="#0F766E" />}
@@ -470,19 +422,11 @@ export const SubscriptionDetailScreen = () => {
               subscription.deliveryWindowStartMinute
             )} – ${minuteTime(subscription.deliveryWindowEndMinute)}`}
           />
-          {subscription.storeDelivery ? (
-            <Info
-              icon={<Store size={18} color="#0F766E" />}
-              label="Handover"
-              value="Collected at store"
-            />
-          ) : (
-            <Info
-              icon={<MapPin size={18} color="#0F766E" />}
-              label="Handover"
-              value={subscription.deliveryMethod.replaceAll("_", " ")}
-            />
-          )}
+          <Info
+            icon={<ShieldCheck size={18} color="#0F766E" />}
+            label="Handover"
+            value="Photo + GPS on delivery"
+          />
           <Info
             icon={<ReceiptIndianRupee size={18} color="#B96600" />}
             label="Funding"
@@ -592,47 +536,6 @@ export const SubscriptionDetailScreen = () => {
           onPress={() => issue.mutate()}
         />
       </ActionSheet>
-      <ActionSheet
-        visible={sheet === "preferences"}
-        title="Delivery preferences"
-        onClose={() => setSheet(null)}
-      >
-        <View style={styles.methodList}>
-          {availableMethods(subscription).map((method) => (
-            <Pressable
-              key={method.value}
-              onPress={() => setPreferenceMethod(method.value)}
-              style={[
-                styles.method,
-                preferenceMethod === method.value && styles.methodActive,
-              ]}
-            >
-              <Text style={styles.methodTitle}>{method.label}</Text>
-              <Text style={styles.methodCopy}>{method.copy}</Text>
-            </Pressable>
-          ))}
-        </View>
-        {preferenceMethod === "TRUSTED_DROP" ? (
-          <>
-            <Text style={styles.sheetCopy}>
-              Aagaam manages the signed one-time QR. No reusable secret is
-              stored on your device.
-            </Text>
-            <TextInput
-              value={dropInstructions}
-              onChangeText={setDropInstructions}
-              placeholder="Milk box / doorstep instructions"
-              multiline
-              style={[styles.input, styles.multiline]}
-            />
-          </>
-        ) : null}
-        <PrimaryButton
-          label="Save preferences"
-          busy={preferences.isPending}
-          onPress={() => preferences.mutate()}
-        />
-      </ActionSheet>
       {!subscription.storeDelivery &&
       subscription.deliveryMethod === "TRUSTED_DROP" ? (
         <ActionSheet
@@ -706,47 +609,6 @@ export const SubscriptionDetailScreen = () => {
   );
 };
 
-const availableMethods = (
-  subscription: CustomerSubscription
-): Array<{
-  value: SubscriptionDeliveryMethod;
-  label: string;
-  copy: string;
-}> => {
-  // Store-counter fulfilment is verified by the store against the customer's
-  // name/phone; there is no rider doorstep handover to prove, so offering a
-  // handover method here would silently discard the customer's choice.
-  if (subscription.storeDelivery) return [];
-  return [
-    ...(subscription.plan.allowPersonalHandover
-      ? [
-          {
-            value: "PERSONAL_HANDOVER" as const,
-            label: "Personal OTP",
-            copy: "Customer OTP and GPS proof",
-          },
-        ]
-      : []),
-    ...(subscription.plan.allowTrustedDrop
-      ? [
-          {
-            value: "TRUSTED_DROP" as const,
-            label: "Trusted doorstep",
-            copy: "One-time QR, GPS and photo proof",
-          },
-        ]
-      : []),
-    ...(subscription.plan.allowSecurityHandover
-      ? [
-          {
-            value: "SECURITY_RECEPTION" as const,
-            label: "Security / reception",
-            copy: "Named reception handover proof",
-          },
-        ]
-      : []),
-  ];
-};
 const Info = ({
   icon,
   label,

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { GradientSurface } from '../../components/GradientSurface';
 import { Banknote, CalendarDays, ChevronRight, IndianRupee, RefreshCw, WalletCards } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
@@ -57,7 +58,7 @@ export const RiderEarningsScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
         <View style={styles.headerMain}>
           <View style={styles.flex}>
@@ -68,7 +69,7 @@ export const RiderEarningsScreen = ({ navigation }: { navigation: any }) => {
             <RefreshCw size={21} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </GradientSurface>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
@@ -142,7 +143,7 @@ function Summary({ label: summaryLabel, value }: { label: string; value: string 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 20 }, brandRow: { marginBottom: 15 }, headerMain: { flexDirection: 'row', alignItems: 'center' },
+  header: { paddingHorizontal: 18, paddingBottom: 20 }, brandRow: { marginBottom: 15 }, headerMain: { flexDirection: 'row', alignItems: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 2 },
   headerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   content: { padding: 14 },

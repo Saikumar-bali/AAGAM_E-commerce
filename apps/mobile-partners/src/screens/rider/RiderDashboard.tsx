@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useAuthStore } from '@aagam/mobile-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
   Bike,
+  BriefcaseBusiness,
   CheckCircle2,
   Clock,
   HeartPulse,
@@ -113,7 +114,6 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
     () => (workspace?.pendingOffers || []).filter((offer) => isOfferActionable(offer, now)),
     [now, workspace?.pendingOffers],
   );
-  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
 
   useEffect(() => {
     if (!activeJob || !isTrackableDeliveryStatus(activeJob.status)) {
@@ -225,7 +225,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching || inboxQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
           <View style={styles.brandRow}>
             <PartnerTabBrand inverse caption="RIDER PARTNER" />
           </View>
@@ -235,11 +235,6 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
               <Text style={styles.title}>Hello, {user?.name?.split(' ')[0] || 'Partner'}</Text>
               <Text style={styles.subtitle}>Availability, offers and live delivery health in one place.</Text>
             </View>
-            <TouchableOpacity testID="rider_dashboard_alerts" style={styles.iconButton} onPress={() => navigation?.navigate?.('Alerts')}>
-              <Bell size={22} color="#FFFFFF" />
-              {unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View> : null}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => navigation?.navigate?.('Profile')}><UserRound size={22} color="#FFFFFF" /></TouchableOpacity>
           </View>
           <View style={styles.availabilityCard}>
             <View style={[styles.statusIcon, isOnline ? styles.onlineIcon : styles.offlineIcon]}>
@@ -260,12 +255,12 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
               />
             )}
           </View>
-        </View>
+        </GradientSurface>
 
         <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Morning runs</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Delivery runs</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} testID="rider_dashboard_jobs" onPress={() => navigation?.navigate?.('Operations', { screen: 'RiderJobs' })}><BriefcaseBusiness size={19} color="#0F766E" /><Text style={styles.quickText}>Jobs</Text></TouchableOpacity>
           <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('NotificationSettings')}><Settings size={19} color="#0F766E" /><Text style={styles.quickText}>Alerts</Text></TouchableOpacity>
         </View>
 
         {workspaceQuery.isLoading ? (
@@ -332,7 +327,7 @@ function OfferCard({ offer, now, busy, onOpen, onAccept, onReject }: { offer: Ri
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingBottom: 20 }, flex: { flex: 1 },
-  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  hero: { paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   brandRow: { marginBottom: 16 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1.3 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 4 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   iconButton: { width: 43, height: 43, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }, badge: { position: 'absolute', right: -3, top: -3, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, badgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '600' },

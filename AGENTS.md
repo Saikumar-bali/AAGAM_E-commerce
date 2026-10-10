@@ -515,3 +515,281 @@ runs don't collide. `dispatch-second-rider.e2e.spec.ts` is the regression.
 `bankIfscCiphertext` because `currentRider` was `include`d whole (its `user`
 sub-select was already scoped). Any store/admin read path that returns a rider
 must `select` only the display fields. Same class as the `.../summary` leak.
+
+## Preview the mobile-partners RN screens on the web
+
+`apps/mobile-partners` is a bare React Native app with no web target, so there is
+no way to eyeball its screens without an emulator (unavailable: no KVM). To
+render the *real* screens (same components/styles/copy as the APK) in a browser,
+use the harness at `agent_demo_shots/rn-preview/`:
+
+The harness is a throwaway local scaffold: `agent_demo_shots/` is listed in
+`.gitignore`, so a clean checkout does **not** contain it — it must be
+recreated by hand (or restored from a machine that still has it) before the
+commands below run. It is not required to build or test the app.
+
+- `mocks/rn-shim.js` aliases `react-native` to `react-native-web`; the other
+  `mocks/*.js` stub native modules (`WebView`, safe-area, geolocation, Firebase,
+  react-navigation, toast) and the `@aagam/mobile-shared` / `@aagam/utils`
+  packages. Service singletons (`riderService`, `notificationService`,
+  `RiderTrackingManager`, `RiderOnlineService`, native pickers/scanners, …) are
+  aliased to `mocks/native-services.js`.
+- `src/gallery.jsx` mounts the actual screen components. It overrides
+  `Text`/`ScrollView` to render plain `<div>`s (react-native-web renders `<Text>`
+  as `<div>`, and nested `<Text>` would produce invalid nested divs) and flattens
+  their `style` arrays with `StyleSheet.flatten` before handing them to the DOM.
+- Build: `cd agent_demo_shots/rn-preview && ../../node_modules/.bin/webpack --config webpack.config.js`.
+- Screenshots: `node shoot.js` (Playwright element shots → `screens/*.png`).
+- Live Mapbox map: pass a public token as `?mapbox=pk.…` on the gallery URL; the
+  token is read at runtime by `mocks/env.js` (`window.__MAPBOX_TOKEN__`).
+- Deps (`react-native-web`, `babel-loader`, `webpack-cli`, `html-webpack-plugin`,
+  `@babel/preset-react`, `@babel/preset-typescript`) are installed with
+  `--no-save`; re-install them in one `npm install` if a later install prunes
+  them (npm removes unlisted `--no-save` packages).
+
+### Live proxy: the real app against the real backend
+
+The gallery above renders individual screens from mock data. To run the *whole*
+app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClient`
+— wired to the live `https://aagaam.in/api`, use the second, separate config:
+
+- Build: `EXPO_PUBLIC_MAPBOX_TOKEN=pk.… ../../node_modules/.bin/webpack --config webpack.preview.config.js`
+  → `dist-live/`. Entry `src/web-entry.js` mounts `<App/>` (with an error
+  boundary that prints failures into `#boot-error`), and `@app` is aliased to
+  `apps/mobile-partners`.
+- Serve + proxy: `node server.js` (port `12001`; `MAPBOX_TOKEN=…`). The
+  production API sends **no CORS headers**, so the browser cannot call it
+  cross-origin; `server.js` proxies `/api/*` to `https://aagaam.in` on the same
+  origin and the app's `API_URL` is baked to `/api`. It also injects
+  `window.__ENV__` (Mapbox token) into `index.html` at serve time, so no rebuild
+  is needed to change the token. `run.sh` does build + serve in one step.
+- `@react-navigation/native-stack` must alias to `mocks/navigation.js`
+  (`createNativeStackNavigator`); a dummy passthrough `Screen` renders nothing.
+- Probes: `node probe-live.js` (render + errors + backend calls),
+  `node probe-interactive.js` / `probe-flows.js` (drive UI, RIDER_EMAIL/… env),
+  `node capture-live.js` (device screenshots → `screens/live-*.png`).
+- Dev hooks on the live bundle: `?map=1` mounts `RiderRouteMap` alone;
+  `?screen=route` mounts the new `RouteConsoleScreen` (and `&demo=1` seeds a
+  sample run so the populated console renders without a rider token).
+- Full-screen mode: the `#fs-toggle` button (also the `F` key, or
+  `?fullscreen=1`) adds `html.fs`, which drops the device-frame chrome and
+  shows only the app screen edge-to-edge.
+- Static design prototypes live in `rn-preview/static/` (served at
+  `/static/<name>.html`, never wiped by the webpack build). The current one is
+  `handover-sheet.html` — the "Handover Sheet" rider-stop design, a single
+  self-contained HTML file that calls the real rider API via same-origin
+  `/api`. With no token it opens a built-in fleet demo (no failed requests);
+  add `?token=<JWT>` (stored in `localStorage.aagam_rider_token`) to drive the
+  live `getTodayRuns` → `getRun` → `arrive`/`otp`/`complete`/`extra-milk`/
+  `cash-accountability` endpoints. Verify with
+  `node probe-handover.js` (renders, map tiles, flow, 0 errors).
+- `rn-preview/static/rider-gallery.html` is the multi-screen version: a
+  to-scale phone with a sidebar to walk **every rider screen** — the 6 tabs
+  (Home, Route, Runs, Alerts, Earnings, Profile) plus the drill-downs (Run
+  detail, COD ledger, Payout history, Schedules, Documents, Support,
+  Notification settings, Tracking diagnostics). It is live by default: the
+  preview server injects a rider JWT into `window.__ENV__.AAGAM_TOKEN` (from
+  the `AAGAM_RIDER_TOKEN` env var) so every screen renders real data via
+  same-origin `/api`; `?demo=1` forces the built-in fleet dataset instead, and
+  `?screen=<key>` deep-links a screen. Verify with `node probe-gallery.js`
+  (all 14 screens render live, 0 errors).
+- `rn-preview/static/rider-app.html` is the **redesign concept** (not a
+  re-skin): a navy/emerald design system built on the brand's real mark colour
+  `#061B36`, with the actual `aagam-mark.png` logo (`rn-preview/static/brand/`)
+  surfaced in every header. Each screen gets its own layout idea (Home = today
+  dial + one NOW action, Runs = shift timeline, COD = cash ring, Earnings =
+  sparkline). Same live/demo wiring as the gallery. Verify with
+  `node probe-app.js`. The Route Handover sheet also models cash capture
+  (paid-in-full vs partial/over -> variance), field add-on milk (pack, unit
+  price, repeat days, current vs next slot), and the COD screen models the
+  deposit batch; Run detail shows a prepaid/pre-book concept card. Verify the
+  flows with `node probe-app-cash.js`.
+- **rider-app.html v2 (wired to the real DTOs):** the Route Handover sheet now
+  emits exact contracts — `arrive`/`fail` include `latitude`/`longitude`;
+  `complete` sends `{version,riderConfirmed,otpCode?,evidenceId?,cashCollectedPaise?,latitude,longitude}`;
+  partial cash fires a chained `record-payment {amountPaise,paymentMode:'CASH'|'PHONE_PE',note}`;
+  add-on fires `extra-milk {extraQuantity,extraPaise,consecutiveDays,targetSlot}`;
+  plus `toggle-slot`, `skip`, and customer `contact`. `?sim=1` = demo data +
+  real writes (payload capture). `node probe-bodies.js` asserts the emitted
+  bodies; `node probe-shots.js` renders screens `screens/v2-*.png`.
+- **Typography caveat (fixed):** the CSS requested `"Plus Jakarta Sans"` but the
+  page never loaded it — on machines without the font installed it silently fell
+  back to Segoe UI/Helvetica (invisible in a sandbox that happens to have it).
+  Now loaded via Google Fonts `<link>` with `preconnect`. Any future screen must
+  keep the webfont link, not rely on the local system.
+- **Horizontal rails:** `.chips` / `.maprail` use `scroll-snap-type: x proximity`
+  + `touch-action: pan-x pan-y` so vertical swipes still scroll the page, and the
+  `rails()` helper adds an edge-fade (`--paper` / map gradient) when content
+  overflows to the right — so "upcoming stops" read as more-to-the-right.
+- **Partial payment / cash-due reality (verified):** subscription cash is a
+  *ledger of dues*, not a per-stop exact toggle. The real partial-payment API is
+  `POST /rider/delivery-runs/:runId/stops/:stopId/record-payment` with
+  `{ amountPaise, paymentMode: 'CASH'|'PHONE_PE', note }` (service
+  `DeliveryRunOperationsService.recordPayment`, DTO `RiderRecordPaymentDto`).
+  It increments `subscriptionDelivery.cashCollectedPaise` and decrements
+  `subscription.amountDuePaise` (never below 0), and for CASH mints/extends the
+  COD ledger. The run controller also has `POST .../toggle-slot`,
+  `POST .../skip`, `GET rider/delivery-runs/route-board`.
+  **The rider mobile app does NOT call `record-payment`** — it can only complete
+  a stop for the full `cashDuePaise`. Only the admin rider console
+  (`RiderRunConsole.tsx`, `(rider)/rider/runs`) and the store milk grid
+  (`MilkDeliveryGrid.tsx`) expose partial CASH/PhonePe recording.
+- **Rider API contract (verified from controllers + DTOs + schema):**
+  - Portal (`riders/portal`, Role.RIDER): `home`, `offers`, `offers/:id`,
+    `delivery`, `deliveries`, `history[/:jobId]`, `receipts/:jobId`, `pickup(s)`,
+    `pickup/:jobId/verify|problem`, `earnings`, `cod`, `performance`,
+    `availability`, `availability/status`(PATCH), `availability/schedule`(PATCH),
+    `availability/break/start|end`, `profile`(GET/PATCH), `documents`,
+    `documents/:id/preview`, `contact/:jobId`, `support[/:id[/messages]]`.
+  - Runs (`rider/delivery-runs`, Role.RIDER): `route-board?date`, `today?date`,
+    `cash-batches`(GET), `:runId`, `:runId/pickup|start|finish`,
+    `:runId/stops/:stopId/arrive|otp|trusted-drop-evidence|complete|fail|reorder|extra-milk|toggle-slot|record-payment|skip`,
+    `:runId/cash-accountability`, `:runId/cash-batches`,
+    `cash-batches/:batchId/submit`.
+  - Key DTOs: `RunVersionDto{version}`; `ConfirmRunPickupReceiptDto{version,expectedBagCount,crateCode?}`;
+    `ArriveRunStopDto{version,latitude,longitude,accuracyMetres?}`;
+    `CompleteRunStopDto{...arrive,riderConfirmed,otpCode?(\d{6}),trustedDropToken?,evidenceId?,cashCollectedPaise?,note?}`;
+    `FailRunStopDto{...arrive,reason:DeliveryFailureReason,note?,retryRequested?}`;
+    `RiderExtraMilkDto{extraQuantity:string,extraPaise?,note?,consecutiveDays?(1-30),targetSlot?:'AM'|'PM'}`;
+    `RiderToggleSlotDto{targetSlot?:'AM'|'PM'}`; `RiderRecordPaymentDto{amountPaise,paymentMode?:'CASH'|'PHONE_PE',note?}`;
+    `skip` body `{reason?,note?}` (no DTO).
+  - Money is integer **paise** everywhere; run/stop carry optimistic `version`.
+    Payment state comes from `order.payment.status: PaymentStatus`
+    (`PENDING_COD` = collect cash; `CAPTURED`/`SUBSCRIPTION_FUNDED` = prepaid).
+    COD status enum: AWAITING_COLLECTION, HELD_BY_RIDER, PARTIALLY_DEPOSITED,
+    SETTLED, VARIANCE_REVIEW.
+  - **Mobile app gaps (wired vs not):** the app wires arrive/otp/trusted-drop/
+    complete/fail/**reorder**/start/finish/extra-milk/cash-accountability/
+    cash-batches. It does **NOT** wire `record-payment`, `toggle-slot`, `skip`,
+    or `route-board`; and stop completion always sends the full `cashDuePaise`
+    (no partial). Only admin `RiderRunConsole`/store `MilkDeliveryGrid` do
+    partial CASH/PhonePe.
+- **Store-side milk operations (verified):** offline customers are created by the
+  store (`POST store/subscriptions/manual-customer`, `CreateManualOfflineCustomerDto{name,phone(10 digits),line1,...}`);
+  online customers self-register. Rider assignment is store-controlled:
+  `available-riders`, `rider-assignments`, `dispatch-to-rider`,
+  `:subscriptionId/default-rider`, `:subscriptionId/temporary-rider`,
+  `auto-dispatch-default-riders`. The **Milk Board** is `GET store/subscriptions/grid?year&month`
+  → `{year,month,daysInMonth,totalSubscribers,rows,dailyTotals}` where each row has
+  `customerType:'offline'|'online'` (via `isOfflineSubscription`), `defaultRider`/
+  `temporaryRider`, and per-day cells `{deliveryId,status,baseQuantity,extraMilk,
+  cashCollectedPaise,cashDuePaise,paymentMode('CASH'|'PHONE_PE'|'DUE'),planLabel,
+  assignedRider,photoProof}`; `dailyTotals` carry totals incl. `totalLiters`,
+  `totalCollectedPaise`, `totalDuePaise`. Per-customer statement
+  `GET customer/:id/statement` → completed/skipped counts, extraLiters,
+  totalPaidRupees, totalDueRupees, WhatsApp text. Store override of any cell:
+  `POST store/subscriptions/deliveries/:id/quick-action` (STORE_OWNER|ADMIN|RIDER)
+  with `TOGGLE_DELIVERED|SKIP|EXTRA_MILK|TOGGLE_SLOT|RECORD_PAYMENT|VOID_PAYMENT|ATTACH_EVENING_MILK`;
+  store can record a payment on a customer's behalf via `subscribers/:id/record-payment`.
+  Cash: store `GET cash-batches` + `POST cash-batches/:batchId/verify` (SETTLED or
+  VARIANCE_REVIEW) + admin variance compensation; stop return `runs/:runId/stops/:stopId/return`.
+  Proof mode is resolved from the delivery method in `customer-subscription.service.ts`
+  (`proofMode()`): `TRUSTED_DROP`→geofence+token+photo, `SECURITY_RECEPTION`→OTP+GPS,
+  everything else (personal handover, store/offline/manual/custom/renewal subs)
+  →`RIDER_PHOTO_GPS`. There is **no customer OTP on store-assigned deliveries**;
+  the rider's photo + GPS is the handover proof. Offline/manual delivery rows are
+  stamped `RIDER_PHOTO_GPS` in `subscription-admin-reporting.service.ts`.
+  Money audit trail: `GET store/subscriptions/subscribers/:subscriptionId/audit`
+  (STORE_OWNER|ADMIN, store-scoped) → newest-first `SubscriptionAuditEntry` rows
+  (`action`, `reason`, `metadata`, `actor`, `createdAt`); written by cash funding,
+  grid quick-actions and admin ops. The customer app does **not** choose a
+  handover/proof method (`proofMode` chooser removed from
+  `SubscriptionReviewScreen`/`SubscriptionDetailScreen`); it sends
+  `PERSONAL_HANDOVER` unless the plan forbids it.
+- Login is email+password or phone-OTP against live `/auth/mobile/login`; the
+  seed default (`rider@aagam.com`) is *not* a production credential, so the
+  authenticated rider dashboard needs a supplied test account password.
+  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
+  source for QA test accounts if present in the production DB.
+
+- Login is email+password or phone-OTP against the environment's
+  `/auth/mobile/login`; the seed default (`rider@aagam.com`) is *not* a
+  credential there, so the authenticated rider dashboard needs a supplied test
+  account password.
+
+### QA against RouteConsoleScreen must not use production
+
+`RouteConsoleScreen` can start a run, record arrival GPS, and complete a stop
+for the authenticated rider's real assignments, which mutates delivery state,
+subscription entitlements, COD cash records, and customer-visible order status.
+Run its QA (and the live proxy above) against **staging** URLs, data and
+credentials only. A QA rider account must be provisioned in the staging
+database, never pulled from production; do not reuse a production admin login
+(`dorabbu4@gmail.com` or similar) for this workflow.
+
+### Rider "go online" needs approved documents
+
+`PATCH /riders/portal/availability/status` to `ONLINE` and
+`POST /riders/me/heartbeat` are both gated by
+`rider-operations-eligibility.ts`, which requires four APPROVED, unexpired
+`RiderDocument` rows (`DRIVING_LICENSE`, `IDENTITY`, `VEHICLE_REGISTRATION`,
+`VEHICLE_INSURANCE`). Without them the gateway returns **409** with
+`reasons: [*_MISSING]`, so the dashboard toggle silently snaps back to Offline.
+The local demo seeder (`apps/api-gateway/demo-seed.flow.ts`) now creates those
+documents for `rider@aagam.com` and leaves the profile `OFFLINE` (never seed a
+rider `ONLINE`; `ONLINE`/`BUSY` also blocks `dispatchToRider`).
+
+### Preview harness route params
+
+`agent_demo_shots/rn-preview/mocks/navigation.js` is a hand-rolled navigator; it
+must keep `navigate(name, params)` params for the **tab** branch, otherwise any
+screen that reads `route.params` (e.g. `RiderRunDetailScreen.runId`) receives
+`undefined` and fetches `/delivery-runs/undefined` (404 → "Route unavailable").
+The geolocation mock there must resolve a position (not error), since the web
+preview has no real GPS for the online/route-location flows.
+
+
+### Rider notifications now live in Profile (hidden tab)
+
+The rider tab bar no longer has an `Alerts` tab. `PartnerNotificationsScreen`
+is registered as a **hidden** `Notifications` tab in `RiderNavigator` and opened
+from the Profile row / the delivery-flow bell via `navigation.navigate("Notifications")`.
+It renders its own back button that calls `navigation.goBack()`; in the preview
+harness that only works because the tab mock keeps a tab history and routes
+`goBack`/`canGoBack` through it (see `mocks/navigation.js`).
+
+### Live route map + upcoming stops on the run detail
+
+`RiderRunDetailScreen` renders `RiderRouteMap` (Mapbox) with the live rider dot
+(from `Geolocation.watchPosition`) plus numbered stop markers (`stops` prop ->
+`RiderMapStop[]`: `done`/`current`/`upcoming`) and an "Upcoming stops" horizontal
+rail. Stop coordinates come from `deliveryLatitude/Longitude`, falling back to the
+subscription `addressSnapshot.latitude/longitude`. The preview WebView mock
+implements `injectJavaScript` so live map updates behave in the browser.
+
+Each map marker shows the customer name in a `.stop-label` badge (current stop in
+red, done/upcoming in teal/white) so riders see names, not just numbers. Both the
+main map and the stop-sheet map mirror the run's progress via the
+`progressDone`/`progressTotal` props, which drive the in-map `window.setRouteProgress`
+badge (`N / M delivered`).
+
+### Rider arrival quick actions + skip
+
+The next-stop card and each upcoming card expose **Deliver** (records arrival, then
+the sheet advances to the proof step) and **Skip** (opens the `SKIP STOP` modal).
+`skipStop(runId, stopId, { reason, note, version })` posts to
+`POST /rider/delivery-runs/:runId/stops/:stopId/skip`; the controller accepts a plain
+`{ reason?, note? }` body (no whitelisted DTO), so the extra `version` is harmless.
+The full-stop sheet is essentials-first: map, contact/extra/proof chips, then a
+"More details" gate; there is **no** content above the map.
+
+Partial cash: the rider **can** record a partial cash payment. The stop sheet shows
+the outstanding balance and a validated amount input; the rider cannot enter more
+than what is still owed on the stop. The client sends the entered
+`cashCollectedPaise` with the completion `POST` and the server also enforces the cap
+(`recordPayment` rejects an amount above the stop's `cashDuePaise - cashCollectedPaise`),
+so over-collection is blocked on both sides.
+
+Multiple subscriptions per customer: one customer can hold two subscriptions (a
+different plan, or the same plan in another slot); each becomes its own stop. Both
+`RiderRunDetailScreen` and `RouteConsoleScreen` detect the repeat customer and
+disambiguate by labelling every stop with its own plan (`subscription.plan.name`) or
+slot, plus a "2 subscriptions" badge on the duplicated customer's cards/rail chips.
+The gateway `ownedRun(...)` payload includes the subscription plan/slot for this.
+
+Demo route note: the seeded `m009` run (`Anakapalle Hub`) drifts into an inconsistent
+state after repeated QA (stop `READY` but `deliveryJob`/`order` `DELIVERED`), which
+makes `/arrive` return `409 Delivery job is not approaching the customer` or
+`409 Order is DELIVERED`. Reset stops 3-8 to `READY`/`PLANNED`,
+`deliveryJob=OUT_FOR_DELIVERY`, `order=OUT_FOR_DELIVERY` before testing arrival.
+

@@ -1,7 +1,9 @@
 import { useAuthStore } from '@aagam/mobile-shared';
+import { GradientSurface } from '../../components/GradientSurface';
 import { useQuery } from '@tanstack/react-query';
 import {
   Banknote,
+  BellRing,
   Bike,
   CalendarClock,
   ChevronRight,
@@ -26,13 +28,22 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { riderService } from '../../api/riderService';
+import { notificationService } from '../../api/notificationService';
 import { PartnerTabBrand } from '../../components/PartnerTabBrand';
+import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
 
 export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
   const query = useQuery({ queryKey: ['rider', 'profile'], queryFn: riderService.getProfile, retry: 1 });
+  const inboxQuery = useQuery({
+    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
+    queryFn: () => notificationService.getInbox(1),
+    staleTime: 10_000,
+    retry: 1,
+  });
+  const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
   const profile: any = query.data || {};
   const lifecycle: any = profile.lifecycle || {};
   const initials = useMemo(() => String(profile.user?.name || user?.name || 'Rider')
@@ -61,7 +72,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
+        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 12 }]}>
           <PartnerTabBrand inverse caption="RIDER PARTNER" style={styles.brandRow} />
           <View style={styles.profileRow}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
@@ -72,7 +83,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
             </View>
             {approved ? <ShieldCheck size={29} color="#A7F3D0" /> : <ShieldAlert size={29} color="#FDE68A" />}
           </View>
-        </View>
+        </GradientSurface>
 
         {query.isLoading ? (
           <View style={styles.state}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.stateText}>Loading Rider account…</Text></View>
@@ -93,6 +104,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
             </TouchableOpacity>
 
             <Text style={styles.sectionTitle}>Account</Text>
+              <MenuRow icon={<BellRing size={21} color="#0F766E" />} title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'Delivery runs, offers and route alerts'} onPress={() => navigation.navigate('Notifications')} />
             <MenuRow icon={<Bike size={21} color="#0F766E" />} title="Profile, vehicle and bank" subtitle="Edit protected Rider information" onPress={() => navigation.navigate('RiderProfileDetails')} />
             <MenuRow icon={<FileCheck2 size={21} color="#0F766E" />} title="Documents and renewals" subtitle={`${profile.documents?.length || 0} submitted files`} onPress={() => navigation.navigate('RiderDocuments')} />
             <MenuRow icon={<CalendarClock size={21} color="#0F766E" />} title="Schedules and shifts" subtitle="Multiple work windows, timezone and calendar" onPress={() => navigation.navigate('RiderSchedule')} />
@@ -127,7 +139,7 @@ function MenuRow({ icon, title, subtitle, onPress }: { icon: React.ReactNode; ti
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, flex: { flex: 1 },
-  hero: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 16 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  hero: { paddingHorizontal: 18, paddingBottom: 23 }, brandRow: { marginBottom: 16 }, profileRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
   avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#0F766E', fontSize: 20, fontWeight: '600' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   content: { padding: 14 },

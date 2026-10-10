@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -16,21 +15,22 @@ import { useAuthStore } from '@aagam/mobile-shared';
 import {
   Bell,
   Box,
+  ChevronRight,
   IndianRupee,
+  Route,
   Search,
   ShoppingCart,
   Store,
-  Route,
-  ChevronRight,
+  TrendingUp,
 } from 'lucide-react-native';
 import { storeService } from '../../api/storeService';
 import { notificationService } from '../../api/notificationService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { storeAssignmentStatus } from '../../domain/storeReferenceUi';
 import { AagamBrand } from '../../components/AagamBrand';
+import { GradientSurface, GradientPreset } from '../../components/GradientSurface';
 import { partnerNavigationRef } from '../../navigation/partnerNavigationRef';
-
-const { width } = Dimensions.get('window');
+import { palette, radius, spacing, typography } from '../../design/tokens';
 
 type StoreSummary = {
   id: string;
@@ -53,8 +53,18 @@ function locationLabel(store: StoreSummary) {
 
 function statusTone(status: string) {
   if (status === 'ACTIVE') return { color: '#138C37', backgroundColor: '#EAF9EC' };
-  if (status === 'PENDING') return { color: '#ED7D16', backgroundColor: '#FFF3E7' };
+  if (status === 'PENDING') return { color: '#B45309', backgroundColor: '#FFF3E7' };
   return { color: '#0F766E', backgroundColor: '#EAF8F2' };
+}
+
+function greeting(hour: number) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function money(value: number) {
+  return `₹ ${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
 export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
@@ -72,24 +82,47 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
     retry: 1,
   });
 
-  const stores: StoreSummary[] = Array.isArray(storesQuery.data) ? storesQuery.data : [];
+  const stores = useMemo<StoreSummary[]>(
+    () => (Array.isArray(storesQuery.data) ? storesQuery.data : []),
+    [storesQuery.data],
+  );
   const filteredStores = useMemo(() => {
     if (!searchQuery.trim()) return stores;
     const q = searchQuery.toLowerCase();
-    return stores.filter((s) =>
-      (s.name || '').toLowerCase().includes(q) ||
-      (s.address || '').toLowerCase().includes(q) ||
-      (s.city || '').toLowerCase().includes(q)
+    return stores.filter(
+      (s) =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.address || '').toLowerCase().includes(q) ||
+        (s.city || '').toLowerCase().includes(q),
     );
   }, [stores, searchQuery]);
+
   const unreadCount = Number(inboxQuery.data?.unreadCount || 0);
-  const totals = useMemo(() => ({
-    stores: stores.length,
-    orders: stores.reduce((sum, store) => sum + Number(store.orderCount || 0), 0),
-    inventory: stores.reduce((sum, store) => sum + Number(store.inventoryCount || 0), 0),
-    revenue: stores.reduce((sum, store) => sum + Number(store.totalRevenue || 0), 0),
-  }), [stores]);
+  const totals = useMemo(
+    () => ({
+      stores: stores.length,
+      orders: stores.reduce((sum, store) => sum + Number(store.orderCount || 0), 0),
+      inventory: stores.reduce((sum, store) => sum + Number(store.inventoryCount || 0), 0),
+      revenue: stores.reduce((sum, store) => sum + Number(store.totalRevenue || 0), 0),
+    }),
+    [stores],
+  );
   const headline = stores[0]?.name || user?.name || 'Aagaam Store';
+  const firstNames = String(user?.name || '').split(' ')[0];
+
+  // Real per-store revenue, tallest-first, drives the hero sparkline so the
+  // chart always reflects assigned stores instead of a synthetic series.
+  const revenueByStore = useMemo(() => {
+    const max = Math.max(1, ...stores.map((s) => Number(s.totalRevenue || 0)));
+    return stores
+      .map((store) => ({
+        id: store.id,
+        name: store.name || 'Store',
+        ratio: Math.max(0.06, Number(store.totalRevenue || 0) / max),
+      }))
+      .sort((a, b) => b.ratio - a.ratio)
+      .slice(0, 6);
+  }, [stores]);
 
   const openNotifications = () => {
     if (partnerNavigationRef.isReady()) {
@@ -97,22 +130,20 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
     }
   };
 
+  const refresh = () => void Promise.all([storesQuery.refetch(), inboxQuery.refetch()]);
+
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
+      <StatusBar barStyle="light-content" backgroundColor={palette.teal900} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={(
-          <RefreshControl
-            refreshing={storesQuery.isRefetching || inboxQuery.isRefetching}
-            onRefresh={() => void Promise.all([storesQuery.refetch(), inboxQuery.refetch()])}
-            tintColor="#FFFFFF"
-          />
-        )}
+        refreshControl={<RefreshControl refreshing={storesQuery.isRefetching || inboxQuery.isRefetching} onRefresh={refresh} tintColor="#FFFFFF" />}
       >
-        <View style={styles.hero}>
-          <View style={styles.heroShape} />
+        <GradientSurface preset="hero" style={styles.hero}>
+          <View style={styles.heroGlowA} />
+          <View style={styles.heroGlowB} />
+
           <View style={styles.topRow}>
             <AagamBrand compact caption="Fast Quality and Trust" inverse />
             <TouchableOpacity
@@ -121,7 +152,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               style={styles.headerIcon}
               onPress={openNotifications}
             >
-              <Bell size={32} color="#FFFFFF" />
+              <Bell size={22} color="#FFFFFF" />
               {unreadCount > 0 ? (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -129,15 +160,44 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
               ) : null}
             </TouchableOpacity>
           </View>
-          <Text style={styles.welcome}>Welcome back,</Text>
+
+          <Text style={styles.welcome}>
+            {greeting(new Date().getHours())}{firstNames ? `, ${firstNames}` : ''}
+          </Text>
           <Text style={styles.storeName} numberOfLines={1}>{headline}</Text>
-          <Text style={styles.heroSubtitle}>Have a great day ahead!</Text>
-        </View>
+
+          <View style={styles.heroPanel}>
+            <View style={styles.heroPanelTop}>
+              <View style={styles.flex}>
+                <Text style={styles.heroPanelLabel}>RECORDED REVENUE</Text>
+                <Text style={styles.heroPanelValue}>{money(totals.revenue)}</Text>
+              </View>
+              <View style={styles.heroPanelPill}>
+                <TrendingUp size={13} color="#BBF7E4" />
+                <Text style={styles.heroPanelPillText}>{totals.orders} orders</Text>
+              </View>
+            </View>
+            <View style={styles.spark}>
+              {revenueByStore.map((bar, index) => (
+                <View key={bar.id} style={styles.sparkCol}>
+                  <View
+                    style={[
+                      styles.sparkBar,
+                      { height: `${Math.round(bar.ratio * 100)}%` },
+                      index === 0 && styles.sparkBarLead,
+                    ]}
+                  />
+                </View>
+              ))}
+              {!revenueByStore.length ? <View style={styles.sparkEmpty} /> : null}
+            </View>
+          </View>
+        </GradientSurface>
 
         <View style={styles.bodySheet}>
           {storesQuery.isLoading ? (
             <View style={styles.stateCard}>
-              <ActivityIndicator size="large" color="#0F766E" />
+              <ActivityIndicator size="large" color={palette.teal700} />
               <Text style={styles.stateText}>Loading your stores…</Text>
             </View>
           ) : storesQuery.isError ? (
@@ -148,42 +208,77 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
           ) : (
             <>
               <View style={styles.searchBar}>
-                <Search size={18} color="#94A3B8" />
+                <Search size={18} color={palette.slate400} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search stores, orders…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={palette.slate400}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear search">
                     <Text style={styles.searchClear}>✕</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
               <View style={styles.statsGrid}>
-                <DashboardStat icon={Store} title="Stores" value={String(totals.stores)} subtitle="Assigned" tone="#0F766E" iconBackground="#E8F8EE" />
-                <DashboardStat icon={ShoppingCart} title="Orders" value={String(totals.orders)} subtitle="All time" tone="#1557A4" iconBackground="#E8F1FD" />
-                <DashboardStat icon={IndianRupee} title="Revenue" value={`₹ ${totals.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} subtitle="Recorded" tone="#0F766E" iconBackground="#E8F8EE" />
-                <DashboardStat icon={Box} title="Products" value={String(totals.inventory)} subtitle="In Inventory" tone="#5A2DB7" iconBackground="#F0EAFE" />
+                <View style={styles.statsRow}>
+                  <DashboardStat
+                    icon={ShoppingCart}
+                    preset="azure"
+                    title="Orders"
+                    value={String(totals.orders)}
+                    subtitle="All time"
+                    testID="store_dashboard_stat_orders"
+                  />
+                  <DashboardStat
+                    icon={IndianRupee}
+                    preset="emerald"
+                    title="Revenue"
+                    value={money(totals.revenue)}
+                    subtitle="Recorded"
+                    testID="store_dashboard_stat_revenue"
+                  />
+                </View>
+                <View style={styles.statsRow}>
+                  <DashboardStat
+                    icon={Store}
+                    preset="violet"
+                    title="Stores"
+                    value={String(totals.stores)}
+                    subtitle="Assigned"
+                    testID="store_dashboard_stat_stores"
+                  />
+                  <DashboardStat
+                    icon={Box}
+                    preset="amber"
+                    title="Products"
+                    value={String(totals.inventory)}
+                    subtitle="In Inventory"
+                    testID="store_dashboard_stat_products"
+                  />
+                </View>
               </View>
 
+              <Text style={styles.sectionEyebrow}>TODAY</Text>
               <TouchableOpacity
                 accessibilityRole="button"
-                accessibilityLabel="Open subscription morning runs"
-                activeOpacity={0.78}
+                accessibilityLabel="Open subscription delivery runs"
+                activeOpacity={0.85}
                 style={styles.subscriptionRunCard}
                 onPress={() => navigation?.getParent?.()?.navigate?.('StoreSubscriptionOperations')}
               >
-                <View style={styles.subscriptionRunIcon}><Route size={25} color="#0F766E" /></View>
-                <View style={styles.subscriptionRunCopy}>
-                  <Text style={styles.subscriptionRunEyebrow}>SUBSCRIPTION OPERATIONS</Text>
-                  <Text style={styles.subscriptionRunTitle}>Morning runs & cash control</Text>
-                  <Text style={styles.subscriptionRunText}>Forecast demand, pack bags, and settle cash.</Text>
-                </View>
-                <ChevronRight size={22} color="#0F766E" />
+                <GradientSurface preset="emerald" radius={radius.lg} style={styles.subscriptionRunSurface}>
+                  <View style={styles.subscriptionRunIcon}><Route size={24} color="#0B3B36" /></View>
+                  <View style={styles.subscriptionRunCopy}>
+                    <Text style={styles.subscriptionRunEyebrow}>SUBSCRIPTION OPERATIONS</Text>
+                    <Text style={styles.subscriptionRunTitle}>Delivery runs &amp; cash control</Text>
+                    <Text style={styles.subscriptionRunText}>Forecast demand, pack bags, and settle cash.</Text>
+                  </View>
+                  <ChevronRight size={20} color="#0B3B36" />
+                </GradientSurface>
               </TouchableOpacity>
 
               <View style={styles.sectionHeader}>
@@ -203,12 +298,14 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                       key={store.id}
                       activeOpacity={0.75}
                       style={[styles.storeRow, index < filteredStores.length - 1 && styles.storeRowBorder]}
-                      onPress={() => navigation?.navigate?.('Orders', {
-                        screen: 'OrderQueue',
-                        params: { storeId: store.id },
-                      })}
+                      onPress={() =>
+                        navigation?.navigate?.('Orders', {
+                          screen: 'OrderQueue',
+                          params: { storeId: store.id },
+                        })
+                      }
                     >
-                      <View style={styles.storeIcon}><Store size={23} color="#0F766E" /></View>
+                      <View style={styles.storeIcon}><Store size={22} color={palette.teal700} /></View>
                       <View style={styles.storeCopy}>
                         <Text style={styles.storeRowName} numberOfLines={1}>{store.name || 'Store'}</Text>
                         <Text style={styles.storeAddress} numberOfLines={1}>{locationLabel(store)}</Text>
@@ -216,6 +313,7 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
                       <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
                         <Text style={[styles.statusText, { color: tone.color }]}>{status}</Text>
                       </View>
+                      <ChevronRight size={18} color={palette.slate300} />
                     </TouchableOpacity>
                   );
                 })}
@@ -243,145 +341,219 @@ export const StoreDashboard = ({ navigation }: { navigation?: any }) => {
 
 function DashboardStat({
   icon: Icon,
+  preset,
   title,
   value,
   subtitle,
-  tone,
-  iconBackground,
+  testID,
 }: {
   icon: any;
+  preset: GradientPreset;
   title: string;
   value: string;
   subtitle: string;
-  tone: string;
-  iconBackground: string;
+  testID?: string;
 }) {
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statHeading}>
-        <View style={[styles.statIcon, { backgroundColor: iconBackground }]}>
-          <Icon size={23} color={tone} />
-        </View>
-        <Text style={[styles.statTitle, { color: tone }]}>{title}</Text>
+    <View style={styles.statCard} testID={testID}>
+      <GradientSurface preset={preset} radius={radius.md} style={styles.statIcon}>
+        <Icon size={20} color="#FFFFFF" />
+      </GradientSurface>
+      <View style={styles.statCopy}>
+        <Text style={styles.statTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+        <Text style={styles.statSubtitle} numberOfLines={1}>{subtitle}</Text>
       </View>
-      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-      <Text style={styles.statSubtitle}>{subtitle}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F7F8F7' },
+  flex: { flex: 1, minWidth: 0 },
+  screen: { flex: 1, backgroundColor: palette.slate050 },
   scroll: { flex: 1 },
   content: { paddingBottom: 106 },
   hero: {
-    minHeight: 292,
-    backgroundColor: '#0F766E',
     paddingTop: 48,
-    paddingHorizontal: 20,
-    overflow: 'hidden',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
-  heroShape: {
+  heroGlowA: {
     position: 'absolute',
     width: 250,
     height: 250,
     borderRadius: 125,
     right: -90,
-    top: -95,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    top: -110,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  heroGlowB: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    left: -80,
+    top: 40,
+    backgroundColor: 'rgba(16,168,110,0.28)',
   },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
   notificationBadge: {
     position: 'absolute',
-    right: -2,
-    top: -2,
-    minWidth: 23,
-    height: 23,
-    borderRadius: 12,
+    right: -3,
+    top: -3,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F02525',
+    backgroundColor: '#EF1D25',
     borderWidth: 2,
-    borderColor: '#0F766E',
+    borderColor: '#0B3B36',
   },
-  notificationBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
-  welcome: { color: '#E9FFF6', fontSize: 16, marginTop: 18 },
-  storeName: { color: '#FFFFFF', fontSize: 32, fontWeight: '600', marginTop: 4 },
-  heroSubtitle: { color: '#F1FFF9', fontSize: 17, marginTop: 8 },
+  notificationBadgeText: { color: palette.white, fontSize: 9, fontWeight: '700' },
+  welcome: { color: '#A7F3D0', fontSize: 13, fontWeight: '600', marginTop: spacing.lg, letterSpacing: 0.2 },
+  storeName: { color: palette.white, fontSize: 30, fontWeight: '700', marginTop: 2, letterSpacing: -0.5 },
+  heroPanel: {
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  heroPanelTop: { flexDirection: 'row', alignItems: 'center' },
+  heroPanelLabel: { color: '#BBF7E4', fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
+  heroPanelValue: { color: palette.white, fontSize: 30, fontWeight: '700', marginTop: 2, letterSpacing: -0.6 },
+  heroPanelPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  heroPanelPillText: { color: '#E9FFF6', fontSize: 11, fontWeight: '600' },
+  spark: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 46,
+    marginTop: spacing.md,
+    gap: 6,
+  },
+  sparkCol: { flex: 1, height: '100%', justifyContent: 'flex-end' },
+  sparkBar: { width: '100%', borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.30)' },
+  sparkBarLead: { backgroundColor: '#FFFFFF' },
+  sparkEmpty: { flex: 1, height: 6, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.24)' },
   bodySheet: {
     minHeight: 520,
-    marginTop: -6,
-    paddingTop: 24,
-    paddingHorizontal: 18,
-    backgroundColor: '#F7F8F7',
+    marginTop: -18,
+    paddingTop: 26,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: palette.slate050,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E2E4E3',
-    paddingHorizontal: 16,
+    borderColor: palette.slate200,
+    paddingHorizontal: spacing.lg,
     height: 48,
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-  searchClear: {
-    fontSize: 16,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 },
+  searchInput: { flex: 1, fontSize: 14, color: palette.slate900, fontWeight: '500' },
+  searchClear: { fontSize: 16, color: palette.slate400, fontWeight: '500' },
+  statsGrid: { gap: spacing.md },
+  statsRow: { flexDirection: 'row', gap: spacing.md },
   statCard: {
-    width: (width - 52) / 2,
-    minHeight: 160,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    flex: 1,
+    minWidth: 0,
+    borderRadius: radius.lg,
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    shadowColor: '#10241D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    borderColor: palette.slate200,
+    padding: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    shadowColor: '#0B3B36',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 2,
   },
-  statHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statIcon: { width: 43, height: 43, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  statTitle: { fontSize: 15, fontWeight: '600' },
-  statValue: { color: '#10131A', fontSize: 29, fontWeight: '600', marginTop: 23 },
-  statSubtitle: { color: '#626871', fontSize: 13, marginTop: 4 },
-  subscriptionRunCard: { marginTop: 16, borderRadius: 16, backgroundColor: '#EAF8F2', borderWidth: 1, borderColor: '#B8E0D0', padding: 16, flexDirection: 'row', alignItems: 'center' },
-  subscriptionRunIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  subscriptionRunCopy: { flex: 1, marginHorizontal: 12 },
-  subscriptionRunEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
-  subscriptionRunTitle: { color: '#17211D', fontSize: 14, fontWeight: '600', marginTop: 2 },
-  subscriptionRunText: { color: '#557166', fontSize: 10, lineHeight: 15, marginTop: 2 },
-  sectionHeader: { marginTop: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { color: '#111417', fontSize: 19, fontWeight: '600' },
-  viewAll: { color: '#0F766E', fontSize: 14, fontWeight: '600' },
-  storeList: { borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', overflow: 'hidden' },
-  storeRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
-  storeRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  storeIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#E6FFFA', alignItems: 'center', justifyContent: 'center' },
-  storeCopy: { flex: 1, marginLeft: 12, marginRight: 8 },
-  storeRowName: { color: '#15181C', fontSize: 14, fontWeight: '600' },
-  storeAddress: { color: '#697078', fontSize: 11, marginTop: 4 },
-  statusPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  statusText: { fontSize: 10, fontWeight: '600' },
-  stateCard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  stateTitle: { color: '#161A1D', fontSize: 18, fontWeight: '600', marginTop: 12, textAlign: 'center' },
-  stateText: { color: '#6D747B', fontSize: 13, textAlign: 'center', marginTop: 8 },
-  emptyAssigned: { minHeight: 220, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  statIcon: { width: 42, height: 42, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  statCopy: { flex: 1, minWidth: 0 },
+  statTitle: { color: palette.slate500, fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
+  statValue: { color: palette.slate900, fontSize: 24, fontWeight: '700', marginTop: 2, letterSpacing: -0.6 },
+  statSubtitle: { color: palette.slate400, fontSize: 11, marginTop: 2 },
+  sectionEyebrow: {
+    ...typography.eyebrow,
+    color: palette.slate400,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  subscriptionRunCard: { borderRadius: radius.lg, overflow: 'hidden' },
+  subscriptionRunSurface: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  subscriptionRunIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscriptionRunCopy: { flex: 1, marginHorizontal: spacing.md },
+  subscriptionRunEyebrow: { color: '#0B3B36', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, opacity: 0.85 },
+  subscriptionRunTitle: { color: '#042B22', fontSize: 15, fontWeight: '700', marginTop: 2 },
+  subscriptionRunText: { color: '#0B3B36', fontSize: 11, lineHeight: 15, marginTop: 2, opacity: 0.9 },
+  sectionHeader: { marginTop: spacing.xl, marginBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { ...typography.heading, color: palette.slate900 },
+  viewAll: { color: palette.teal700, fontSize: 13, fontWeight: '700' },
+  storeList: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.slate200,
+    backgroundColor: palette.white,
+    overflow: 'hidden',
+  },
+  storeRow: { minHeight: 74, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, gap: spacing.sm },
+  storeRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.slate100 },
+  storeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: palette.teal050,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storeCopy: { flex: 1, marginRight: spacing.sm },
+  storeRowName: { color: palette.slate900, fontSize: 14, fontWeight: '600' },
+  storeAddress: { color: palette.slate500, fontSize: 11, marginTop: 3 },
+  statusPill: { borderRadius: radius.pill, paddingHorizontal: 11, paddingVertical: 4 },
+  statusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  stateCard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
+  stateTitle: { color: palette.slate900, fontSize: 17, fontWeight: '700', marginTop: spacing.md, textAlign: 'center' },
+  stateText: { color: palette.slate500, fontSize: 13, textAlign: 'center', marginTop: spacing.sm },
+  emptyAssigned: { minHeight: 160, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
 });

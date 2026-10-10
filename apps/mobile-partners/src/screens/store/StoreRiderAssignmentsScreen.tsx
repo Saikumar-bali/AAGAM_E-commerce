@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
 import { palette, radius, spacing, toneTokens, typography } from '../../design/tokens';
+import { GradientSurface } from '../../components/GradientSurface';
 import { Card, StatusPill } from '../../components/ui/primitives';
 
 const ASSIGNMENTS_KEY = ['store', 'rider-assignments'] as const;
@@ -125,7 +126,7 @@ export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any })
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={palette.teal700} />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + spacing.sm }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + spacing.sm }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" style={styles.back} onPress={() => navigation.goBack()}>
           <ArrowLeft size={22} color={palette.white} />
         </TouchableOpacity>
@@ -136,7 +137,7 @@ export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any })
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh" style={styles.back} onPress={() => void boardQuery.refetch()}>
           <Truck size={20} color={palette.white} />
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <View style={styles.dayNav}>
         <TouchableOpacity style={styles.navBtn} onPress={() => setDate((current) => shiftDay(current, -1))}>
@@ -283,7 +284,7 @@ function Metric({ icon, value, label, compact }: { icon: React.ReactNode; value:
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.slate050 },
   flex: { flex: 1 },
-  header: { backgroundColor: palette.teal700, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   back: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { ...typography.eyebrow, color: palette.teal100 },
   title: { ...typography.title, color: palette.white, marginTop: spacing.xxs },

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
+import { GradientSurface } from '../../components/GradientSurface';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const CELL_WIDTH = 36;
@@ -72,7 +73,7 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
+      <GradientSurface preset="teal" style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
         <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
           <ArrowLeft size={22} color="#FFFFFF" />
         </TouchableOpacity>
@@ -88,7 +89,7 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
           <Truck size={16} color="#FFFFFF" />
           <Text style={styles.dispatchText}>Dispatch</Text>
         </TouchableOpacity>
-      </View>
+      </GradientSurface>
 
       <View style={styles.monthNav}>
         <TouchableOpacity onPress={goToPrevMonth} style={styles.navBtn}>
@@ -174,7 +175,7 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' },
   flex: { flex: 1 },
-  header: { backgroundColor: '#0F766E', paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingHorizontal: 18, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12 },
   back: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 },
   title: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: 2 },

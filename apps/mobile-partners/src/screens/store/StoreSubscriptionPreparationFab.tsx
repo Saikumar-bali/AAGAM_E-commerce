@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Box, CheckCircle2, MapPin, Phone, RefreshCw, Route, X } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { apiClient } from '../../api/client';
+import { GradientSurface } from '../../components/GradientSurface';
 
 const PREPARATION_KEY = ['store', 'subscription-preparation'] as const;
 
@@ -111,10 +112,10 @@ export function StoreSubscriptionPreparationModal({ visible, onClose }: { visibl
     <>
       <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
         <View style={styles.screen}>
-          <View style={styles.header}>
+          <GradientSurface preset="teal" style={styles.header}>
             <View style={styles.headerCopy}><Text style={styles.eyebrow}>D-1 STOCK READINESS</Text><Text style={styles.title}>Tomorrow preparation</Text><Text style={styles.subtitle}>Confirm stock before delivery day. Forecast confirmation never deducts inventory.</Text></View>
             <TouchableOpacity accessibilityLabel="Close preparation" onPress={onClose} style={styles.closeButton}><X size={22} color="#FFFFFF" /></TouchableOpacity>
-          </View>
+          </GradientSurface>
 
           <ScrollView
             contentContainerStyle={styles.content}
@@ -143,7 +144,7 @@ export function StoreSubscriptionPreparationModal({ visible, onClose }: { visibl
                         style={styles.input}
                       />
                       <View style={styles.actions}><TouchableOpacity disabled={mutation.isPending} style={styles.readyButton} onPress={() => mutation.mutate({ row, decision: 'READY' })}><CheckCircle2 size={17} color="#FFFFFF" /><Text style={styles.actionText}>Stock ready</Text></TouchableOpacity><TouchableOpacity disabled={mutation.isPending} style={styles.shortageButton} onPress={() => mutation.mutate({ row, decision: 'SHORTAGE' })}><AlertTriangle size={17} color="#B42318" /><Text style={styles.shortageActionText}>Shortage</Text></TouchableOpacity></View>
-                      <Text style={styles.footnote}>{row.packingAvailableNow ? 'Delivery day is active: use Morning Runs for packing and custody handoff.' : 'Packing/handoff remains a delivery-day custody action.'}</Text>
+                      <Text style={styles.footnote}>{row.packingAvailableNow ? 'Delivery day is active: use Delivery Runs for packing and custody handoff.' : 'Packing/handoff remains a delivery-day custody action.'}</Text>
                     </View>
                   ))}
           </ScrollView>
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
   badgeTextDark: { color: '#1F2937', fontSize: 10, fontWeight: '600' },
   screen: { flex: 1, backgroundColor: '#F4F7F5' },
-  header: { backgroundColor: '#0F766E', paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  header: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
   headerCopy: { flex: 1 }, eyebrow: { color: '#A7F3D0', fontSize: 10, fontWeight: '600', letterSpacing: 1.5 }, title: { color: '#FFFFFF', fontSize: 25, fontWeight: '600', marginTop: 4 }, subtitle: { color: '#D1FAE5', fontSize: 12, fontWeight: '600', lineHeight: 18, marginTop: 6 },
   closeButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   content: { padding: 16, paddingBottom: 40, gap: 16 }, state: { minHeight: 260, borderRadius: 24, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 24 }, stateTitle: { marginTop: 12, color: '#14221D', fontSize: 17, fontWeight: '600' }, stateText: { marginTop: 8, color: '#69746F', textAlign: 'center', lineHeight: 19, fontWeight: '600' }, retry: { marginTop: 16, minHeight: 44, paddingHorizontal: 18, borderRadius: 14, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', gap: 8 }, retryText: { color: '#FFFFFF', fontWeight: '600' },

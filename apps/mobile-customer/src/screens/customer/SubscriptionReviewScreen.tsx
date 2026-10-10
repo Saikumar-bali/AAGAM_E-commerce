@@ -2,7 +2,7 @@ import React, { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, Check, Clock3, MapPin, ShieldCheck, WalletCards } from 'lucide-react-native';
+import { ArrowLeft, CalendarDays, Check, Clock3, MapPin, WalletCards } from 'lucide-react-native';
 import { apiClient } from '../../api/client';
 import { COLORS } from '@aagam/mobile-shared';
 import {
@@ -10,7 +10,6 @@ import {
   type CreateSubscriptionPayload,
   type CustomerAddress,
   type SubscriptionDeliveryMethod,
-  type SubscriptionPlan,
 } from '../../api/subscriptionService';
 import type { CustomerStackParamList } from '../../navigation/customerNavigationTypes';
 import { getUserSafeError, notify } from '../../ui/notify';
@@ -27,20 +26,8 @@ const localDate = (offsetDays: number) => {
 const today = () => localDate(0);
 const time = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 
-type MethodOption = {
-  value: SubscriptionDeliveryMethod;
-  label: string;
-  copy: string;
-  isAllowed: (plan: SubscriptionPlan) => boolean;
-};
-
 type SubscriptionQuotePayload = Omit<CreateSubscriptionPayload, 'planId' | 'trustedDropInstructions'>;
 
-const methodOptions: MethodOption[] = [
-  { value: 'PERSONAL_HANDOVER', label: 'Personal OTP', copy: 'Customer OTP + GPS', isAllowed: (plan) => plan.allowPersonalHandover },
-  { value: 'TRUSTED_DROP', label: 'Trusted doorstep', copy: 'Server QR + GPS + photo', isAllowed: (plan) => plan.allowTrustedDrop },
-  { value: 'SECURITY_RECEPTION', label: 'Security / reception', copy: 'OTP + named handover', isAllowed: (plan) => plan.allowSecurityHandover },
-];
 
 export const SubscriptionReviewScreen = () => {
   const route = useRoute<RouteProp<CustomerStackParamList, 'SubscriptionReview'>>();
@@ -56,10 +43,8 @@ export const SubscriptionReviewScreen = () => {
   });
   const [addressId, setAddressId] = useState('');
   const [startDate, setStartDate] = useState(today());
-  const [method, setMethod] = useState<SubscriptionDeliveryMethod>('PERSONAL_HANDOVER');
 const [deliverySlot, setDeliverySlot] = useState<'AM' | 'PM'>('AM');
 const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } };
-  const [dropInstructions, setDropInstructions] = useState('');
   const plan = planQuery.data;
   const addresses = addressQuery.data ?? [];
 
@@ -69,21 +54,18 @@ const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end:
     }
   }, [addressId, addresses]);
 
-  useEffect(() => {
-    if (!plan) return;
-    if (methodOptions.find((option) => option.value === method)?.isAllowed(plan)) return;
-    const firstAllowed = methodOptions.find((option) => option.isAllowed(plan));
-    if (firstAllowed) setMethod(firstAllowed.value);
-  }, [method, plan]);
-
   const quotePayload = useMemo<SubscriptionQuotePayload | null>(() => plan ? ({
     addressId,
     startDate,
-    deliveryMethod: method,
+    deliveryMethod: plan.allowPersonalHandover
+      ? 'PERSONAL_HANDOVER'
+      : plan.allowTrustedDrop
+        ? 'TRUSTED_DROP'
+        : 'SECURITY_RECEPTION',
     deliveryWindowStartMinute: DELIVERY_WINDOWS[deliverySlot].start,
     deliveryWindowEndMinute: DELIVERY_WINDOWS[deliverySlot].end,
     deliverySlot,
-  }) : null, [addressId, method, deliverySlot, plan, startDate]);
+  }) : null, [addressId, deliverySlot, plan, startDate]);
 
   const quote = useMutation({
     mutationFn: () => {
@@ -95,11 +77,7 @@ const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end:
   const create = useMutation({
     mutationFn: () => {
       if (!quotePayload) throw new Error('The subscription plan is not ready.');
-      return subscriptionService.create({
-        ...quotePayload,
-        planId,
-        trustedDropInstructions: method === 'TRUSTED_DROP' ? dropInstructions.trim() || undefined : undefined,
-      });
+      return subscriptionService.create({ ...quotePayload, planId });
     },
     onSuccess: (result) => {
       notify.success('Subscription requested', result.confirmationMessage || 'Cash will be collected on the first verified delivery.');
@@ -110,7 +88,7 @@ const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end:
 
   useEffect(() => {
     if (quotePayload && addressId) quote.mutate();
-  }, [addressId, method, planId, startDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addressId, planId, startDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canSubmit = Boolean(plan && addressId && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && startDate >= today());
 
@@ -126,14 +104,8 @@ const DELIVERY_WINDOWS = { AM: { start: 360, end: 540 }, PM: { start: 1020, end:
       </Section>
       <Section icon={<CalendarDays size={18} color="#0F766E" />} title="Start date"><TextInput value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" style={styles.input} autoCapitalize="none" /><Text style={styles.help}>Use YYYY-MM-DD. The first order is created only near its delivery window.</Text></Section>
       <Section icon={<Clock3 size={18} color="#0F766E" />} title="Delivery slot"><View style={styles.slotRow}>{(['AM', 'PM'] as Array<'AM' | 'PM'>).map((slot) => { const window = { AM: { start: 360, end: 540 }, PM: { start: 1020, end: 1200 } }[slot]; const isSelected = deliverySlot === slot; return <Pressable key={slot} onPress={() => setDeliverySlot(slot)} style={[styles.slotButton, isSelected && (slot === 'AM' ? styles.slotButtonAM : styles.slotButtonPM)]}><Text style={[styles.slotText, isSelected && styles.slotTextSelected]}>{slot}</Text><Text style={[styles.slotTime, isSelected && styles.slotTextSelected]}>{time(window.start)} - {time(window.end)}</Text></Pressable>; })}</View></Section>
-      <Section icon={<ShieldCheck size={18} color="#0F766E" />} title="Handover method">
-        <View style={styles.methodList}>
-          {methodOptions.filter((option) => option.isAllowed(plan)).map((option) => <Pressable key={option.value} style={[styles.method, method === option.value && styles.methodSelected]} onPress={() => setMethod(option.value)}><View style={[styles.radio, method === option.value && styles.radioSelected]}>{method === option.value ? <View style={styles.radioDot} /> : null}</View><View><Text style={styles.methodTitle}>{option.label}</Text><Text style={styles.methodCopy}>{option.copy}</Text></View></Pressable>)}
-        </View>
-        {method === 'TRUSTED_DROP' ? <View style={styles.dropFields}><Text style={styles.help}>Aagaam securely creates your one-time QR after subscription creation. You never create or type a drop secret.</Text><TextInput value={dropInstructions} onChangeText={setDropInstructions} placeholder="Milk box / doorstep instructions" multiline style={[styles.input, styles.multiline]} /></View> : null}
-      </Section>
       <Section icon={<WalletCards size={18} color="#0F766E" />} title="Cash funding summary">
-        {quote.isPending ? <ActivityIndicator color="#0F766E" /> : <View style={styles.summary}><Row label="First verified delivery" value={money(q?.firstCashCollectionPaise ?? plan.pricePaise)} strong /><Row label="Later funded deliveries" value="₹0" /><Row label="Proof" value={method === 'TRUSTED_DROP' ? 'One-time QR + GPS + photo' : 'OTP + GPS'} /><Row label="Skip policy" value={plan.allowSkip ? `Up to ${plan.maximumSkips}` : 'Not available'} /></View>}
+        {quote.isPending ? <ActivityIndicator color="#0F766E" /> : <View style={styles.summary}><Row label="First verified delivery" value={money(q?.firstCashCollectionPaise ?? plan.pricePaise)} strong /><Row label="Later funded deliveries" value="₹0" /><Row label="Proof" value="Photo + GPS on delivery" /><Row label="Skip policy" value={plan.allowSkip ? `Up to ${plan.maximumSkips}` : 'Not available'} /></View>}
         <Text style={styles.cashNotice}>{q?.confirmationMessage || `Subscription requested — ${money(plan.pricePaise)} will be collected during the first verified delivery.`}</Text>
       </Section>
     </ScrollView>

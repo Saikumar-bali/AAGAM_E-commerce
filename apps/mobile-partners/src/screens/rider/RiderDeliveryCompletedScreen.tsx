@@ -5,6 +5,7 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import React from 'react';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   ScrollView,
   StatusBar,
@@ -41,13 +42,13 @@ export const RiderDeliveryCompletedScreen = ({
 }) => (
   <View style={styles.screen}>
     <StatusBar barStyle="light-content" backgroundColor="#078E67" />
-    <View style={styles.header}>
+    <GradientSurface preset="teal" style={styles.header}>
       <TouchableOpacity testID="rider_completed_back_button" style={styles.headerSide} onPress={onHome}>
         <ArrowLeft size={31} color="#FFFFFF" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Delivery Completed</Text>
       <View style={styles.headerSide}><ShieldCheck size={30} color="#FFFFFF" /></View>
-    </View>
+    </GradientSurface>
 
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.celebrationArea}>
@@ -102,7 +103,7 @@ export const RiderDeliveryCompletedScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { height: 82, paddingTop: 18, paddingHorizontal: 18, backgroundColor: '#078E67', flexDirection: 'row', alignItems: 'center' },
+  header: { height: 82, paddingTop: 18, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center' },
   headerSide: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, color: '#FFFFFF', fontSize: 21, fontWeight: '600', textAlign: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 112, gap: 16 },

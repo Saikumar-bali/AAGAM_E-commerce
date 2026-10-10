@@ -86,7 +86,10 @@ export class CustomerSubscriptionService {
     if (method === SubscriptionDeliveryMethod.SECURITY_RECEPTION) {
       return SubscriptionProofMode.SECURITY_RECEPTION_OTP_GPS;
     }
-    return SubscriptionProofMode.PERSONAL_OTP_GPS;
+    // Personal handover is accepted as photo + GPS. Store-assigned and offline
+    // subscriptions are confirmed by the rider's photo, so no customer OTP is
+    // demanded for this default path.
+    return SubscriptionProofMode.RIDER_PHOTO_GPS;
   }
 
   private assertMethodAllowed(plan: DeliveryMethodPolicy, method: SubscriptionDeliveryMethod, dropPointToken?: string) {

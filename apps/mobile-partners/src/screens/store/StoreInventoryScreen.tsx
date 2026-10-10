@@ -17,6 +17,7 @@ import { DEFAULT_PRODUCT_IMAGE, getProductImage } from '@aagam/utils';
 import Toast from 'react-native-toast-message';
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   ChevronDown,
   Eye,
@@ -31,6 +32,7 @@ import {
 import { storeService } from '../../api/storeService';
 import { AagamBrand } from '../../components/AagamBrand';
 import { flattenCataloguePages, nextCataloguePage } from '../../domain/cataloguePagination';
+import { GradientSurface } from '../../components/GradientSurface';
 import {
   defaultDraft,
   parseWholeQuantity,
@@ -151,7 +153,7 @@ function ProductHeader({
   );
 }
 
-export const StoreInventoryScreen = () => {
+export const StoreInventoryScreen = ({ navigation }: { navigation?: any }) => {
   const queryClient = useQueryClient();
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [section, setSection] = useState<'mine' | 'catalogue'>('mine');
@@ -400,9 +402,17 @@ export const StoreInventoryScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={ACTION_GREEN} />
         }
       >
-        <View style={styles.hero}>
+        <GradientSurface preset="teal" style={styles.hero}>
           <View style={styles.heroGlow} />
           <View style={styles.brandRow}>
+            <TouchableOpacity
+              testID="inventory_back_button"
+              accessibilityLabel="Back"
+              onPress={() => navigation.goBack()}
+              style={styles.heroIconButton}
+            >
+              <ArrowLeft size={21} color="#FFFFFF" />
+            </TouchableOpacity>
             <AagamBrand compact inverse caption="Store operations" />
             <TouchableOpacity
               testID="inventory_refresh_button"
@@ -418,7 +428,7 @@ export const StoreInventoryScreen = () => {
           <Text style={styles.subtitle}>
             Manage visibility, selling price and physical stock from one workspace.
           </Text>
-        </View>
+        </GradientSurface>
 
         <View style={styles.bodySheet}>
           {stores.length > 1 ? (
@@ -877,7 +887,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   hero: {
     minHeight: 230,
-    backgroundColor: BRAND_GREEN,
+    
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 30,

@@ -35,7 +35,6 @@ export type PartnerNavigationCommand =
   | { workspace: 'RIDER'; tab: 'Operations'; screen: 'RiderJobHistoryDetail'; params: { deliveryJobId: string; orderId?: string } }
   | { workspace: 'RIDER'; tab: 'RiderSupportConversation'; params: { ticketId: string } }
   | { workspace: 'RIDER'; tab: 'RiderSupport' }
-  | { workspace: 'RIDER'; tab: 'Alerts' }
   | { workspace: 'RIDER'; tab: 'History' }
   | { workspace: 'RIDER'; tab: 'Profile' }
   | { workspace: 'RIDER'; tab: 'NotificationSettings' }
@@ -163,23 +162,23 @@ export function navigationCommandForNotification(
     case 'RIDER_OFFER':
       return payload.assignmentId
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderOfferDetail', params: { assignmentId: payload.assignmentId } }
-        : { workspace: 'RIDER', tab: 'Alerts' };
+        : { workspace: 'ROOT', screen: 'Notifications' };
     case 'RIDER_PICKUP':
       return payload.deliveryJobId
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderPickup', params: { deliveryJobId: payload.deliveryJobId } }
-        : { workspace: 'RIDER', tab: 'Alerts' };
+        : { workspace: 'ROOT', screen: 'Notifications' };
     case 'RIDER_DELIVERY':
       return payload.deliveryJobId
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderDelivery', params: { deliveryJobId: payload.deliveryJobId } }
-        : { workspace: 'RIDER', tab: 'Alerts' };
+        : { workspace: 'ROOT', screen: 'Notifications' };
     case 'RIDER_RETURN':
       return payload.deliveryJobId
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderReturn', params: { deliveryJobId: payload.deliveryJobId } }
-        : { workspace: 'RIDER', tab: 'Alerts' };
+        : { workspace: 'ROOT', screen: 'Notifications' };
     case 'RIDER_ACTIVE_JOB':
       return payload.deliveryJobId
         ? { workspace: 'RIDER', tab: 'Operations', screen: 'RiderActiveJob', params: { deliveryJobId: payload.deliveryJobId } }
-        : { workspace: 'RIDER', tab: 'Alerts' };
+        : { workspace: 'ROOT', screen: 'Notifications' };
     case 'RIDER_HISTORY':
       return payload.deliveryJobId
         ? {
