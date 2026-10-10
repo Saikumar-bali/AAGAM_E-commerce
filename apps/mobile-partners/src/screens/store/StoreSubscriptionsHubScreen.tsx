@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { Box, CalendarDays, IndianRupee, PackageCheck, Route, Users } from 'lucide-react-native';
+import { Box, CalendarDays, Contact, IndianRupee, PackageCheck, Route, Users } from 'lucide-react-native';
 import { StoreHubSection, StoreHubTile } from '../../components/StoreHubKit';
 import { GradientSurface } from '../../components/GradientSurface';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
@@ -70,6 +70,14 @@ export function StoreSubscriptionsHubScreen() {
             badge={plans.length}
             testID="store_subscriptions_plans"
             onPress={() => navigation.navigate('StoreSubscriptionPlans')}
+          />
+          <StoreHubTile
+            icon={<Contact size={20} />}
+            title="Offline customers"
+            subtitle="Manage and delete manually added customers"
+            last
+            testID="store_subscriptions_offline_customers"
+            onPress={() => navigation.navigate('StoreOfflineCustomers')}
           />
         </StoreHubSection>
 

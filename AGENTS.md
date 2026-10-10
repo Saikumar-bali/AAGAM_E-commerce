@@ -563,6 +563,14 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
   origin and the app's `API_URL` is baked to `/api`. It also injects
   `window.__ENV__` (Mapbox token) into `index.html` at serve time, so no rebuild
   is needed to change the token. `run.sh` does build + serve in one step.
+- Live rebuild while developing: `node dev-server.js` is `server.js` plus a
+  webpack **watch** compiler, so saving any file under `apps/mobile-partners`
+  (or `packages/mobile-shared`) recompiles the bundle and connected browsers
+  reload automatically (Server-Sent Events on `/__live`; the injected client
+  polls `/__build-id`). Run it with the same env as `server.js`
+  (`PORT`, `API_ORIGIN`, `STRIP_API_PREFIX=1`, `MAPBOX_TOKEN`,
+  `AAGAM_RIDER_TOKEN`) and share the work-host URL — edits appear in seconds
+  with no manual rebuild. It binds port `12001`, so stop `server.js` first.
 - `@react-navigation/native-stack` must alias to `mocks/navigation.js`
   (`createNativeStackNavigator`); a dummy passthrough `Screen` renders nothing.
 - Probes: `node probe-live.js` (render + errors + backend calls),

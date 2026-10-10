@@ -18,6 +18,7 @@ import { StorePickupAlertsScreen } from '../screens/store/StorePickupAlertsScree
 import { StorePickupVerificationEntryScreen } from '../screens/store/StorePickupVerificationEntryScreen';
 import { StorePickupSuccessEntryScreen } from '../screens/store/StorePickupSuccessEntryScreen';
 import { StoreOfflineCustomerScreen } from '../screens/store/StoreOfflineCustomerScreen';
+import { StoreOfflineCustomersScreen } from '../screens/store/StoreOfflineCustomersScreen';
 import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen';
 import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
 import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
@@ -163,6 +164,7 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreSubscriptionPlans" component={StoreSubscriptionPlansScreen} />
       <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
       <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
+      <Stack.Screen name="StoreOfflineCustomers" component={StoreOfflineCustomersScreen} />
       <Stack.Screen name="StoreRiderAssignments" component={StoreRiderAssignmentsScreen} />
       <Stack.Screen name="StoreInventory" component={StoreInventoryScreen} />
       <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />

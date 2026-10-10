@@ -254,4 +254,44 @@ describe('partner mobile UI audit regressions', () => {
     expect(text).toContain('socket?.off(event);');
     expect(text).not.toContain('socketRef.current');
   });
+
+  it('exposes offline-customer deletion the way the web store portal does', () => {
+    const list = screen('store/StoreOfflineCustomersScreen.tsx');
+    expect(list).toContain('deleteOfflineCustomer');
+    expect(list).toContain('restoreOfflineCustomer');
+    expect(list).toContain('purgeOfflineCustomer');
+    expect(list).toContain('Trash2');
+    // The screen must be reachable and registered as a real route.
+    const navigator = repoFile('apps/mobile-partners/src/navigation/StoreNavigator.tsx');
+    expect(navigator).toContain('StoreOfflineCustomersScreen');
+    expect(navigator).toContain('name="StoreOfflineCustomers"');
+    const hub = screen('store/StoreSubscriptionsHubScreen.tsx');
+    expect(hub).toContain("navigate('StoreOfflineCustomers')");
+    const service = repoFile('apps/mobile-partners/src/api/subscriptionOperationsService.ts');
+    expect(service).toContain('/store/subscriptions/offline-customers/');
+    expect(service).toContain('/permanent');
+  });
+
+  it('renders the milk grid with status symbols and per-cell litre amounts', () => {
+    const grid = screen('store/StoreMilkGridScreen.tsx');
+    // Glyphs replace the old status dots.
+    expect(grid).toContain('Check');
+    expect(grid).toContain('Minus');
+    expect(grid).not.toContain('getStatusDot');
+    expect(grid).not.toContain('styles.dot');
+    // Litres are surfaced in the cell and the detail sheet.
+    expect(grid).toContain('litreLabel');
+    expect(grid).toContain('cellLitres');
+    expect(grid).toContain('Total milk');
+    expect(grid).toContain('baseQuantity');
+  });
+
+  it('shows dashboard metrics as icon cards rather than flat colour blocks', () => {
+    const dashboard = screen('store/StoreDashboard.tsx');
+    expect(dashboard).toContain('function DashboardStat');
+    expect(dashboard).toContain('icon={ShoppingCart}');
+    expect(dashboard).toContain('icon={IndianRupee}');
+    expect(dashboard).toContain('<GradientSurface preset={preset} radius={radius.md} style={styles.statIcon}>');
+    expect(dashboard).toContain('<Icon size={20} color="#FFFFFF" />');
+  });
 });

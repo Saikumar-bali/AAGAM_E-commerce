@@ -538,6 +538,52 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+  // The offline-customer directory is the same one the web store portal uses;
+  // these lifecycle calls mirror the web's move-to-recycle-bin / restore /
+  // permanent-purge actions so the app can manage offline customers identically.
+  getOfflineCustomers: async (params?: { search?: string; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }): Promise<{
+    customers: any[];
+    total: number;
+    recycleBinCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> => {
+    const query: Record<string, string> = {};
+    if (params?.search) query.search = params.search;
+    if (params?.status) query.status = params.status;
+    if (params?.recycleBin) query.recycleBin = 'true';
+    if (params?.page) query.page = String(params.page);
+    if (params?.pageSize) query.pageSize = String(params.pageSize);
+    const response = await apiClient.get('/store/subscriptions/offline-customers', { params: query });
+    const data = response.data ?? {};
+    return {
+      customers: Array.isArray(data.customers) ? data.customers : [],
+      total: Number(data.total || 0),
+      recycleBinCount: Number(data.recycleBinCount || 0),
+      page: Number(data.page || 1),
+      pageSize: Number(data.pageSize || 25),
+      totalPages: Number(data.totalPages || 0),
+    };
+  },
+
+  deleteOfflineCustomer: async (customerId: string, reason?: string) => {
+    const response = await apiClient.delete(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}`, {
+      data: reason ? { reason } : undefined,
+    });
+    return response.data;
+  },
+
+  restoreOfflineCustomer: async (customerId: string) => {
+    const response = await apiClient.post(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}/restore`);
+    return response.data;
+  },
+
+  purgeOfflineCustomer: async (customerId: string) => {
+    const response = await apiClient.delete(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}/permanent`);
+    return response.data;
+  },
+
   createManualSubscription: async (input: {
     storeId: string;
     planId: string;
