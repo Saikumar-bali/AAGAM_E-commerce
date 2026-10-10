@@ -311,8 +311,8 @@ Every store capability, enumerated. Legend for mobile status:
 ## 18. Store-reachable endpoints mobile does NOT use (all ❌ API-ready)
 
 202. `GET /store/subscriptions/grid/export-csv` — now 🟢
-203. `GET /store/subscriptions/calendar` — ❌
-204. `GET /store/subscriptions/analytics` — ❌
+203. `GET /store/subscriptions/calendar` — 🟢 (StoreCalendarScreen)
+204. `GET /store/subscriptions/analytics` — 🟢 (StoreAnalyticsScreen)
 205. `GET /store/subscriptions/dispatch-summary` — now 🟢
 206. `GET /store/subscriptions/customer/:id/statement` — now 🟢
 207. `GET /store/subscriptions/subscribers/:id/history` — ❌
@@ -325,9 +325,9 @@ Every store capability, enumerated. Legend for mobile status:
 214. `POST /store/subscriptions/custom-subscribe` — ❌
 215. `POST /store/subscription-operations/runs/:runId/stops/:stopId/return` — ❌
 216. `GET/POST /store-self-delivery/{queue,start,complete,fail,update}` — ❌
-217. `GET/PUT /store-owner/stores/:id/operating-hours` — ❌
-218. `GET/PATCH /notifications/preferences` — ❌
-219. `POST/GET/DELETE /notifications/push/subscriptions` — ❌
+217. `GET/PUT /store-owner/stores/:id/operating-hours` — 🟢 (StoreOperatingHoursScreen)
+218. `GET/PATCH /notifications/preferences` — 🟢 (StoreNotificationSettingsScreen)
+219. `POST/GET/DELETE /notifications/push/subscriptions` — 🟢 (StoreNotificationSettingsScreen)
 220. `GET /upload/evidence-url` — now 🟢
 221. `GET /stores/:id/orders` — ❌
 222. `GET /orders/:id/tracking` — ❌
