@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import {
   Banknote,
@@ -34,6 +34,12 @@ type Tab = 'Renew' | 'Slot' | 'Cashflow' | 'Edit' | 'History';
 const TABS: Tab[] = ['Renew', 'Slot', 'Cashflow', 'Edit', 'History'];
 const PROTEIN = ['Buffalo Milk (1L)', 'Cow Milk (1L)', 'Buffalo Milk (0.5L)', 'Cow Milk (0.5L)', 'Curd (500g)'];
 
+// Local (not UTC) YYYY-MM-DD so a renewal started early morning IST does not
+// default to yesterday.
+function localIso(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function ManageSubscriberSheet({
   sub,
   plans,
@@ -52,7 +58,7 @@ export function ManageSubscriberSheet({
   const [renewalType, setRenewalType] = useState<'same' | 'switch' | 'split'>('same');
   const [newPlanId, setNewPlanId] = useState<string>('');
   const [frequency, setFrequency] = useState<'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS'>('DAILY');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => localIso(new Date()));
   const [totalDeliveries, setTotalDeliveries] = useState('30');
   const [vacation, setVacation] = useState(false);
   const [vacFrom, setVacFrom] = useState('');
@@ -160,7 +166,14 @@ export function ManageSubscriberSheet({
   };
 
   const submitCancel = () =>
-    void run(() => subscriptionOperationsService.cancelSubscription(sub.id, cancelReason), 'Subscription cancelled');
+    Alert.alert(
+      'Cancel subscription?',
+      'Stops all remaining future deliveries. The customer record is kept.',
+      [
+        { text: 'Back', style: 'cancel' },
+        { text: 'Cancel subscription', style: 'destructive', onPress: () => void run(() => subscriptionOperationsService.cancelSubscription(sub.id, cancelReason), 'Subscription cancelled') },
+      ],
+    );
 
   const historyTiles = useMemo(() => {
     const d = history.data || {};

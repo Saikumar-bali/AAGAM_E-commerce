@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { ArrowLeft, Check, Clock } from 'lucide-react-native';
+import { ArrowLeft, Check, Clock, Plus, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -59,6 +59,12 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
 
   const [week, setWeek] = useState<DayState[] | null>(null);
   const [timezone, setTimezone] = useState('Asia/Kolkata');
+  const [tzTouched, setTzTouched] = useState(false);
+  // Per-input draft text so a partially typed time (e.g. "06:3") is not
+  // rejected and snapped back to the stored value mid-keystroke; committed on
+  // blur.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const draftKey = (dayOfWeek: number, field: 'open' | 'close') => `${dayOfWeek}-${field}`;
 
   const model = useMemo(() => {
     if (week) return week;
@@ -67,9 +73,9 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
   }, [week, hoursQuery.data]);
 
   const effectiveTz = useMemo(() => {
-    if (week) return timezone;
+    if (week || tzTouched) return timezone;
     return hoursQuery.data?.timezone || 'Asia/Kolkata';
-  }, [week, timezone, hoursQuery.data]);
+  }, [week, tzTouched, timezone, hoursQuery.data]);
 
   const save = useMutation({
     mutationFn: () =>
@@ -83,11 +89,32 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
       Toast.show({ type: 'success', text1: 'Operating hours saved', text2: 'Changes apply to new orders immediately.' });
       void queryClient.invalidateQueries({ queryKey: ['store-operating-hours', storeId] });
       setWeek(null);
+      setTzTouched(false);
+      setDrafts({});
     },
     onError: () => Toast.show({ type: 'error', text1: 'Could not save hours', text2: 'Please retry.' }),
   });
 
   const update = (fn: (w: DayState[]) => DayState[]) => setWeek((prev) => fn(prev || model || []));
+
+  // Replace one window's field without dropping a day's other windows (a store
+  // may have a morning and an evening window).
+  const updateWindow = (dayOfWeek: number, index: number, patch: Partial<Window>) =>
+    update((w) => w.map((x) => (x.dayOfWeek === dayOfWeek ? { ...x, windows: x.windows.map((win, i) => (i === index ? { ...win, ...patch } : win)) } : x)));
+
+  const commitDraft = (dayOfWeek: number, field: 'open' | 'close', index: number) => {
+    const key = draftKey(dayOfWeek, field);
+    const draft = drafts[key];
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    if (draft == null) return;
+    const v = hhmmToMinutes(draft);
+    if (v == null) return;
+    updateWindow(dayOfWeek, index, field === 'open' ? { openMinute: v } : { closeMinute: v });
+  };
 
   const loading = storesQuery.isLoading || (!!storeId && hoursQuery.isLoading && !week);
 
@@ -127,31 +154,44 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
                   <Text style={[styles.dayState, d.open ? { color: palette.teal700 } : { color: palette.slate400 }]}>{d.open ? 'Open' : 'Closed'}</Text>
                 </View>
                 {d.open ? (
-                  <View style={styles.windowRow}>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={minutesToHHMM(d.windows[0].openMinute)}
-                      onChangeText={(t) => {
-                        const v = hhmmToMinutes(t);
-                        if (v == null) return;
-                        update((w) => w.map((x) => (x.dayOfWeek === d.dayOfWeek ? { ...x, windows: [{ ...x.windows[0], openMinute: v }] } : x)));
-                      }}
-                      placeholder="06:00"
-                      placeholderTextColor={palette.slate400}
-                    />
-                    <Text style={styles.dash}>–</Text>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={minutesToHHMM(d.windows[0].closeMinute)}
-                      onChangeText={(t) => {
-                        const v = hhmmToMinutes(t);
-                        if (v == null) return;
-                        update((w) => w.map((x) => (x.dayOfWeek === d.dayOfWeek ? { ...x, windows: [{ ...x.windows[0], closeMinute: v }] } : x)));
-                      }}
-                      placeholder="21:00"
-                      placeholderTextColor={palette.slate400}
-                    />
-                    {d.windows[0].closeMinute < d.windows[0].openMinute ? <Text style={styles.midnight}>crosses midnight</Text> : null}
+                  <View style={styles.windowList}>
+                    {d.windows.map((win, wi) => (
+                      <View key={wi} style={styles.windowRow}>
+                        <TextInput
+                          style={styles.timeInput}
+                          value={drafts[draftKey(d.dayOfWeek, `open`)] ?? minutesToHHMM(win.openMinute)}
+                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `open`)]: t }))}
+                          onBlur={() => commitDraft(d.dayOfWeek, 'open', wi)}
+                          placeholder="06:00"
+                          placeholderTextColor={palette.slate400}
+                        />
+                        <Text style={styles.dash}>–</Text>
+                        <TextInput
+                          style={styles.timeInput}
+                          value={drafts[draftKey(d.dayOfWeek, `close`)] ?? minutesToHHMM(win.closeMinute)}
+                          onChangeText={(t) => setDrafts((prev) => ({ ...prev, [draftKey(d.dayOfWeek, `close`)]: t }))}
+                          onBlur={() => commitDraft(d.dayOfWeek, 'close', wi)}
+                          placeholder="21:00"
+                          placeholderTextColor={palette.slate400}
+                        />
+                        {wi > 0 ? (
+                          <TouchableOpacity
+                            onPress={() => update((w) => w.map((x) => (x.dayOfWeek === d.dayOfWeek ? { ...x, windows: x.windows.filter((_, i) => i !== wi) } : x)))}
+                            accessibilityLabel="Remove window"
+                          >
+                            <X size={16} color={palette.slate400} />
+                          </TouchableOpacity>
+                        ) : null}
+                        {win.closeMinute < win.openMinute ? <Text style={styles.midnight}>crosses midnight</Text> : null}
+                      </View>
+                    ))}
+                    <TouchableOpacity
+                      style={styles.addWindow}
+                      onPress={() => update((w) => w.map((x) => (x.dayOfWeek === d.dayOfWeek ? { ...x, windows: [...x.windows, { openMinute: 16 * 60, closeMinute: 20 * 60 }] } : x)))}
+                    >
+                      <Plus size={14} color={palette.teal700} />
+                      <Text style={styles.addWindowText}>Add window</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <Text style={styles.closedHint}>No deliveries on this day</Text>
@@ -163,7 +203,7 @@ export const StoreOperatingHoursScreen = ({ navigation }: { navigation: any }) =
           <Text style={styles.sectionLabel}>Timezone</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tzRow}>
             {TIMEZONES.map((tz) => (
-              <TouchableOpacity key={tz} style={[styles.tzChip, effectiveTz === tz && styles.tzChipActive]} onPress={() => setTimezone(tz)}>
+              <TouchableOpacity key={tz} style={[styles.tzChip, effectiveTz === tz && styles.tzChipActive]} onPress={() => { setTimezone(tz); setTzTouched(true); }}>
                 <Text style={[styles.tzText, effectiveTz === tz && styles.tzTextActive]}>{tz}</Text>
               </TouchableOpacity>
             ))}
@@ -204,7 +244,10 @@ const styles = StyleSheet.create({
   knobOn: { alignSelf: 'flex-end' },
   dayName: { flex: 1, color: palette.slate900, fontSize: 14, fontWeight: '600' },
   dayState: { fontSize: 11, fontWeight: '700' },
-  windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginLeft: 54 },
+  windowList: { marginLeft: 54, gap: spacing.xs },
+  windowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  addWindow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 4 },
+  addWindowText: { color: palette.teal700, fontSize: 12, fontWeight: '600' },
   timeInput: { width: 74, backgroundColor: palette.slate050, borderRadius: radius.sm, borderWidth: 1, borderColor: palette.slate200, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 14, color: palette.slate900, textAlign: 'center' },
   dash: { color: palette.slate400, fontSize: 14 },
   midnight: { color: palette.amber700, fontSize: 10, fontWeight: '600' },

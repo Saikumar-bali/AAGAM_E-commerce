@@ -600,7 +600,13 @@ commands below run. It is not required to build or test the app.
 
 The gallery above renders individual screens from mock data. To run the *whole*
 app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClient`
-— wired to the live `https://aagaam.in/api`, use the second, separate config:
+— wired to the live `https://aagaam.in/api`, use the second, separate config.
+
+> **Staging only for mutation-capable runs.** The `?sim=1` flow, the handover
+> sheet, and the RouteConsole all perform real rider writes (delivery state,
+> subscription entitlements, COD records, customer-visible order status). Run
+> them against a local or staging `API_ORIGIN` only — never point a
+> write-capable probe at the production host.
 
 - Build: `EXPO_PUBLIC_MAPBOX_TOKEN=pk.… ../../node_modules/.bin/webpack --config webpack.preview.config.js`
   → `dist-live/`. Entry `src/web-entry.js` mounts `<App/>` (with an error
@@ -756,9 +762,6 @@ app — real `App.tsx`, real `RootNavigator`, real `@aagam/mobile-shared/apiClie
 - Login is email+password or phone-OTP against live `/auth/mobile/login`; the
   seed default (`rider@aagam.com`) is *not* a production credential, so the
   authenticated rider dashboard needs a supplied test account password.
-  `dorabbu4@gmail.com` is the known admin login and can be reused as a backend
-  source for QA test accounts if present in the production DB.
-
 - Login is email+password or phone-OTP against the environment's
   `/auth/mobile/login`; the seed default (`rider@aagam.com`) is *not* a
   credential there, so the authenticated rider dashboard needs a supplied test

@@ -472,8 +472,10 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
-  getSubscribers: async (): Promise<any[]> => {
-    const response = await apiClient.get('/store/subscriptions/subscribers');
+  getSubscribers: async (status?: 'active' | 'cancelled'): Promise<any[]> => {
+    const response = await apiClient.get('/store/subscriptions/subscribers', {
+      params: status ? { status } : undefined,
+    });
     const data = response.data;
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.subscribers)) return data.subscribers;

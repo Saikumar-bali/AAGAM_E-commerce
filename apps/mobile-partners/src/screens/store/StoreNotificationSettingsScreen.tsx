@@ -75,6 +75,8 @@ export const StoreNotificationSettingsScreen = ({ navigation }: { navigation: an
 
       {query.isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={palette.teal700} /><Text style={styles.muted}>Loading preferences…</Text></View>
+      ) : query.isError ? (
+        <View style={styles.center}><Text style={styles.errorTitle}>Couldn't load preferences</Text><TouchableOpacity onPress={() => void query.refetch()}><Text style={styles.muted}>Tap to retry.</Text></TouchableOpacity></View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}
@@ -159,6 +161,7 @@ const styles = StyleSheet.create({
   title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxxl, gap: spacing.sm },
   muted: { color: palette.slate500, fontSize: 13 },
+  errorTitle: { color: palette.slate900, fontSize: 18, fontWeight: '600' },
   list: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 60 },
   card: { backgroundColor: palette.white, borderRadius: radius.md, borderWidth: 1, borderColor: palette.slate200, overflow: 'hidden' },
   globalRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },

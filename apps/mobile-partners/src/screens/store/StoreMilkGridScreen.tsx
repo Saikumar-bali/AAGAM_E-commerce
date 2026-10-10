@@ -304,12 +304,16 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
   const openProof = async (cell: any) => {
     const key = cell?.photoProof?.storageKey;
     if (!key) return;
-    const url = await subscriptionOperationsService.getEvidenceUrl(key);
-    if (!url) {
+    try {
+      const url = await subscriptionOperationsService.getEvidenceUrl(key);
+      if (!url) {
+        Toast.show({ type: 'error', text1: 'Photo unavailable' });
+        return;
+      }
+      setProof({ url, cell });
+    } catch {
       Toast.show({ type: 'error', text1: 'Photo unavailable' });
-      return;
     }
-    setProof({ url, cell });
   };
 
   const confirmSkip = () => {

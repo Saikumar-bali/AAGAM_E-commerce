@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, ChevronRight, IndianRupee, Layers, Search, Set
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
+import { isOfflineSubscription } from '@aagam/utils';
 import { GradientSurface } from '../../components/GradientSurface';
 import { elevation, palette, radius, spacing } from '../../design/tokens';
 import { ManageSubscriberSheet } from './ManageSubscriberSheet';
@@ -45,8 +46,16 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
 
   const query = useQuery({
     queryKey: ['store-subscribers'],
-    queryFn: subscriptionOperationsService.getSubscribers,
+    queryFn: subscriptionOperationsService.getSubscriberSnapshot,
     retry: 1,
+  });
+  // Cancelled contracts are only returned when `?status=cancelled` is passed;
+  // fetch them lazily so the Cancelled segment can actually match rows.
+  const cancelledQuery = useQuery({
+    queryKey: ['store-subscribers-cancelled'],
+    queryFn: () => subscriptionOperationsService.getSubscribers('cancelled'),
+    retry: 1,
+    enabled: segment === 'Cancelled',
   });
   const plansQuery = useQuery({
     queryKey: ['store-subscription-plans'],
@@ -54,26 +63,30 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
     retry: 1,
   });
 
-  const subscribers = Array.isArray(query.data) ? query.data : [];
+  const liveSubscribers = Array.isArray(query.data?.subscribers) ? query.data!.subscribers : [];
+  const subscribers = segment === 'Cancelled'
+    ? (Array.isArray(cancelledQuery.data) ? cancelledQuery.data : [])
+    : liveSubscribers;
+  const activeQuery = segment === 'Cancelled' ? cancelledQuery : query;
   const plans = Array.isArray(plansQuery.data) ? plansQuery.data : [];
 
   const counts = useMemo(() => {
-    const c: Record<Segment, number> = { Active: 0, Paused: 0, Cancelled: 0, All: subscribers.length };
-    for (const sub of subscribers) {
-      if (STATUS_GROUPS.Active.includes(sub.status)) c.Active++;
-      else if (STATUS_GROUPS.Paused.includes(sub.status)) c.Paused++;
-      else if (STATUS_GROUPS.Cancelled.includes(sub.status)) c.Cancelled++;
-    }
-    return c;
-  }, [subscribers]);
+    const server = query.data?.counts || {};
+    return {
+      Active: Number(server.active ?? 0),
+      Paused: Number(server.paused ?? 0),
+      Cancelled: Number(server.cancelled ?? 0),
+      All: Number(server.total ?? liveSubscribers.length),
+    } as Record<Segment, number>;
+  }, [query.data, liveSubscribers.length]);
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return subscribers.filter((sub: any) => {
       if (segment !== 'All' && !STATUS_GROUPS[segment].includes(sub.status)) return false;
       if (source !== 'All') {
-        const type = sub.customer?.customerType || sub.customerType || 'online';
-        if (String(type).toLowerCase() !== source.toLowerCase()) return false;
+        const offline = isOfflineSubscription(sub);
+        if (offline !== (source === 'Offline')) return false;
       }
       if (needle) {
         const hay = `${sub.customer?.name || ''} ${sub.customer?.phone || ''} ${sub.plan?.name || ''}`.toLowerCase();
@@ -139,16 +152,16 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {query.isLoading ? (
+      {activeQuery.isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={palette.teal700} /><Text style={styles.muted}>Loading subscribers…</Text></View>
-      ) : query.isError ? (
+      ) : activeQuery.isError ? (
         <View style={styles.center}><Text style={styles.errorTitle}>Couldn't load subscribers</Text><Text style={styles.muted}>Pull down to retry.</Text></View>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
+          refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} />}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Users size={40} color={palette.slate400} />
@@ -216,10 +229,11 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
       )}
 
       <ManageSubscriberSheet
+        key={managing?.id || 'closed'}
         sub={managing}
         plans={plans}
         onClose={() => setManaging(null)}
-        onChanged={() => void query.refetch()}
+        onChanged={() => { void query.refetch(); void cancelledQuery.refetch(); }}
       />
     </View>
   );
