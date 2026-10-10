@@ -172,7 +172,12 @@ export const StoreSubscribersScreen = ({ navigation }: { navigation: any }) => {
           renderItem={({ item }: { item: any }) => {
             const tone = statusTone(item.status);
             const plan = item.plan?.name || 'Subscription';
-            const slot = String(item.slot || item.planVersion?.deliverySlot || '').trim();
+            // The subscribers endpoint returns per-delivery rows; the active
+            // contract's slot comes from its first delivery.
+            const slots = Array.from(new Set((item.deliveries || [])
+              .map((d: any) => d.deliverySlot)
+              .filter(Boolean))).sort();
+            const slot = slots.length === 2 ? 'AM+PM' : String(slots[0] || '');
             const due = Number(item.amountDuePaise || 0);
             const funded = item.fundedDeliveryCount || item.planVersion?.totalDeliveries || item.remainingFundedDeliveries || 0;
             const completed = item.completedDeliveries || 0;
