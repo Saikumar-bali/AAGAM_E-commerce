@@ -2,13 +2,45 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.5.0"
-  last-verified: "2026-10-08"
+  version: "1.5.4"
+  last-verified: "2026-10-10"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."
 ---
 
 # AAGAM end-to-end testing
+
+A self-updating test skill for the AAGAM monorepo. It carries the role flows, the
+assertions that must hold, the API/curl cookbook, and a repository bug register.
+Any agent that loads it is expected to **run tests and then write what it learned
+back into the skill** so the next agent starts from current truth.
+
+## Preview harness (`mobile-web-preview/`)
+
+`apps/mobile-customer` and `apps/mobile-partners` are bare React Native apps with
+no web target. This repo carries a react-native-web harness at
+`mobile-web-preview/` (tracked; not the gitignored `agent_demo_shots/` scaffold)
+that renders both apps against the real `@aagam/mobile-shared` API client and the
+live api-gateway through a same-origin `/api` proxy (`server.js`). Build/serve
+with `./run.sh` (`APP=… `, `PORT`, `API_ORIGIN`, `STRIP_API_PREFIX`,
+`MAPBOX_TOKEN`); bundles land in `dist/<app>/bundle.js` and are served under
+`/preview/<app>/`. The browser equivalents of the native session live in
+`localStorage` (`aagam.keychain.com.aagam.mobile.auth`, written by
+`mocks/keychain.js`), so a rider/customer session can be seeded for the browser
+by writing that key with the keychain JSON shape and reloading.
+
+Two mock bugs found and fixed on 2026-10-10 (`mocks/navigation.js`):
+
+1. The navigator rendered **every** registered tab screen on first paint, so
+   hidden drill-downs such as `RiderRunDetail` mounted with no route params and
+   crashed the whole app with
+   `TypeError: Cannot read properties of undefined (reading 'runId')`. Fixed by
+   lazy-mounting routes (render on first focus, then keep mounted and hidden).
+2. The fallback tab bar's hidden-route filter was inverted, so every hidden
+   drill-down (`RiderRunDetail`, `Notifications`, `RiderCod`, …) leaked into the
+   tab bar. Fixed by keying off `tabBarItemStyle.display === 'none'`.
+
+---
 
 A self-updating test skill for the AAGAM monorepo. It carries the role flows, the
 assertions that must hold, the API/curl cookbook, and a repository bug register.

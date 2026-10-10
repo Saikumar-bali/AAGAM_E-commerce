@@ -666,7 +666,15 @@ export class DeliveryRunOperationsService {
       if (dto.newSequenceNumber > count) throw new BadRequestException('New route position is outside this run');
       const old = stop.sequenceNumber;
       if (old === dto.newSequenceNumber) return stop;
-      await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: 0 } });
+      // Park the moving stop at a value guaranteed to be free. A 0/negative
+      // placeholder is rejected by the DeliveryRunStop_sequence_check
+      // (sequenceNumber > 0), so use one past the current maximum.
+      const maxRow = await tx.deliveryRunStop.aggregate({
+        where: { deliveryRunId: runId },
+        _max: { sequenceNumber: true },
+      });
+      const parkedSequence = (maxRow._max.sequenceNumber ?? count) + 1;
+      await tx.deliveryRunStop.update({ where: { id: stop.id }, data: { sequenceNumber: parkedSequence } });
       if (dto.newSequenceNumber < old) {
         await tx.deliveryRunStop.updateMany({
           where: { deliveryRunId: runId, sequenceNumber: { gte: dto.newSequenceNumber, lt: old } },
@@ -1093,6 +1101,12 @@ export class DeliveryRunOperationsService {
       if (current.status !== DeliveryRunStopStatus.DELIVERED && current.status !== DeliveryRunStopStatus.CANCELLED) {
         throw new BadRequestException('Only a delivered or skipped stop can be undone');
       }
+      // A COD-funded stop already minted a SubscriptionFundingAllocation, which
+      // this path does not reverse; undoing it would leave the subscription
+      // funded without the collected cash. Fail closed until reversal exists.
+      if (Number(current.cashDuePaise || stop.cashDuePaise || 0) > 0) {
+        throw new BadRequestException('COD-funded stops cannot be undone');
+      }
 
       if (current.status === DeliveryRunStopStatus.DELIVERED) {
         const delivery = await tx.subscriptionDelivery.findUnique({
@@ -1158,29 +1172,34 @@ export class DeliveryRunOperationsService {
         // falls back to what is actually still in the rider's hands.
         const ledger = await tx.codLedger.findUnique({ where: { deliveryJobId: stop.deliveryJobId } });
         if (ledger && ledger.collectedAmountPaise > 0) {
-          const reversalPaise = ledger.collectedAmountPaise;
-          const holdingAfterPaise = Math.max(0, ledger.riderHoldingBalancePaise - reversalPaise);
-          await tx.codLedger.update({
-            where: { id: ledger.id },
-            data: {
-              collectedAmountPaise: 0,
-              riderHoldingBalancePaise: holdingAfterPaise,
-              status: holdingAfterPaise > 0 ? 'HELD_BY_RIDER' : 'AWAITING_COLLECTION',
-            },
-          });
-          await tx.codLedgerEntry.create({
-            data: {
-              codLedgerId: ledger.id,
-              type: 'COMPENSATING_ADJUSTMENT',
-              amountPaise: reversalPaise,
-              holdingAfterPaise,
-              depositedAfterPaise: ledger.depositedAmountPaise,
-              actorUserId: actor.id,
-              actorRole: actor.role,
-              reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
-              idempotencyKey: `undo-stop:${stop.id}:${reversalPaise}:${current.version}`,
-            },
-          });
+          // Only the cash still in the rider's hands may leave the ledger;
+          // anything already deposited must stay counted as collected, or the
+          // ledger breaks its collected >= deposited invariant.
+          const reversalPaise = Math.min(ledger.collectedAmountPaise, Math.max(0, ledger.riderHoldingBalancePaise));
+          if (reversalPaise > 0) {
+            const holdingAfterPaise = ledger.riderHoldingBalancePaise - reversalPaise;
+            await tx.codLedger.update({
+              where: { id: ledger.id },
+              data: {
+                collectedAmountPaise: { decrement: reversalPaise },
+                riderHoldingBalancePaise: holdingAfterPaise,
+                status: holdingAfterPaise > 0 ? 'HELD_BY_RIDER' : 'AWAITING_COLLECTION',
+              },
+            });
+            await tx.codLedgerEntry.create({
+              data: {
+                codLedgerId: ledger.id,
+                type: 'COMPENSATING_ADJUSTMENT',
+                amountPaise: reversalPaise,
+                holdingAfterPaise,
+                depositedAfterPaise: ledger.depositedAmountPaise,
+                actorUserId: actor.id,
+                actorRole: actor.role,
+                reference: `RUN:${run.routeCode}:STOP:${stop.sequenceNumber}`,
+                idempotencyKey: `undo-stop:${stop.id}:${reversalPaise}:${current.version}`,
+              },
+            });
+          }
         }
         if (stop.deliveryJobId) {
           if (stop.proofMode === SubscriptionProofMode.RIDER_PHOTO_GPS) {

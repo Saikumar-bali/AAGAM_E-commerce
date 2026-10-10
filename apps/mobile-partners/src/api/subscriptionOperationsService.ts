@@ -472,8 +472,10 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
-  getSubscribers: async (): Promise<any[]> => {
-    const response = await apiClient.get('/store/subscriptions/subscribers');
+  getSubscribers: async (status?: 'active' | 'cancelled'): Promise<any[]> => {
+    const response = await apiClient.get('/store/subscriptions/subscribers', {
+      params: status ? { status } : undefined,
+    });
     const data = response.data;
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.subscribers)) return data.subscribers;
@@ -538,6 +540,52 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+  // The offline-customer directory is the same one the web store portal uses;
+  // these lifecycle calls mirror the web's move-to-recycle-bin / restore /
+  // permanent-purge actions so the app can manage offline customers identically.
+  getOfflineCustomers: async (params?: { search?: string; status?: string; recycleBin?: boolean; page?: number; pageSize?: number }): Promise<{
+    customers: any[];
+    total: number;
+    recycleBinCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> => {
+    const query: Record<string, string> = {};
+    if (params?.search) query.search = params.search;
+    if (params?.status) query.status = params.status;
+    if (params?.recycleBin) query.recycleBin = 'true';
+    if (params?.page) query.page = String(params.page);
+    if (params?.pageSize) query.pageSize = String(params.pageSize);
+    const response = await apiClient.get('/store/subscriptions/offline-customers', { params: query });
+    const data = response.data ?? {};
+    return {
+      customers: Array.isArray(data.customers) ? data.customers : [],
+      total: Number(data.total || 0),
+      recycleBinCount: Number(data.recycleBinCount || 0),
+      page: Number(data.page || 1),
+      pageSize: Number(data.pageSize || 25),
+      totalPages: Number(data.totalPages || 0),
+    };
+  },
+
+  deleteOfflineCustomer: async (customerId: string, reason?: string) => {
+    const response = await apiClient.delete(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}`, {
+      data: reason ? { reason } : undefined,
+    });
+    return response.data;
+  },
+
+  restoreOfflineCustomer: async (customerId: string) => {
+    const response = await apiClient.post(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}/restore`);
+    return response.data;
+  },
+
+  purgeOfflineCustomer: async (customerId: string) => {
+    const response = await apiClient.delete(`/store/subscriptions/offline-customers/${encodeURIComponent(customerId)}/permanent`);
+    return response.data;
+  },
+
   createManualSubscription: async (input: {
     storeId: string;
     planId: string;
@@ -574,8 +622,242 @@ export const subscriptionOperationsService = {
     riderProfileId: string;
     slot?: 'AM' | 'PM';
     saveAsDefaultRider?: boolean;
+    saveAsTemporaryRange?: boolean;
+    temporaryStartDate?: string;
+    temporaryEndDate?: string;
   }) => {
     const response = await apiClient.post('/store/subscriptions/dispatch-to-rider', input);
+    return response.data;
+  },
+
+  // --- Milk-grid operations console -------------------------------------
+  // These mirror the web MilkDeliveryGrid so the store can run the day from
+  // the phone: act on a single delivery, re-assign it, settle cash, print a
+  // bill, or export the month. All of them target endpoints the web already
+  // uses, so nothing new is needed on the API.
+
+  quickAction: async (
+    deliveryId: string,
+    type:
+      | 'TOGGLE_DELIVERED'
+      | 'SKIP'
+      | 'EXTRA_MILK'
+      | 'TOGGLE_SLOT'
+      | 'RECORD_PAYMENT'
+      | 'VOID_PAYMENT'
+      | 'ATTACH_EVENING_MILK',
+    options?: {
+      extraQuantity?: string;
+      extraPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE';
+      amountPaise?: number;
+      note?: string;
+      consecutiveDays?: number;
+      targetSlot?: 'AM' | 'PM';
+    },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/deliveries/${encodeURIComponent(deliveryId)}/quick-action`,
+      { type, ...options },
+    );
+    return response.data;
+  },
+
+  getDispatchSummary: async (date?: string): Promise<any> => {
+    const response = await apiClient.get('/store/subscriptions/dispatch-summary', {
+      params: date ? { date } : undefined,
+    });
+    return response.data;
+  },
+
+  getCustomerStatement: async (subscriptionId: string): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/customer/${encodeURIComponent(subscriptionId)}/statement`,
+    );
+    return response.data;
+  },
+
+  renewThirtyDays: async (subscriptionId: string) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/renew`,
+      { isSamePlan: true, totalDeliveries: 30 },
+    );
+    return response.data;
+  },
+
+  setTemporaryRider: async (
+    subscriptionId: string,
+    input: { riderProfileId?: string; startDate?: string; endDate?: string; applyToScheduledDeliveries?: boolean },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/${encodeURIComponent(subscriptionId)}/temporary-rider`,
+      input,
+    );
+    return response.data;
+  },
+
+  // The web downloads a blob; React Native has no filesystem here, so the CSV
+  // is fetched as text and handed to the OS share sheet, which is the native
+  // equivalent of "Export Sheets".
+  exportGridCsv: async (year?: number, month?: number): Promise<string> => {
+    const params: Record<string, string> = {};
+    if (year != null) params.year = String(year);
+    if (month != null) params.month = String(month);
+    const response = await apiClient.get('/store/subscriptions/grid/export-csv', {
+      params,
+      responseType: 'text',
+      transformResponse: [(data) => data],
+    });
+    return typeof response.data === 'string' ? response.data : String(response.data ?? '');
+  },
+
+  getEvidenceUrl: async (key: string): Promise<string | null> => {
+    const response = await apiClient.get('/upload/evidence-url', { params: { key } });
+    return response.data?.url || response.data?.signedUrl || null;
+  },
+
+  // --- Subscriber lifecycle (mirrors the web "Manage" modal) -------------
+
+  getSubscriberHistory: async (subscriptionId: string): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/history`,
+    );
+    return response.data;
+  },
+
+  getSubscriberAudit: async (subscriptionId: string, limit = 50): Promise<any> => {
+    const response = await apiClient.get(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/audit`,
+      { params: { limit } },
+    );
+    return Array.isArray(response.data) ? response.data : response.data?.entries || [];
+  },
+
+  cancelSubscription: async (subscriptionId: string, reason?: string) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/cancel`,
+      { reason: reason || 'Cancelled by store owner' },
+    );
+    return response.data;
+  },
+
+  updateSubscription: async (
+    subscriptionId: string,
+    body: {
+      deliverySlot?: 'AM' | 'PM' | 'AM+PM';
+      amountDuePaise?: number;
+      amountCollectedPaise?: number;
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.patch(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/manual-edit`,
+      body,
+    );
+    return response.data;
+  },
+
+  recordSubscriberPayment: async (
+    subscriptionId: string,
+    body: { amountPaise: number; paymentMode: 'CASH' | 'PHONE_PE'; note?: string },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/record-payment`,
+      body,
+    );
+    return response.data;
+  },
+
+  renewSubscription: async (
+    subscriptionId: string,
+    body: {
+      isSamePlan: boolean;
+      newPlanId?: string;
+      frequency?: 'DAILY' | 'ALTERNATE_DAYS' | 'WEEKDAYS';
+      startDate?: string;
+      totalDeliveries?: number;
+      deliverySlot?: 'AM' | 'PM' | 'AM+PM';
+      splitItems?: { amProductName: string; amQuantity: string; pmProductName: string; pmQuantity: string };
+      vacationRange?: { fromDate: string; toDate: string; policy: 'EXTEND_PLAN' | 'DEDUCT_BILL' };
+      initialCashCollectedPaise?: number;
+      paymentMode?: 'CASH' | 'PHONE_PE' | 'DUE';
+      note?: string;
+    },
+  ) => {
+    const response = await apiClient.post(
+      `/store/subscriptions/subscribers/${encodeURIComponent(subscriptionId)}/renew`,
+      body,
+    );
+    return response.data;
+  },
+
+  // --- Calendar / analytics / store settings / preferences --------------
+
+  getAnalytics: async (): Promise<any> => {
+    const response = await apiClient.get('/store/subscriptions/analytics');
+    return response.data;
+  },
+
+  getOperatingHours: async (storeId: string): Promise<any> => {
+    const response = await apiClient.get(`/store-owner/stores/${encodeURIComponent(storeId)}/operating-hours`);
+    return response.data;
+  },
+
+  updateOperatingHours: async (
+    storeId: string,
+    body: { operatingHours?: Array<{ dayOfWeek: number; windows: Array<{ openMinute: number; closeMinute: number }> }>; timezone?: string },
+  ) => {
+    const response = await apiClient.put(`/store-owner/stores/${encodeURIComponent(storeId)}/operating-hours`, body);
+    return response.data;
+  },
+
+  getNotificationPreferences: async (): Promise<any> => {
+    const response = await apiClient.get('/notifications/preferences');
+    return response.data;
+  },
+
+  updateNotificationPreference: async (body: {
+    eventType?: string;
+    pushEnabled?: boolean;
+    inAppEnabled?: boolean;
+  }) => {
+    const response = await apiClient.patch('/notifications/preferences', body);
+    return response.data;
+  },
+
+  // --- Self-delivery queue (the web Deliveries page) --------------------
+
+  getSelfDeliveryQueue: async (storeId: string, from?: string, to?: string): Promise<any[]> => {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    const response = await apiClient.get(`/store-self-delivery/queue/${encodeURIComponent(storeId)}`, { params });
+    return Array.isArray(response.data) ? response.data : response.data?.items || [];
+  },
+
+  startSelfDelivery: async (deliveryId: string) => {
+    const response = await apiClient.post(`/store-self-delivery/start/${encodeURIComponent(deliveryId)}`);
+    return response.data;
+  },
+
+  completeSelfDelivery: async (
+    deliveryId: string,
+    body: { verifiedCustomerName: string; verifiedCustomerPhone: string; cashCollectedPaise: number; notes?: string },
+  ) => {
+    const response = await apiClient.post(`/store-self-delivery/complete/${encodeURIComponent(deliveryId)}`, body);
+    return response.data;
+  },
+
+  failSelfDelivery: async (deliveryId: string, reason: string) => {
+    const response = await apiClient.post(`/store-self-delivery/fail/${encodeURIComponent(deliveryId)}`, { reason });
+    return response.data;
+  },
+
+  updateSelfDelivery: async (
+    deliveryId: string,
+    body: { status?: string; cashCollectedPaise?: number; notes?: string; failureReason?: string },
+  ) => {
+    const response = await apiClient.patch(`/store-self-delivery/update/${encodeURIComponent(deliveryId)}`, body);
     return response.data;
   },
 };

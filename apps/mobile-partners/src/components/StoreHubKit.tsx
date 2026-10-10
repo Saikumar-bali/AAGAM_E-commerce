@@ -1,8 +1,35 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight } from 'lucide-react-native';
 import { GradientSurface, GradientPreset } from './GradientSurface';
 import { palette, radius, spacing, typography } from '../design/tokens';
+
+/**
+ * Circular glass back affordance for gradient headers on pushed store screens.
+ * Every pushed screen must render one so a store can never be stranded; callers
+ * pass an onPress that pops the stack (via `goBackOrHome`) so the control falls
+ * back to the owning tab instead of being a no-op on a deep-linked screen.
+ */
+export function StoreBackButton({
+  onPress,
+  testID = 'store_back_button',
+}: {
+  onPress?: () => void;
+  testID?: string;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      testID={testID}
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={styles.backButton}
+    >
+      <ArrowLeft size={21} color="#FFFFFF" />
+    </TouchableOpacity>
+  );
+}
 
 /**
  * Shared chrome for the store hub screens (Operations, More). Keeps the two
@@ -15,6 +42,7 @@ export function StoreHubHeader({
   accessory,
   preset = 'hero',
   insetTop,
+  onBack,
 }: {
   eyebrow: string;
   title: string;
@@ -22,11 +50,13 @@ export function StoreHubHeader({
   accessory?: React.ReactNode;
   preset?: GradientPreset;
   insetTop?: number;
+  onBack?: () => void;
 }) {
   return (
     <GradientSurface preset={preset} style={styles.header}>
       <View style={styles.headerGlow} />
       <View style={[styles.headerRow, insetTop !== undefined && { paddingTop: insetTop }]}>
+        {onBack ? <StoreBackButton onPress={onBack} /> : null}
         <View style={styles.flex}>
           <Text style={styles.eyebrow}>{eyebrow}</Text>
           <Text style={styles.title}>{title}</Text>
@@ -114,7 +144,17 @@ const styles = StyleSheet.create({
     borderRadius: 95,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 56, gap: spacing.md },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
   eyebrow: { color: '#A7F3D0', ...typography.eyebrow },
   title: { color: palette.white, fontSize: 24, fontWeight: '600', marginTop: 2 },
   subtitle: { color: '#D1FAE5', fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 280 },

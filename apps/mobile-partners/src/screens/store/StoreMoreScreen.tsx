@@ -3,11 +3,16 @@ import { Alert, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-nati
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
+  BarChart3,
   Bell,
+  BellRing,
+  CalendarDays,
+  Clock,
   IndianRupee,
   LogOut,
   Package,
   Store,
+  Truck,
   UserCog,
   Users,
 } from 'lucide-react-native';
@@ -90,6 +95,31 @@ export function StoreMoreScreen() {
           />
         </StoreHubSection>
 
+        <StoreHubSection title="Operations">
+          <StoreHubTile
+            icon={<Truck size={20} />}
+            title="Store deliveries"
+            subtitle="Self-deliver, collect cash and record failures"
+            testID="store_more_deliveries"
+            onPress={() => navigation.navigate('StoreDeliveries')}
+          />
+          <StoreHubTile
+            icon={<CalendarDays size={20} />}
+            title="Delivery calendar"
+            subtitle="Scheduled deliveries by day"
+            testID="store_more_calendar"
+            onPress={() => navigation.navigate('StoreCalendar')}
+          />
+          <StoreHubTile
+            icon={<BarChart3 size={20} />}
+            title="Analytics"
+            subtitle="Subscriptions, deliveries and cash by status"
+            last
+            testID="store_more_analytics"
+            onPress={() => navigation.navigate('StoreAnalytics')}
+          />
+        </StoreHubSection>
+
         <StoreHubSection title="Account">
           <StoreHubTile
             icon={<UserCog size={20} />}
@@ -99,12 +129,26 @@ export function StoreMoreScreen() {
             onPress={() => navigation.navigate('StoreSettings')}
           />
           <StoreHubTile
+            icon={<Clock size={20} />}
+            title="Operating hours"
+            subtitle="Weekly schedule and timezone"
+            testID="store_more_hours"
+            onPress={() => navigation.navigate('StoreOperatingHours')}
+          />
+          <StoreHubTile
             icon={<Bell size={20} />}
             title="Notifications"
             subtitle="Alerts, pickups and subscription updates"
             badge={unread}
             testID="store_more_notifications"
             onPress={openNotifications}
+          />
+          <StoreHubTile
+            icon={<BellRing size={20} />}
+            title="Notification preferences"
+            subtitle="Choose which events alert you"
+            testID="store_more_notification_settings"
+            onPress={() => navigation.navigate('StoreNotificationSettings')}
           />
           <StoreHubTile
             icon={<LogOut size={20} />}

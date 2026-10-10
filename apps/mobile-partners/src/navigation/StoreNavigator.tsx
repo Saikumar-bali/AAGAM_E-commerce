@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ellipsis, House, LayoutGrid, Repeat, ShoppingCart } from 'lucide-react-native';
+import { LayoutDashboard, LayoutGrid, Repeat, ShoppingCart, Ellipsis } from 'lucide-react-native';
 import { StoreDashboard } from '../screens/store/StoreDashboard';
 import { StoreOperationsHubScreen } from '../screens/store/StoreOperationsHubScreen';
 import { StoreSubscriptionsHubScreen } from '../screens/store/StoreSubscriptionsHubScreen';
@@ -18,10 +18,16 @@ import { StorePickupAlertsScreen } from '../screens/store/StorePickupAlertsScree
 import { StorePickupVerificationEntryScreen } from '../screens/store/StorePickupVerificationEntryScreen';
 import { StorePickupSuccessEntryScreen } from '../screens/store/StorePickupSuccessEntryScreen';
 import { StoreOfflineCustomerScreen } from '../screens/store/StoreOfflineCustomerScreen';
+import { StoreOfflineCustomersScreen } from '../screens/store/StoreOfflineCustomersScreen';
 import { StoreSubscribersScreen } from '../screens/store/StoreSubscribersScreen';
 import { StoreSubscriptionPlansScreen } from '../screens/store/StoreSubscriptionPlansScreen';
 import { StoreMilkGridScreen } from '../screens/store/StoreMilkGridScreen';
 import { StoreRiderAssignmentsScreen } from '../screens/store/StoreRiderAssignmentsScreen';
+import { StoreCalendarScreen } from '../screens/store/StoreCalendarScreen';
+import { StoreAnalyticsScreen } from '../screens/store/StoreAnalyticsScreen';
+import { StoreOperatingHoursScreen } from '../screens/store/StoreOperatingHoursScreen';
+import { StoreNotificationSettingsScreen } from '../screens/store/StoreNotificationSettingsScreen';
+import { StoreDeliveriesScreen } from '../screens/store/StoreDeliveriesScreen';
 import { notificationService } from '../api/notificationService';
 import { storeService } from '../api/storeService';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../screens/PartnerNotificationsScreen';
@@ -40,10 +46,9 @@ function tabBadge(count: number) {
 }
 
 /**
- * Four-destination store tab bar — Home, Operations, Orders, More — mirroring
- * the web store workspace. Secondary screens (inventory, plans, subscribers,
- * subscription runs, settings, milk grid) drill down from the Operations and
- * More hubs instead of competing for a tab.
+ * Five-destination store tab bar — Home, Subscriptions, Orders, Operations,
+ * More. The two operational hubs swap places so Subscriptions (the store's
+ * daily milk business) is the first thing after Home.
  */
 const StoreTabs = () => {
   const insets = useSafeAreaInsets();
@@ -106,16 +111,16 @@ const StoreTabs = () => {
           tabBarButtonTestID: 'tab_dashboard',
           tabBarBadge: tabBadge(Number(inboxQuery.data?.unreadCount || 0)),
           tabBarBadgeStyle: badgeStyle,
-          tabBarIcon: ({ color, size, focused }) => <House size={focused ? size + 2 : size} color={color} fill={focused ? color : 'none'} strokeWidth={focused ? 2.7 : 2} />,
+          tabBarIcon: ({ color, size, focused }) => <LayoutDashboard size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
-        name="Operations"
-        component={StoreOperationsHubScreen}
+        name="Subscriptions"
+        component={StoreSubscriptionsHubScreen}
         options={{
-          title: 'Operations',
-          tabBarButtonTestID: 'tab_operations',
-          tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+          title: 'Subscriptions',
+          tabBarButtonTestID: 'tab_subscriptions',
+          tabBarIcon: ({ color, size, focused }) => <Repeat size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
@@ -130,12 +135,12 @@ const StoreTabs = () => {
         }}
       />
       <Tab.Screen
-        name="Subscriptions"
-        component={StoreSubscriptionsHubScreen}
+        name="Operations"
+        component={StoreOperationsHubScreen}
         options={{
-          title: 'Subscriptions',
-          tabBarButtonTestID: 'tab_subscriptions',
-          tabBarIcon: ({ color, size, focused }) => <Repeat size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
+          title: 'Operations',
+          tabBarButtonTestID: 'tab_operations',
+          tabBarIcon: ({ color, size, focused }) => <LayoutGrid size={focused ? size + 2 : size} color={color} strokeWidth={focused ? 2.7 : 2} />,
         }}
       />
       <Tab.Screen
@@ -164,10 +169,16 @@ export const StoreNavigator = () => (
       <Stack.Screen name="StoreSubscriptionPlans" component={StoreSubscriptionPlansScreen} />
       <Stack.Screen name="StoreMilkGrid" component={StoreMilkGridScreen} />
       <Stack.Screen name="StoreOfflineCustomer" component={StoreOfflineCustomerScreen} />
+      <Stack.Screen name="StoreOfflineCustomers" component={StoreOfflineCustomersScreen} />
       <Stack.Screen name="StoreRiderAssignments" component={StoreRiderAssignmentsScreen} />
       <Stack.Screen name="StoreInventory" component={StoreInventoryScreen} />
       <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
       <Stack.Screen name="StorePickupAlerts" component={StorePickupAlertsScreen} />
+      <Stack.Screen name="StoreCalendar" component={StoreCalendarScreen} />
+      <Stack.Screen name="StoreAnalytics" component={StoreAnalyticsScreen} />
+      <Stack.Screen name="StoreOperatingHours" component={StoreOperatingHoursScreen} />
+      <Stack.Screen name="StoreNotificationSettings" component={StoreNotificationSettingsScreen} />
+      <Stack.Screen name="StoreDeliveries" component={StoreDeliveriesScreen} />
     </Stack.Navigator>
   </View>
 );

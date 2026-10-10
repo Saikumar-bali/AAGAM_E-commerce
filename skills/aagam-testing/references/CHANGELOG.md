@@ -368,3 +368,113 @@ human), what changed, why.
   - `SKILL.md` version bumped 1.4.9 → 1.5.0 (new section); `last-verified` left at
     2026-10-08.
 
+
+- **2026-10-10 · v1.5.1 · openhands (store react-native-web preview session)**
+  - Fixed and documented **BUG-019**: the store app Add-offline-customer form
+    (`StoreOfflineCustomerScreen`) had no map/location control and saved every
+    offline customer at the hardcoded `17.6913, 83.0039`. It now renders
+    `LeafletMap` (`onPinChange`) + a "Use current" GPS button + `/geo/reverse`
+    fill, seeds the pin from the selected store real coordinates, and blocks
+    submit until a valid pin is set. Verified via the react-native-web store
+    preview: a new customer persisted `17.6868, 83.2185` with a reverse-geocoded
+    city/pincode (pre-fix rows read `17.6913, 83.0039`). Marked
+    `FIXED-NOT-DEPLOYED` (branch `feat/rider-mobile-satellite-map`, not on `main`).
+  - `references/flows.md` gained an "Offline-customer location" note under Flow H
+    tying the stored `CustomerAddress` coordinates to the rider route/dispatch map.
+  - No credentials recorded; the store login was read from the environment.
+  - `SKILL.md` version bumped 1.5.0 -> 1.5.1; `last-verified` left at 2026-10-08.
+
+## 2026-10-10 - store grid skip + rider assignment 500s (BUG-020/021/022)
+
+- Verified live against the react-native-web store preview + api-gateway on the
+  Supabase AAGAAM_DATABASE. Three store-grid flows were returning opaque HTTP
+  500s that read as "Mark Skipped does nothing" and "unable to assign the orders
+  to the rider".
+- Root cause for two of them is the same: Prisma's default 5s interactive
+  transaction budget is too small against the remote pooler once an action fans
+  out into several sequential round-trips.
+  - BUG-020 executeQuickAction SKIP on a generated/assigned day (order + job +
+    run stop + rider reconcile). Fixed by {maxWait:10000, timeout:20000}.
+  - BUG-021 dispatchToRider (~8 round-trips per stop). Fixed by
+    {maxWait:10000, timeout:30000}. Same bug also had a second, independent
+    failure: routeCode is @unique and deterministic, so re-dispatching after a
+    skip that cancelled the emptied run collided (Unique constraint failed on the
+    fields: (routeCode)). The dispatch now reuses a same-routeCode CANCELLED run
+    (reopening it PLANNED) and only suffixes the code if a stale live run squats it.
+  - BUG-022 TOGGLE_DELIVERED on a just-dispatched RIDER_AT_STORE job completed
+    the delivery/stop but left the Order at RIDER_ASSIGNED (another grid-vs-rider
+    split). advanceOrderForQuickAction now walks the job
+    RIDER_AT_STORE -> PICKUP_VERIFIED -> OUT_FOR_DELIVERY -> DELIVERED through
+    DeliveryWorkflowService.transitionWithinTransaction.
+- Evidence: post-fix the SKIP call returns status:"SKIPPED" with the order, job,
+  run stop and emptied run all CANCELLED; dispatch returns
+  {"success":true, routeCode:"RUN-AAGA-AM-2026-10-10-f5dc"}, the rider board
+  shows the stop assigned; and a dispatched-then-delivered day reads
+  deliv=DELIVERED job=DELIVERED ordr=DELIVERED stop=DELIVERED.
+- Register gained BUG-020, BUG-021, BUG-022 (FIXED-NOT-DEPLOYED).
+- SKILL.md version bumped 1.5.1 -> 1.5.2; last-verified 2026-10-08 -> 2026-10-10.
+
+- **2026-10-10 · v1.5.3 · openhands (systematic endpoint + lifecycle sweep)**
+  - Ran a role-aware sweep of every GET route that takes no path params, as all
+    four roles (customer/store/rider/admin) against the live Supabase-backed
+    gateway: 0 server errors across the board.
+  - Exercised the write surface end to end. Three new defects found and fixed:
+    - BUG-023 (blocker): the shared Prisma wrapper let every interactive
+      `$transaction` inherit Prisma's 5s default, so any action doing ~8+
+      sequential queries blew the budget and returned an opaque `Transaction
+      already closed`/`Transaction not found` 500. Repro: run packing, customer
+      skip, customer cancel. Fix: `packages/database/src/index.ts` now defaults
+      interactive transactions to `{maxWait:15000, timeout:30000}`. Umbrella
+      cause of the earlier one-off per-service timeout patches.
+    - BUG-024 (major): rider stop `reorder` parked the moving stop at
+      `sequenceNumber:0`, violating `DeliveryRunStop_sequence_check (> 0)`.
+      Fix: park at `max+1`.
+    - BUG-025 (major): rider `return/start` wrote a synthetic
+      `failureOperationId` that FKs to `DeliveryOperation(id)`. Fix: create a
+      real operation first and reference its id.
+  - Post-fix verification (live): packing 201, skip 201, cancel 201,
+    reorder 201 (stop moves to seq 1), return/start 201 (job ->
+    RETURNING_TO_STORE). Rider full run flow re-verified: pickup 201, start 201,
+    arrive 201, extra-milk 201, toggle-slot 201, record-payment 201, fail 201,
+    finish 201; cash-accountability returns rider-holding totals.
+  - Register gained BUG-023, BUG-024, BUG-025 (FIXED-NOT-DEPLOYED).
+  - SKILL.md version bumped 1.5.2 -> 1.5.3; last-verified stays 2026-10-10.
+
+## 2026-10-10 — react-native-web preview E2E (openhands)
+
+- Ran the tracked `mobile-web-preview/` harness (customer + partner apps) against
+  the live backend and drove a full store→rider delivery run
+  (`RUN-AAGA-AM-2026-10-10-f5dc`, 8 stops): generated orders, packed, store
+  handoff, rider pickup/start, then delivered the 2 online + 2 offline
+  customers (seq 5-8) with OTP + `RIDER_PHOTO_GPS` photo proof.
+- Fixed two `mocks/navigation.js` harness bugs that made the partner preview
+  unusable: (1) every tab screen mounted eagerly, so the hidden `RiderRunDetail`
+  crashed the app on `route.params.runId`; (2) the fallback tab bar leaked every
+  hidden drill-down as a tab. Both documented in SKILL.md under "Preview
+  harness".
+- Register gained BUG-026 (store `dispatchToRider` writes null stop
+  coordinates — proven by a Prisma read of the run; OPEN) and BUG-027 (rider
+  `arrive` accepts an out-of-sequence stop; OPEN).
+- SKILL.md version bumped 1.5.3 -> 1.5.4; last-verified stays 2026-10-10.
+
+## 2026-10-10 — BUG-026 fixed + full store→rider E2E re-run (all green)
+
+- Fixed BUG-026: `store-milk-grid.service.ts` `dispatchToRider()` now copies
+  the delivery address's `latitude`/`longitude` onto the created
+  `DeliveryRunStop` (falling back to the subscription address relation), so the
+  dispatched route's pins match each stop instead of being `null`. Gateway
+  rebuilt and restarted.
+- Re-ran the complete fresh E2E on the fixed bundle: created 2 online
+  (self-subscribe) + 2 offline (store-assigned) subscriptions against store
+  `c566fec6-ebc2-4c7c-b76d-906ccc357cc3`, generated today's deliveries, dispatched
+  all four to one rider, and drove the run through
+  packing -> store handoff -> rider pickup -> start -> arrive/OTP/complete x4 ->
+  finish.
+- Result: run `RUN-AAGA-AM-2026-10-10-f5dc` (`AWAITING_SETTLEMENT`); all four
+  target deliveries `DELIVERED` with `deliveryJob` + linked `Order` both
+  `DELIVERED`, `status='ACTIVE'`, `amountCollectedPaise=39900`,
+  `amountDuePaise=0`; every stop carried its real coordinates matching the
+  created destination address (bug-026 regression check PASS).
+- BUG-027 (out-of-sequence `arrive`) re-confirmed as still OPEN; it did not
+  block the run.
+

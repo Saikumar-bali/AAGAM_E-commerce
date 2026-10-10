@@ -64,21 +64,43 @@ function containsRetryablePostgresState(error: unknown): boolean {
   })
 }
 
+// Interactive transactions default to a 5s budget in Prisma. Against the remote
+// Supabase pooler a single round-trip is often tens of ms, so any action that
+// fans out into several sequential queries (skip/pause/cancel teardown,
+// dispatch, quick-actions, packing) blows the budget and surfaces as an opaque
+// `Transaction already closed` / `Transaction not found` HTTP 500. Give every
+// interactive transaction a workable default; callers can still override.
+const DEFAULT_INTERACTIVE_MAX_WAIT = 15000
+const DEFAULT_INTERACTIVE_TIMEOUT = 30000
+
+const withInteractiveDefaults = (
+  input: unknown,
+  options?: TransactionOptions,
+): TransactionOptions | undefined => {
+  if (typeof input !== 'function') return options
+  return {
+    ...options,
+    maxWait: options?.maxWait ?? DEFAULT_INTERACTIVE_MAX_WAIT,
+    timeout: options?.timeout ?? DEFAULT_INTERACTIVE_TIMEOUT,
+  }
+}
+
 const transactionWithSerializableRetry = async (
   input: unknown,
   options?: TransactionOptions,
 ) => {
   const isInteractive = typeof input === 'function'
   const isSerializable = String(options?.isolationLevel || '').toLowerCase() === 'serializable'
+  const resolvedOptions = withInteractiveDefaults(input, options)
 
   if (!isInteractive || !isSerializable) {
-    return baseTransaction(input, options)
+    return baseTransaction(input, resolvedOptions)
   }
 
   const maxAttempts = 3
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await baseTransaction(input, options)
+      return await baseTransaction(input, resolvedOptions)
     } catch (error: any) {
       // Prisma normally reports Serializable conflicts as P2034. Raw PostgreSQL
       // errors can surface as SQLSTATE 40001 (serialization), 40P01 (deadlock),
