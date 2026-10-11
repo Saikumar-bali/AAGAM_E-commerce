@@ -18,6 +18,15 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
+// `JSON.stringify` output is not safe to interpolate into an inline <script>:
+// a value containing `</script>` (or U+2028/U+2029) would close the tag early
+// and inject markup. Escape those characters before embedding.
+function safeJsonForScript(value) {
+  return JSON.stringify(value).replace(/[<>\u2028\u2029]/g, (ch) =>
+    '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'),
+  );
+}
+
 // Optional local config (gitignored) with public client keys + origins, so
 // `node server.js` works on its own without exporting everything first.
 (function loadDotEnv() {
@@ -201,11 +210,11 @@ function injectEnv(html, distRoot, name, publicBase) {
   // no password prompt. The token is never baked into the bundle.
   const seedToken = process.env.AAGAM_RIDER_TOKEN || process.env.AAGAM_TOKEN || '';
   const sessionScript = seedToken
-    ? `<script>(function(){try{var user={id:'rider-session',role:'RIDER',roles:['RIDER'],name:'Rider'};var session=JSON.stringify({version:1,user:user,token:${JSON.stringify(seedToken)}});localStorage.setItem('aagam.keychain.com.aagam.mobile.auth',JSON.stringify({username:'aagam-auth',value:session}));}catch(e){}})();</script>\n`
+    ? `<script>(function(){try{var user={id:'rider-session',role:'RIDER',roles:['RIDER'],name:'Rider'};var session=JSON.stringify({version:1,user:user,token:${safeJsonForScript(seedToken)}});localStorage.setItem('aagam.keychain.com.aagam.mobile.auth',JSON.stringify({username:'aagam-auth',value:session}));}catch(e){}})();</script>\n`
     : '';
   return busted.replace(
     '</head>',
-    `<script>window.__ENV__ = ${JSON.stringify(env)};</script>\n` +
+    `<script>window.__ENV__ = ${safeJsonForScript(env)};</script>\n` +
       sessionScript +
       `<script>(function(){try{var s=new EventSource('/__live');s.onmessage=function(){location.reload();};}catch(e){}})();</script>\n</head>`,
   );
