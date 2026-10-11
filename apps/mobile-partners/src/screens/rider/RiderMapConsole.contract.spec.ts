@@ -45,6 +45,9 @@ describe('rider map console operations', () => {
 
   it('captures proof inline (photo for photo-GPS, token + photo for Trusted Drop, OTP otherwise)', () => {
     expect(console).toContain("stop.proofMode === 'RIDER_PHOTO_GPS'");
+    // proofMode's Trusted Drop value is the full enum member, not 'TRUSTED_DROP',
+    // and a cash-due stop is never a Trusted Drop completion.
+    expect(console).toContain('isTrustedDropStop(stop)');
     expect(console).toContain("stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO'");
     expect(console).toContain('riderService.uploadEvidence');
     expect(console).toContain('issueStopOtp(run.id');

@@ -94,8 +94,18 @@ function planLabel(stop: DeliveryRunStop) {
     || (stop.subscriptionDelivery?.deliverySlot ? `${stop.subscriptionDelivery.deliverySlot} slot` : 'Subscription');
 }
 
+// proofMode is stamped at order generation and is exactly what the server
+// enforces in complete(); its Trusted Drop value is TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO.
+// A cash-due stop is never a Trusted Drop completion (the server routes it
+// through the COD/OTP path), so gate on a zero due.
+function isTrustedDropStop(stop: DeliveryRunStop): boolean {
+  if (stop.cashDuePaise !== 0) return false;
+  if (stop.proofMode) return stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO';
+  return stop.subscriptionDelivery?.subscription?.deliveryMethod === 'TRUSTED_DROP';
+}
+
 function proofQuickLabel(stop: DeliveryRunStop) {
-  if (stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO') return 'Trusted Drop';
+  if (isTrustedDropStop(stop)) return 'Trusted Drop';
   if (stop.proofMode === 'RIDER_PHOTO_GPS') return 'Photo proof';
   return 'OTP handover';
 }
@@ -427,7 +437,7 @@ export const RiderRunConsole = ({
         await subscriptionOperationsService.arriveAtStop(run.id, stop.id, { ...coordinates, version: stop.version });
         await onRefresh();
       }
-      const mode = stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO' ? 'TRUSTED_DROP' : stop.proofMode === 'RIDER_PHOTO_GPS' ? 'PHOTO' : 'OTP';
+      const mode = isTrustedDropStop(stop) ? 'TRUSTED_DROP' : stop.proofMode === 'RIDER_PHOTO_GPS' ? 'PHOTO' : 'OTP';
       setCapture({ stop, mode, otpCode: '' });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) });
