@@ -1249,4 +1249,15 @@ area, and treat a recurrence as a **major** finding.
   per live contract (`plan 1 of 24` …), Buffalo `Days 11–31` and Cow
   `Days 10–16` each carrying their own cells. Screenshots:
   `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
+- **Follow-up (same PR):** the one-row-per-contract model repeated the customer's
+  name/phone/address once per plan and inflated the `#` index (Customer 1 read as
+  24 numbered rows). The user asked for the customer's details to appear once
+  with only the plan column stacking below. Both grids now group a customer's
+  adjacent plan rows: the `#` and customer cells use `rowSpan` (web
+  `MilkDeliveryGrid.tsx`) / render-on-first-row (mobile
+  `StoreMilkGridScreen.tsx`, helpers in `storeMilkGridRows.ts`), so the name shows
+  once with an `N plans this month` badge and each plan prints on its own line in
+  the plan column. Verified live: Customer 1 → one customer cell
+  (`rowSpan=24`) with Buffalo then Cow plans stacked; `#` index is 1. Evidence:
+  `docs/qa/web-nextjs-guide/img/{after-grouped-plans,mobile-grid-grouped-plans}.png`.
 

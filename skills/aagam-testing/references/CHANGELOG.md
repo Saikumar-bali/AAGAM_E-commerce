@@ -526,6 +526,21 @@ human), what changed, why.
     Cow plan `Days 10–16` on separate rows with independent cells, 0 console
     errors. Evidence: `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
 
+## 2026-10-10 — one customer entry, plans stacked (web + mobile grids)
+  - Follow-up to BUG-029: the one-row-per-contract grid repeated the
+    name/phone/address once per plan and inflated the `#` index (Customer 1 read
+    as 24 rows). Both grids now group a customer adjacent plan rows so the
+    details render once and only the plan column stacks below.
+  - Web MilkDeliveryGrid.tsx: # and customer cells get rowSpan across the
+    live plans; plan cell repeats per row; "N plans this month" badge.
+  - Mobile StoreMilkGridScreen.tsx: rows sorted by customer then plan; helpers
+    sortGridRows / groupRowsByCustomer in storeMilkGridRows.ts; name shown on the
+    group first row only. Spec added (8/8 pass).
+  - Verified live (Playwright): web Customer 1 -> single customer cell
+    (rowSpan=24), Buffalo then Cow plans stacked, #=1; mobile grid -> "Customer
+    1 / 24 plans this month / Buffalo Milk (BM) - 1L Daily - AM". Evidence:
+    docs/qa/web-nextjs-guide/img/{after-grouped-plans,mobile-grid-grouped-plans}.png.
+
 - **2026-10-11 · v1.6.1 · openhands (PR #465 bot-review remediation)**
   - Corrected the BUG-028/BUG-029 evidence wording to match the committed
     screenshots: BUG-029's merged row shows the Cow 0.25L cell winning days

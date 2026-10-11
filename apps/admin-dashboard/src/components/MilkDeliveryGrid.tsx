@@ -678,18 +678,22 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
     });
   }, [gridData, search, slotFilter, dueFilter, customerTypeFilter]);
 
-  // When a customer has several live plans, label each of its rows so the
-  // repeated name reads as "plan 1 of 2" rather than a duplicate.
+  // When a customer has several live plans their rows are adjacent. Group them
+  // so the customer's details render once (spanning the group) and only the
+  // plan column repeats, one plan below the other.
   const rowGroupMeta = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of filteredRows) counts.set(r.customer.id, (counts.get(r.customer.id) ?? 0) + 1);
+    const custNum = new Map<string, number>();
+    let next = 0;
+    for (const r of filteredRows) if (!custNum.has(r.customer.id)) custNum.set(r.customer.id, ++next);
     const seen = new Map<string, number>();
-    const meta = new Map<string, { index: number; count: number }>();
+    const meta = new Map<string, { index: number; count: number; isFirst: boolean; groupNumber: number }>();
     for (const r of filteredRows) {
       const count = counts.get(r.customer.id) ?? 1;
       const index = (seen.get(r.customer.id) ?? 0) + 1;
       seen.set(r.customer.id, index);
-      meta.set(r.subscriptionId, { index, count });
+      meta.set(r.subscriptionId, { index, count, isFirst: index === 1, groupNumber: custNum.get(r.customer.id)! });
     }
     return meta;
   }, [filteredRows]);
@@ -1607,15 +1611,21 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
 
               {/* Table Body */}
               <tbody className="divide-y divide-slate-200 text-xs">
-                {filteredRows.map((row, rowIndex) => (
+                {filteredRows.map((row, rowIndex) => {
+                  const grp = rowGroupMeta.get(row.subscriptionId);
+                  const isGroupFirst = grp?.isFirst ?? true;
+                  return (
                   <tr key={row.subscriptionId} className="hover:bg-slate-50/80 transition-colors group">
                     {/* # Index Column */}
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/90 px-1 py-2 text-center font-bold text-slate-400 border-r border-slate-200 min-w-10 max-w-10">
-                      {rowIndex + 1}
+                    {isGroupFirst && (
+                    <td rowSpan={grp?.count ?? 1} className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/90 px-1 py-2 text-center font-bold text-slate-400 border-r border-slate-200 min-w-10 max-w-10 align-top">
+                      {grp?.groupNumber ?? rowIndex + 1}
                     </td>
+                    )}
 
-                    {/* Customer Info */}
-                    <td className="sticky left-10 z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r border-slate-200 shadow-xs min-w-52 max-w-52">
+                    {/* Customer Info — rendered once per customer, spanning its plan rows */}
+                    {isGroupFirst && (
+                    <td rowSpan={grp?.count ?? 1} className="sticky left-10 z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r border-slate-200 shadow-xs min-w-52 max-w-52 align-top">
                       <div className="flex items-center gap-1.5">
                         <div className="font-semibold text-slate-900 truncate max-w-[140px]">{row.customer.name}</div>
                         <span className={`inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[8px] font-semibold leading-none ${
@@ -1631,15 +1641,11 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                         <span>{row.customer.phone}</span>
                       </div>
                       <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{row.customer.address}</div>
-                      {(() => {
-                        const meta = rowGroupMeta.get(row.subscriptionId);
-                        if (!meta || meta.count < 2) return null;
-                        return (
-                          <div className="mt-0.5 inline-flex items-center rounded bg-orange-50 px-1 py-0.5 text-[8px] font-bold text-orange-700 border border-orange-200">
-                            plan {meta.index} of {meta.count}
-                          </div>
-                        );
-                      })()}
+                      {(grp?.count ?? 1) > 1 && (
+                        <div className="mt-0.5 inline-flex items-center rounded bg-slate-100 px-1 py-0.5 text-[8px] font-bold text-slate-600 border border-slate-200">
+                          {grp!.count} plans this month
+                        </div>
+                      )}
                       {row.defaultRider && (
                         <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-700 mt-0.5" title={`Pre-assigned default rider: ${row.defaultRider.name}`}>
                           <UserCheck className="h-2.5 w-2.5 text-purple-600 shrink-0" />
@@ -1647,9 +1653,10 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                         </div>
                       )}
                     </td>
+                    )}
 
-                    {/* Plan & Slot */}
-                    <td className="sticky left-[calc(2.5rem+13rem)] z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r-2 border-slate-300 shadow-xs min-w-44 max-w-44">
+                    {/* Plan & Slot — one plan below the other within the customer's group */}
+                    <td className="sticky left-[calc(2.5rem+13rem)] z-10 bg-white group-hover:bg-slate-50/90 px-3 py-2 border-r-2 border-slate-300 shadow-xs min-w-44 max-w-44 align-top">
                       <div className="font-semibold text-slate-900 text-[11px] truncate max-w-[150px]">{row.plan.name}</div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <span className="inline-block rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
@@ -1808,7 +1815,8 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
 
               {/* Daily Totals Footer */}
