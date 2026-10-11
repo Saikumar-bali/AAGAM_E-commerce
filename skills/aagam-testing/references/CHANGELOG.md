@@ -525,3 +525,15 @@ human), what changed, why.
     per-contract rows (`plan 1 of 24` …), the Buffalo plan `Days 11–31` and the
     Cow plan `Days 10–16` on separate rows with independent cells, 0 console
     errors. Evidence: `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
+
+- **2026-10-11 · v1.6.1 · openhands (PR #465 bot-review remediation)**
+  - Corrected the BUG-028/BUG-029 evidence wording to match the committed
+    screenshots: BUG-029's merged row shows the Cow 0.25L cell winning days
+    11–16 (the dropped cell is Buffalo's), and the live evidence account is
+    `Customer 1` with 24 live contracts, not a two-contract repro.
+  - Redacted customer phone numbers, street addresses and rider names from the
+    web-guide screenshots (`03`–`05`, `before-merged-row`, `after-two-rows`) and
+    re-rendered the guide PDF; guide §3 now states the redaction step.
+  - Rewrote guide §4 around the shipped one-row-per-live-contract model and
+    fixed the Figure 2/4/5 captions that described states their captures do not
+    show; corrected the `formatDayRange` docstring example.

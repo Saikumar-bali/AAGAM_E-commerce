@@ -1193,17 +1193,21 @@ area, and treat a recurrence as a **major** finding.
   A sibling contract with a fully-paid ledger (`collected 39900 / due 0`) pushed
   `deliveryCash` above the active ledger, so the helper's `Math.max(0, storedDue
   - drift)` clamped the under-collected contract's residual to zero.
-- **Fix:** reconcile **per contract** and sum —
+- **Fix:** reconcile **per contract** and sum (the merged-row version) —
   `custSubs.reduce((t, s) => reconcileSubscriptionBalance(s, s.deliveries))`.
   Each contract keeps its own under-collected day cell; the ledger-drift
   absorption (Nookalamma) still works because it only fires when a ledger is
-  genuinely short of its own deliveries.
+  genuinely short of its own deliveries. BUG-029 later replaced the merged row
+  itself, so the shipped code reconciles a single contract per row:
+  `reconcileSubscriptionBalance(activeSub, activeSub.deliveries)`.
 - **Regression test:** `store-milk-grid.service.spec.ts` →
-  “merged rows keep each contract's partial due” (two overlapping contracts,
-  asserts `totalDuePaise` = 19900, not 0).
-- **Evidence:** live grid for `Customer 1` (24 merged test contracts) before the
-  fix read Paid ₹1,796.00 / Due ₹0.00; after the fix the same UI read Paid
-  ₹1,796.00 / Due ₹9,781.00.
+  “does not let a sibling contract absorb an under-collected day cell” (two
+  overlapping contracts, one row each now, asserts the under-collected row's
+  `totalDuePaise` = 19900, not 0).
+- **Evidence:** live grid for `Customer 1` (the sandbox stress account — 24 live
+  contracts, all merged into one row before BUG-029) before the fix read Paid
+  ₹1,796.00 / Due ₹0.00; after the fix the same UI read Paid ₹1,796.00 /
+  Due ₹9,781.00. The unit repro uses two overlapping contracts, not 24.
 
 
 ### BUG-029 — A customer with two live plans shows one merged row; a day they both deliver loses one plan's cell
@@ -1220,11 +1224,13 @@ area, and treat a recurrence as a **major** finding.
      deliveries overlap on a day.
   2. Open Store → Subscriptions → Milk Grid and search the customer.
 - **Observed:** one row for the customer. The header shows a `2 plans this month`
-  badge, but on any day both plans deliver only **one** cell is drawn — the
-  second contract overwrites the first. On Customer 1, days 11–13 render only
-  `1L BM` (Buffalo) and drop the Cow Milk 1/4L cell entirely.
-- **Expected:** both plans are visible and independently actionable — two rows,
-  one per plan, each with its own day cells, litres and Paid/Due.
+  badge but is labelled with the active **Cow Milk 1/4L** plan, and on any day
+  both plans deliver only **one** cell is drawn — the second contract overwrites
+  the first. On Customer 1 the Cow 0.25L cells run days 10–16 while the Buffalo
+  cells only appear from day 17, where Cow ends: the Buffalo plan also delivers
+  days 11–16 (its `Days 11–31` range) but those cells are gone.
+- **Expected:** both plans are visible and independently actionable — one row
+  per live contract, each with its own day cells, litres and Paid/Due.
 - **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
   `getGrid()` groups by customer and merges all contracts into one row, storing
   cells in a day-keyed map: `daysMap[dayNum] = cell` (keyed by day only, not by
@@ -1237,7 +1243,10 @@ area, and treat a recurrence as a **major** finding.
   preserving the old shape. A customer now counts once in `totalSubscribers`.
 - **Regression test:** `store-milk-grid.service.spec.ts` → “renders one row per
   live contract so a same-day second plan is not dropped”.
-- **Evidence:** live grid for `Customer 1` (Cow Milk 1/4L ACTIVE + Buffalo 1L
-  live) before: one row, days 11–13 show only `1L BM`. After: two rows — the
-  Cow Milk row and the Buffalo row each with their own cells.
+- **Evidence:** live grid for `Customer 1` (Cow Milk 1/4L + Buffalo 1L among its
+  24 live contracts) before: one merged row (`2 plans this month`) labelled
+  `Cow Milk 1/4L`, with the Buffalo cells missing on days 11–16. After: one row
+  per live contract (`plan 1 of 24` …), Buffalo `Days 11–31` and Cow
+  `Days 10–16` each carrying their own cells. Screenshots:
+  `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
 

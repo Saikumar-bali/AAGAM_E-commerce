@@ -77,7 +77,7 @@ export interface GridRow {
     code: string;
     dailyQuantity: string;
   };
-  /** Days this contract delivers in the month, e.g. `11–13`, `1–5–9`. */
+  /** Days this contract delivers in the month, e.g. `11–13`, `1–5, 9`. */
   planDayRange?: string;
   slot: string;
   /** Live subscription state so the store can see a paused/upcoming customer. */
