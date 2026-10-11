@@ -13,7 +13,6 @@ export async function register() {
     dsn: sentryDsn,
     environment: process.env.NODE_ENV || 'development',
     tracesSampleRate: sentryTracesSampleRate,
-    sendDefaultPii: false,
     initialScope: { tags: { service: 'admin-dashboard' } },
   });
 }

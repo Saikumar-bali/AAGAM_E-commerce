@@ -18,7 +18,6 @@ export function initSentry(): void {
   Sentry.init({
     dsn: DSN,
     environment: __DEV__ ? 'development' : 'production',
-    sendDefaultPii: false,
     tracesSampleRate: 0.1,
     initialScope: { tags: { service: 'mobile-customer' } },
   });
