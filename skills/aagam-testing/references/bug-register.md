@@ -1659,3 +1659,37 @@ area, and treat a recurrence as a **major** finding.
   rider board is intentionally left per-subscription: the rider completes each
   subscription separately (per-subscription proof/cash), so `addressStopCount`
   is a store-read concept, not applied to `GET /rider/delivery-runs/today`.
+
+### BUG-039 — Partners app hides Pack/Handoff once the run is dispatched (web shows them)
+
+- **Surface:** partners (store) app → Subscription operations → **Runs** tab;
+  `StoreSubscriptionOperationsScreen.tsx` `RunCard`
+- **Role:** store
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Dispatch a run to a rider with the same-day "Dispatch Deliveries to Rider"
+     quick action (creates the run already `READY_FOR_PICKUP` with the store
+     handoff stamped, `packedBagCount` still 0).
+  2. Open the store app **Runs** tab and read the run card's actions.
+  3. Compare with the web `/store/subscriptions` → **Runs** tab.
+- **Observed:** the app card showed **no Pack button and no Handoff button**.
+  Its gates were raw status checks — `run.status === "PLANNED"` for Pack and
+  `READY_FOR_PICKUP && !storeHandoffConfirmedAt` for Handoff — so a run born
+  `READY_FOR_PICKUP` never offered Pack, and a handoff-stamped run offered
+  neither. The web uses the shared `resolveRunActions()` helper and correctly
+  shows **Pack** (until bags are packed) then **Handoff**.
+- **Expected:** the app should offer the same two actions as the web, gated on
+  whether the bags are packed yet — not on the run status.
+- **Code path:** `StoreSubscriptionOperationsScreen.tsx` `RunCard` render used
+  `status` directly; web `(store)/store/subscriptions/page.tsx` uses
+  `resolveRunActions()` from `@aagam/utils`.
+- **Evidence:** web runs tab renders `Pack`/`Handoff` from `resolveRunActions`
+  (page.tsx ~1146); mobile `RunCard` had `run.status === "PLANNED" ? Pack` and
+  `READY_FOR_PICKUP && !storeHandoffConfirmedAt ? Handoff` with no `packedBagCount`
+  check.
+- **Fix:** import `resolveRunActions` from `@aagam/utils` in the app screen and
+  gate Pack/Handoff (and the `pendingPacking` badge) on `canPack`/`canHandoff`,
+  mirroring the web. Branch `fix/store-app-pack-handoff-actions`.
+- **Notes:** this is the mobile half of BUG-032 (rider stuck at pickup because
+  packing was never confirmed) — the web could always confirm packing; the app
+  simply never showed the button once dispatch stamped the handoff.

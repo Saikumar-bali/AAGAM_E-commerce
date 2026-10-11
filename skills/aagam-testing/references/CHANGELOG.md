@@ -746,3 +746,15 @@ human), what changed, why.
   - Noted the *separate* cosmetic "same run twice": the regional planner restarts
     `clusterIndex` at 0 each pass, so distinct runs both render as
     `RUN-<ZONE>-<date>-01-<hash>`. Confused with BUG-037 (contract spam).
+
+- **2026-10-11 · v1.8.3 · OpenHands agent (store-app pack/handoff session)**
+  - Recorded **BUG-039** — the partners (store) app hides Pack and Handoff on a
+    dispatched run. `RunCard` in `StoreSubscriptionOperationsScreen.tsx` gated
+    Pack on `run.status === "PLANNED"` and Handoff on
+    `READY_FOR_PICKUP && !storeHandoffConfirmedAt`, so a run created already
+    `READY_FOR_PICKUP` by "Dispatch Deliveries to Rider" (handoff stamped,
+    `packedBagCount` 0) offered **neither** action, while the web offered both.
+  - Fixed by using the shared `resolveRunActions()` from `@aagam/utils` in the
+    app screen (Pack until bags are packed, then Handoff) and by making the
+    `pendingPacking` badge count `canPack` runs instead of `PLANNED` runs.
+  - This is the mobile counterpart of BUG-032; the web flow was already correct.

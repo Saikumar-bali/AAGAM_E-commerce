@@ -39,6 +39,7 @@ import {
 } from "../../api/subscriptionOperationsService";
 import type { StoreTabParamList } from "../../navigation/partnerNavigationTypes";
 import { GradientSurface } from '../../components/GradientSurface';
+import { resolveRunActions } from '@aagam/utils';
 
 const STORE_SUBSCRIPTION_KEY = ["store", "subscription-operations"] as const;
 type Section = "runs" | "forecast" | "cash" | "exceptions";
@@ -160,7 +161,16 @@ export const StoreSubscriptionOperationsScreen = ({
   const submittedCash = cashBatches
     .filter((batch) => batch.status === "SUBMITTED")
     .reduce((sum, batch) => sum + Number(batch.submittedAmountPaise || 0), 0);
-  const pendingPacking = runs.filter((run) => run.status === "PLANNED").length;
+  const pendingPacking = runs.filter(
+    (run) =>
+      resolveRunActions({
+        status: run.status,
+        totalStopCount: run.totalStopCount,
+        expectedBagCount: run.expectedBagCount,
+        packedBagCount: run.packedBagCount,
+        stopCount: run.stops.length,
+      }).canPack
+  ).length;
 
   const refresh = async () => {
     await Promise.all([
@@ -823,6 +833,13 @@ function RunCard({
   onPickup: () => void;
   pickupBusy: boolean;
 }) {
+  const { canPack, canHandoff } = resolveRunActions({
+    status: run.status,
+    totalStopCount: run.totalStopCount,
+    expectedBagCount: run.expectedBagCount,
+    packedBagCount: run.packedBagCount,
+    stopCount: run.stops.length,
+  });
   const productTotals = new Map<string, number>();
   for (const stop of run.stops)
     for (const item of stop.subscriptionDelivery.order?.items || [])
@@ -888,13 +905,13 @@ function RunCard({
           </Text>
         ) : null}
       </View>
-      {run.status === "PLANNED" ? (
+      {canPack ? (
         <TouchableOpacity style={styles.runPrimary} onPress={onPack}>
           <PackageCheck size={19} color="#FFFFFF" />
           <Text style={styles.runPrimaryText}>Verify and confirm packing</Text>
         </TouchableOpacity>
       ) : null}
-      {run.status === "READY_FOR_PICKUP" && !run.storeHandoffConfirmedAt ? (
+      {canHandoff ? (
         <TouchableOpacity
           style={styles.runPrimary}
           disabled={pickupBusy}
