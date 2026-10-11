@@ -43,9 +43,9 @@ describe('rider map console operations', () => {
     expect(console).toContain('{undoable ? (');
   });
 
-  it('captures proof inline (photo for photo-GPS, OTP otherwise) and defers Trusted Drop', () => {
+  it('captures proof inline (photo for photo-GPS, token + photo for Trusted Drop, OTP otherwise)', () => {
     expect(console).toContain("stop.proofMode === 'RIDER_PHOTO_GPS'");
-    expect(console).toContain("stop.proofMode === 'TRUSTED_DROP'");
+    expect(console).toContain("stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO'");
     expect(console).toContain('riderService.uploadEvidence');
     expect(console).toContain('issueStopOtp(run.id');
     expect(console).toContain('completeStop(run.id, stop.id');

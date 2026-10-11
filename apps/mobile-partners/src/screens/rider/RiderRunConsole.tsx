@@ -95,7 +95,7 @@ function planLabel(stop: DeliveryRunStop) {
 }
 
 function proofQuickLabel(stop: DeliveryRunStop) {
-  if (stop.proofMode === 'TRUSTED_DROP') return 'Trusted Drop';
+  if (stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO') return 'Trusted Drop';
   if (stop.proofMode === 'RIDER_PHOTO_GPS') return 'Photo proof';
   return 'OTP handover';
 }
@@ -427,7 +427,7 @@ export const RiderRunConsole = ({
         await subscriptionOperationsService.arriveAtStop(run.id, stop.id, { ...coordinates, version: stop.version });
         await onRefresh();
       }
-      const mode = stop.proofMode === 'TRUSTED_DROP' ? 'TRUSTED_DROP' : stop.proofMode === 'RIDER_PHOTO_GPS' ? 'PHOTO' : 'OTP';
+      const mode = stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO' ? 'TRUSTED_DROP' : stop.proofMode === 'RIDER_PHOTO_GPS' ? 'PHOTO' : 'OTP';
       setCapture({ stop, mode, otpCode: '' });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Could not record arrival', text2: errorMessage(error) });
