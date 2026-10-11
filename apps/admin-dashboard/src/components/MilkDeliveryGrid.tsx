@@ -104,6 +104,7 @@ interface GridRow {
     endDate?: string | null;
   } | null;
   allPlans: PlanInfo[];
+  planDayRange?: string;
   days: Record<number, GridCell | null>;
   totalDeliveredDays: number;
   totalActiveDeliveries: number;
@@ -657,7 +658,7 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
   // Filtered rows
   const filteredRows = useMemo(() => {
     if (!gridData?.rows) return [];
-    return gridData.rows.filter((r) => {
+    const matched = gridData.rows.filter((r) => {
       const matchesSearch =
         search === '' ||
         r.customer.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -669,7 +670,29 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
       const matchesType = customerTypeFilter === 'ALL' || r.customer.customerType === customerTypeFilter;
       return matchesSearch && matchesSlot && matchesDue && matchesType;
     });
+    // A customer can now have one row per live plan; keep those rows adjacent
+    // and ordered by plan so the same customer reads as a small block.
+    return matched.slice().sort((a, b) => {
+      const byCustomer = a.customer.name.localeCompare(b.customer.name);
+      return byCustomer !== 0 ? byCustomer : a.plan.name.localeCompare(b.plan.name);
+    });
   }, [gridData, search, slotFilter, dueFilter, customerTypeFilter]);
+
+  // When a customer has several live plans, label each of its rows so the
+  // repeated name reads as "plan 1 of 2" rather than a duplicate.
+  const rowGroupMeta = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of filteredRows) counts.set(r.customer.id, (counts.get(r.customer.id) ?? 0) + 1);
+    const seen = new Map<string, number>();
+    const meta = new Map<string, { index: number; count: number }>();
+    for (const r of filteredRows) {
+      const count = counts.get(r.customer.id) ?? 1;
+      const index = (seen.get(r.customer.id) ?? 0) + 1;
+      seen.set(r.customer.id, index);
+      meta.set(r.subscriptionId, { index, count });
+    }
+    return meta;
+  }, [filteredRows]);
 
   const monthLabel = new Date(currentYear, currentMonth, 1).toLocaleString('en-IN', {
     month: 'long',
@@ -1608,6 +1631,15 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                         <span>{row.customer.phone}</span>
                       </div>
                       <div className="text-[10px] text-slate-400 truncate max-w-[180px]">{row.customer.address}</div>
+                      {(() => {
+                        const meta = rowGroupMeta.get(row.subscriptionId);
+                        if (!meta || meta.count < 2) return null;
+                        return (
+                          <div className="mt-0.5 inline-flex items-center rounded bg-orange-50 px-1 py-0.5 text-[8px] font-bold text-orange-700 border border-orange-200">
+                            plan {meta.index} of {meta.count}
+                          </div>
+                        );
+                      })()}
                       {row.defaultRider && (
                         <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-700 mt-0.5" title={`Pre-assigned default rider: ${row.defaultRider.name}`}>
                           <UserCheck className="h-2.5 w-2.5 text-purple-600 shrink-0" />
@@ -1631,9 +1663,12 @@ export default function MilkDeliveryGrid({ onReload, storeId, storeName }: { onR
                           {row.slot}
                         </span>
                       </div>
-                      {row.allPlans.length > 1 && (
-                        <div className="mt-1 text-[9px] font-bold text-orange-600 bg-orange-50 rounded px-1 py-0.5 border border-orange-200">
-                          {row.allPlans.length} plans this month
+                      {row.planDayRange && (
+                        <div
+                          className="mt-1 text-[9px] font-semibold text-slate-500 bg-slate-50 rounded px-1 py-0.5 border border-slate-200"
+                          title={`Delivery days this month: ${row.planDayRange}`}
+                        >
+                          Days {row.planDayRange}
                         </div>
                       )}
                     </td>

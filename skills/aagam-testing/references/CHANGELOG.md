@@ -505,3 +505,23 @@ human), what changed, why.
     clamped the partial residual to zero. Now reconciled per contract and summed;
     the same UI reads Paid ₹1,796.00 / Due ₹9,781.00. Regression test added.
 
+
+- **2026-10-11 · v1.6.0 · openhands (store milk-grid UI session)**
+  - **BUG-029 found + fixed:** the grid merged every contract of a customer into
+    one row and stored day cells in a map keyed by day only, so when two live
+    plans both delivered on a day the second overwrote the first and one plan
+    vanished from that day while the row totals still summed both. The grid now
+    emits **one row per live contract** (keyed by `subscriptionId`), each showing
+    its own day cells, plan, riders and reconciled money; a customer whose plans
+    are all terminal keeps a single row. A `plan N of M` chip and a per-row
+    `Days 11–31` range label make the grouped rows readable.
+  - Fixed a latent `dayRange` formatter in the same path: compiling
+    `Array(16).join(null)` produced `–16`, so every "all days" range read
+    `Days –16`; replaced with a proper consecutive-run collapser
+    (`formatDayRange`), unit-tested.
+  - BUG-028's regression test was re-pointed at the new one-row-per-contract
+    shape (the old single-row assertion no longer applied).
+  - Verified live via the store web UI (Playwright): Customer 1 rendered 24
+    per-contract rows (`plan 1 of 24` …), the Buffalo plan `Days 11–31` and the
+    Cow plan `Days 10–16` on separate rows with independent cells, 0 console
+    errors. Evidence: `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.

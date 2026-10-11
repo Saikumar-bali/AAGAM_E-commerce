@@ -406,9 +406,12 @@ describe('StoreMilkGridService — merged rows keep each contract\'s partial due
     deliveries,
   });
 
-  // Regression: a merged row reconciled the active contract's ledger against
-  // every merged delivery, so a sibling contract's fully-paid ledger absorbed
-  // an under-collected day cell and clamped its residual to zero.
+  // Regression: a customer's contracts used to be merged into one row and the
+  // active contract's ledger reconciled against every merged delivery, so a
+  // sibling fully-paid ledger could absorb an under-collected day cell and
+  // clamp its residual to zero. Each contract now gets its own row, and each
+  // contract's delivery stays visible on its own day (the sibling on day 11
+  // must not overwrite the under-collected day-10 cell).
   it('does not let a sibling contract absorb an under-collected day cell', async () => {
     (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
       sub('sub-active', 0, 39900, [cell(10, 20000, 39900)]),
@@ -417,15 +420,101 @@ describe('StoreMilkGridService — merged rows keep each contract\'s partial due
 
     const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
 
+    // One row per contract now; each keeps its own reconciled due.
+    expect(grid.rows).toHaveLength(2);
+    const activeRow = grid.rows.find((r) => r.subscriptionId === 'sub-active')!;
+    const siblingRow = grid.rows.find((r) => r.subscriptionId === 'sub-sibling')!;
+    expect(activeRow.totalDuePaise).toBe(19900);
+    expect(activeRow.totalCollectedPaise).toBe(20000);
+    expect(siblingRow.totalDuePaise).toBe(0);
+    // Each contract's delivery stays visible on its own day.
+    expect(activeRow.days[10]).toMatchObject({ cashCollectedPaise: 20000, cashDuePaise: 39900 });
+    expect(siblingRow.days[11]).toMatchObject({ cashCollectedPaise: 39900, cashDuePaise: 39900 });
+    // The customer counts once, not once per plan.
+    expect(grid.totalSubscribers).toBe(1);
+  });
+});
+
+describe('StoreMilkGridService — one row per live contract', () => {
+  const funding: any = { consumeDeliveredWithinTransaction: jest.fn() };
+  const lifecycle = new SubscriptionLifecycleService();
+  const service = new StoreMilkGridService(funding, lifecycle, {} as any);
+
+  const delivery = (id: string, day: number, status: string, slot = 'AM') => ({
+    id,
+    status,
+    serviceDate: new Date(Date.UTC(2026, 9, day)),
+    cashCollectedPaise: 0,
+    cashDuePaise: 0,
+    deliverySlot: slot,
+    deferredReason: null,
+    failureReason: null,
+    sequenceNumber: day,
+    runStop: null,
+    riderPhotoProof: null,
+  });
+
+  const sub = (id: string, planName: string, deliveries: any[]) => ({
+    id,
+    status: 'ACTIVE',
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    addressSnapshot: { line1: 'Street 1' },
+    priceSnapshot: {},
+    itemsSnapshot: [],
+    homeStore: { id: 'store-1', name: 'Store' },
+    defaultRider: null,
+    temporaryRider: null,
+    pauseEffectiveFrom: null,
+    amountCollectedPaise: 0,
+    amountDuePaise: 0,
+    customer: { id: 'cust-1', name: 'Cust', phone: '999', email: 'c@example.com', acquisitionSource: 'MANUAL' },
+    plan: { id: `plan-${planName}`, name: planName, code: planName },
+    deliveries,
+  });
+
+  // Regression: a same-day cell from a second contract used to overwrite the
+  // first in a day-keyed map, dropping one plan entirely from that day.
+  it('renders one row per live contract so a same-day second plan is not dropped', async () => {
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      sub('sub-cow', 'Cow Milk 1/4L', [delivery('c11', 11, 'SCHEDULED'), delivery('c12', 12, 'SCHEDULED')]),
+      sub('sub-buffalo', 'Buffalo Milk (BM) - 1L Daily', [delivery('b11', 11, 'ORDER_GENERATED'), delivery('b12', 12, 'SCHEDULED')]),
+    ]);
+
+    const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
+
+    expect(grid.rows).toHaveLength(2);
+    expect(grid.totalSubscribers).toBe(1);
+    const cow = grid.rows.find((r) => r.subscriptionId === 'sub-cow')!;
+    const buffalo = grid.rows.find((r) => r.subscriptionId === 'sub-buffalo')!;
+    // Day 11 is present on BOTH rows — the collision no longer drops one.
+    expect(cow.days[11]?.deliveryId).toBe('c11');
+    expect(buffalo.days[11]?.deliveryId).toBe('b11');
+    // Each row carries only its own contract's cells.
+    expect(cow.days[11]?.status).toBe('SCHEDULED');
+    expect(buffalo.days[11]?.status).toBe('ORDER_GENERATED');
+    expect(cow.plan.name).toBe('Cow Milk 1/4L');
+    expect(buffalo.plan.name).toContain('Buffalo');
+  });
+
+  it('keeps a single row for a customer whose plans are all terminal', async () => {
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      { ...sub('sub-old', 'Cow Milk 1/4L', [delivery('o1', 5, 'DELIVERED')]), status: 'COMPLETED' },
+      { ...sub('sub-new', 'Cow Milk 1/4L', [delivery('n1', 20, 'DELIVERED')]), status: 'COMPLETED' },
+    ]);
+
+    const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
+
     expect(grid.rows).toHaveLength(1);
-    // Each contract's delivery must stay visible on its own day: the sibling
-    // on day 11 must not overwrite the under-collected day-10 cell.
-    expect(grid.rows[0].days[10]).toMatchObject({ cashCollectedPaise: 20000, cashDuePaise: 39900 });
-    expect(grid.rows[0].days[11]).toMatchObject({ cashCollectedPaise: 39900, cashDuePaise: 39900 });
-    // ₹200 collected against ₹399 due on one contract keeps its ₹199 short;
-    // the sibling's fully-paid ledger must not erase it.
-    expect(grid.rows[0].totalCollectedPaise).toBe(59900);
-    expect(grid.rows[0].totalDuePaise).toBe(19900);
+    expect(grid.totalSubscribers).toBe(1);
+  });
+});
+
+describe('StoreMilkGridService — formatDayRange', () => {
+  it('collapses consecutive days and keeps gaps', () => {
+    expect(StoreMilkGridService.formatDayRange([])).toBe('');
+    expect(StoreMilkGridService.formatDayRange([3])).toBe('3');
+    expect(StoreMilkGridService.formatDayRange([1, 2, 3, 5, 9, 10])).toBe('1–3, 5, 9–10');
+    expect(StoreMilkGridService.formatDayRange([11, 12, 13, 16])).toBe('11–13, 16');
   });
 });
 

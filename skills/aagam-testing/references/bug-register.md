@@ -1205,3 +1205,39 @@ area, and treat a recurrence as a **major** finding.
   fix read Paid ₹1,796.00 / Due ₹0.00; after the fix the same UI read Paid
   ₹1,796.00 / Due ₹9,781.00.
 
+
+### BUG-029 — A customer with two live plans shows one merged row; a day they both deliver loses one plan's cell
+
+- **Found:** 2026-10-11 by openhands (UI-driven store milk-grid session, local
+  `development` build)
+- **Severity:** major (the store cannot see or act on the second plan's milk or
+  its delivered/not-delivered state; the cell disagrees with the row totals)
+- **Surface:** Store → Subscriptions → Milk Grid (`GET /store/subscriptions/grid`)
+- **Role:** store owner
+- **Status:** FIXED (pending PR)
+- **Repro (UI only):**
+  1. Give one customer two live plans (e.g. Cow Milk 1/4L + Buffalo 1L) whose
+     deliveries overlap on a day.
+  2. Open Store → Subscriptions → Milk Grid and search the customer.
+- **Observed:** one row for the customer. The header shows a `2 plans this month`
+  badge, but on any day both plans deliver only **one** cell is drawn — the
+  second contract overwrites the first. On Customer 1, days 11–13 render only
+  `1L BM` (Buffalo) and drop the Cow Milk 1/4L cell entirely.
+- **Expected:** both plans are visible and independently actionable — two rows,
+  one per plan, each with its own day cells, litres and Paid/Due.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `getGrid()` groups by customer and merges all contracts into one row, storing
+  cells in a day-keyed map: `daysMap[dayNum] = cell` (keyed by day only, not by
+  plan/slot), so a same-day cell from a second contract overwrites the first
+  while the row's litre/money totals still sum both.
+- **Fix:** emit one row **per non-terminal contract** (the grid row key was
+  already `subscriptionId`, so no id churn), each row showing only its own
+  contract's day cells, plan, riders and reconciled money. A customer whose
+  plans are all terminal still gets one row (most-recent completed contract),
+  preserving the old shape. A customer now counts once in `totalSubscribers`.
+- **Regression test:** `store-milk-grid.service.spec.ts` → “renders one row per
+  live contract so a same-day second plan is not dropped”.
+- **Evidence:** live grid for `Customer 1` (Cow Milk 1/4L ACTIVE + Buffalo 1L
+  live) before: one row, days 11–13 show only `1L BM`. After: two rows — the
+  Cow Milk row and the Buffalo row each with their own cells.
+
