@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GradientSurface } from '../../components/GradientSurface';
 import {
   ActivityIndicator,
   Alert,
@@ -7,7 +6,6 @@ import {
   Modal,
   PermissionsAndroid,
   Platform,
-  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,7 +13,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
@@ -25,7 +22,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Banknote,
   CalendarDays,
@@ -41,9 +37,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
-  Route,
   ShieldCheck,
-  Store,
   X,
 } from 'lucide-react-native';
 import {
@@ -60,6 +54,7 @@ import { PartnerConnectivity } from '../../native/PartnerConnectivity';
 import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
 import { RiderRouteMap } from '../../components/rider/RiderRouteMap';
 import type { RiderMapStop } from '../../components/rider/riderRouteMapHtml';
+import { RiderRunConsole } from './RiderRunConsole';
 
 const FAILURE_REASONS: Array<{ value: DeliveryFailureReason; label: string }> = [
   { value: 'CUSTOMER_UNREACHABLE', label: 'Customer unreachable' },
@@ -299,10 +294,6 @@ const nextExtraMilkNonce = () => {
 export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<RiderTabParamList, 'RiderRunDetail'>; navigation: NavigationProp<RiderTabParamList> }) => {
   const runId = route.params.runId;
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
-  // The upcoming rail uses a fixed card width that is comfortable on phones but
-  // too wide on very narrow devices; scale it down instead of overflowing.
-  const railCardWidth = Math.min(196, Math.round(windowWidth * 0.6));
   const queryClient = useQueryClient();
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
@@ -404,14 +395,6 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
     arriveMutation.mutate(selectedStop);
   }, [selectedStop?.id, selectedStop?.status]);
 
-  const mapDestination = currentStop
-    ? stopCoordinates(currentStop)
-    : (run?.store && typeof run.store.latitude === 'number' && typeof run.store.longitude === 'number'
-      ? { latitude: run.store.latitude, longitude: run.store.longitude }
-      : null);
-  const mapDestinationLabel = currentStop
-    ? `${currentStop.sequenceNumber}. ${currentStop.deliveryJob.order.customer?.name || 'Customer'}`
-    : run?.store?.name || 'Store';
   // Customers holding more than one subscription get one stop per subscription,
   // so flag those so the rider can tell the two deliveries apart and mark each
   // one delivered on its own.
@@ -437,13 +420,8 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
       state: isCurrent ? 'current' : done ? 'done' : 'upcoming',
     }];
   }), [run?.stops, currentStop?.id, duplicateCustomerKeys]);
-  const upcomingStops = useMemo(() => (run?.stops || [])
-    .filter((stop) => !['DELIVERED', 'CANCELLED', 'FAILED', 'RETURNED'].includes(String(stop.status)))
-    .slice()
-    .sort((a, b) => a.sequenceNumber - b.sequenceNumber), [run?.stops]);
   const completed = Number(run?.completedStopCount || 0);
   const total = Math.max(Number(run?.totalStopCount || run?.stops.length || 0), 1);
-  const progress = Math.min(100, Math.round((completed / total) * 100));
   const stopPoint = selectedStop ? stopCoordinates(selectedStop) : null;
 
   const refresh = async () => {
@@ -788,83 +766,51 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   if (runQuery.isLoading) return <View style={styles.loadingScreen}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.loadingText}>Loading route…</Text></View>;
   if (runQuery.isError || !run) return <View style={styles.loadingScreen}><CircleAlert size={42} color="#B42318" /><Text style={styles.loadingTitle}>Route unavailable</Text><Text style={styles.loadingText}>{runQuery.error ? errorMessage(runQuery.error) : 'This route could not be loaded.'}</Text><TouchableOpacity style={styles.retryButton} onPress={() => void runQuery.refetch()}><RefreshCw size={18} color="#FFFFFF" /><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
 
+  // Lifecycle: everything that happens *before* the first delivery (handoff,
+  // pickup receipt, start) lives in the peek sheet so the primary action is
+  // always reachable; the ordered stops live in the expanded board.
+  const lifecycle = (
+    <>
+      {run.status === 'PICKED_UP' ? <TouchableOpacity style={styles.stickyPrimary} disabled={runMutation.isPending} onPress={() => runMutation.mutate('start')}><Navigation size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{runMutation.isPending ? 'Starting…' : 'Start delivery run'}</Text></TouchableOpacity> : null}
+      {run.status === 'PLANNED' || (run.status === 'READY_FOR_PICKUP' && !run.storeHandoffConfirmedAt) ? <View style={styles.noticeCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>Waiting for store handoff</Text><Text style={styles.noticeText}>The store must pack the exact route bags and confirm the physical handoff.</Text></View></View> : null}
+      {run.status === 'READY_FOR_PICKUP' && run.storeHandoffConfirmedAt ? <View style={styles.pickupReceiptCard}><View style={styles.pickupReceiptHeader}><Package size={20} color="#0F766E" /><View style={styles.noticeCopy}><Text style={styles.pickupReceiptTitle}>Confirm your independent receipt</Text><Text style={styles.pickupReceiptText}>Count exactly {run.expectedBagCount || run.totalStopCount} bags before accepting this run.</Text></View></View>{run.crateCode ? <TextInput style={styles.input} value={pickupCrateCode} onChangeText={setPickupCrateCode} placeholder="Enter or scan route crate code" placeholderTextColor="#94A3B8" autoCapitalize="characters" /> : null}<TouchableOpacity style={styles.stickyPrimary} disabled={pickupMutation.isPending || Boolean(run.crateCode && !pickupCrateCode.trim())} onPress={() => pickupMutation.mutate()}><ShieldCheck size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{pickupMutation.isPending ? 'Verifying receipt…' : `Confirm ${run.expectedBagCount || run.totalStopCount} bags received`}</Text></TouchableOpacity></View> : null}
+    </>
+  );
+
+  // The full route board, hosted inside the console's expanded sheet so the map
+  // is the single surface: the ordered stops and settlement, without leaving.
+  const board = (
+    <>
+      <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Ordered stops</Text><Text style={styles.sectionHint}>No bulk completion</Text></View>
+      {run.stops.map((stop) => <StopCard key={stop.id} stop={stop} isCurrent={currentStop?.id === stop.id} duplicateCustomer={duplicateCustomerKeys.has(customerKey(stop))} onOpen={() => openStop(stop)} onNavigate={() => openNavigation(stop)} onMove={(direction) => reorderMutation.mutate({ stop, direction })} onDeliverNow={() => { pendingQuickDeliverRef.current = stop.id; openStop(stop); }} onSkip={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); openStop(stop); }} />)}
+
+      {run.status === 'IN_PROGRESS' ? <TouchableOpacity style={styles.finishButton} disabled={runMutation.isPending} onPress={() => Alert.alert('Finish this route?', 'The server will block completion while any delivery, retry, or return requirement remains unresolved.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Check and finish', onPress: () => runMutation.mutate('finish') }])}><CheckCircle2 size={20} color="#FFFFFF" /><Text style={styles.finishButtonText}>Finish route after all stops</Text></TouchableOpacity> : null}
+
+      {run.status === 'AWAITING_SETTLEMENT' ? <View style={styles.cashCard}><View style={styles.cashTitleRow}><View style={styles.cashIcon}><Banknote size={23} color="#A15C00" /></View><View style={styles.cashCopy}><Text style={styles.cashTitle}>Return cash to store</Text><Text style={styles.cashText}>Individual COD ledgers stay intact. The store independently verifies the physical batch.</Text></View></View><View style={styles.cashTotals}><Text style={styles.cashTotalLabel}>Rider holding</Text><Text style={styles.cashTotalValue}>{money(cashQuery.data?.riderHoldingPaise || 0)}</Text></View><TouchableOpacity style={styles.cashButton} disabled={batchMutation.isPending || !cashQuery.data?.riderHoldingPaise} onPress={() => batchMutation.mutate()}><Text style={styles.cashButtonText}>{batchMutation.isPending ? 'Creating batch…' : 'Create deposit batch'}</Text><ChevronRight size={19} color="#FFFFFF" /></TouchableOpacity></View> : null}
+    </>
+  );
+
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} refreshControl={<RefreshControl refreshing={runQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}>
-        <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 14) + 8 }]}>
-          <View style={styles.headerRow}><TouchableOpacity accessibilityLabel="Back to runs" style={styles.backButton} onPress={() => navigation.goBack()}><ArrowLeft size={22} color="#FFFFFF" /></TouchableOpacity><View style={styles.headerCopy}><Text style={styles.heroEyebrow} numberOfLines={1}>ROUTE {run.routeCode}</Text><Text style={styles.heroTitle} numberOfLines={1}>{run.store.name}</Text></View><View style={styles.routeIcon}><Route size={26} color="#0F766E" /></View></View>
-          <View style={styles.storeAddressRow}><Store size={16} color="#CFF7E6" /><Text style={styles.storeAddressText} numberOfLines={2}>{run.store.address}</Text></View>
-          <View style={styles.progressHeader}><Text style={styles.progressTitle}>{completed} of {total} stops</Text><Text style={styles.progressPercent}>{progress}%</Text></View>
-          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
-          <View style={styles.routeStats}>
-            <View style={styles.routeStat}><Text style={styles.routeStatValue} numberOfLines={1}>{run.stops.filter((stop) => ['READY', 'PLANNED', 'ARRIVED', 'RETRY_PENDING'].includes(stop.status)).length}</Text><Text style={styles.routeStatLabel}>remaining</Text></View>
-            <View style={styles.routeStatDivider} />
-            <View style={styles.routeStat}><Text style={styles.routeStatValue} numberOfLines={1}>{run.retryPendingStopCount}</Text><Text style={styles.routeStatLabel}>retry</Text></View>
-            <View style={styles.routeStatDivider} />
-            <View style={styles.routeStat}><Text style={styles.routeStatValue} numberOfLines={1}>{money(Math.max(0, run.collectedCashPaise - run.depositedCashPaise))}</Text><Text style={styles.routeStatLabel}>cash held</Text></View>
-          </View>
-        </GradientSurface>
-
-        {offlinePending > 0 ? <View style={styles.offlinePendingCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>{offlinePending} offline action{offlinePending === 1 ? '' : 's'} pending</Text><Text style={styles.noticeText}>Safe non-secret actions will replay after reconnect. Trusted Drop always requires a fresh QR rescan.</Text></View></View> : null}
-
-        {run.status === 'PICKED_UP' ? <TouchableOpacity style={styles.stickyPrimary} disabled={runMutation.isPending} onPress={() => runMutation.mutate('start')}><Navigation size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{runMutation.isPending ? 'Starting…' : 'Start delivery run'}</Text></TouchableOpacity> : null}
-        {run.status === 'PLANNED' || (run.status === 'READY_FOR_PICKUP' && !run.storeHandoffConfirmedAt) ? <View style={styles.noticeCard}><Clock3 size={20} color="#8A4B00" /><View style={styles.noticeCopy}><Text style={styles.noticeTitle}>Waiting for store handoff</Text><Text style={styles.noticeText}>The store must pack the exact route bags and confirm the physical handoff.</Text></View></View> : null}
-        {run.status === 'READY_FOR_PICKUP' && run.storeHandoffConfirmedAt ? <View style={styles.pickupReceiptCard}><View style={styles.pickupReceiptHeader}><Package size={20} color="#0F766E" /><View style={styles.noticeCopy}><Text style={styles.pickupReceiptTitle}>Confirm your independent receipt</Text><Text style={styles.pickupReceiptText}>Count exactly {run.expectedBagCount || run.totalStopCount} bags before accepting this run.</Text></View></View>{run.crateCode ? <TextInput style={styles.input} value={pickupCrateCode} onChangeText={setPickupCrateCode} placeholder="Enter or scan route crate code" placeholderTextColor="#94A3B8" autoCapitalize="characters" /> : null}<TouchableOpacity style={styles.stickyPrimary} disabled={pickupMutation.isPending || Boolean(run.crateCode && !pickupCrateCode.trim())} onPress={() => pickupMutation.mutate()}><ShieldCheck size={20} color="#FFFFFF" /><Text style={styles.stickyPrimaryText}>{pickupMutation.isPending ? 'Verifying receipt…' : `Confirm ${run.expectedBagCount || run.totalStopCount} bags received`}</Text></TouchableOpacity></View> : null}
-        {run.status === 'IN_PROGRESS' && currentStop ? <TouchableOpacity style={styles.nextStopCard} onPress={() => openStop(currentStop)}><View style={styles.nextStopIcon}><MapPin size={24} color="#FFFFFF" /></View><View style={styles.nextStopCopy}><Text style={styles.nextStopEyebrow}>NEXT STOP · {currentStop.sequenceNumber}</Text><Text style={styles.nextStopName}>{currentStop.deliveryJob.order.customer?.name || 'Customer'}</Text><Text style={styles.nextStopAddress} numberOfLines={1}>{addressFrom(currentStop)}</Text></View><View style={styles.nextStopQuick}><Text style={styles.nextStopQuickText}>{proofDescriptor(currentStop).quickLabel}</Text><ChevronRight size={18} color="#0F766E" /></View></TouchableOpacity> : null}
-
-        {mapDestination ? (
-          <View style={styles.mapSection}>
-            <RiderRouteMap
-              destination={mapDestination}
-              destinationLabel={mapDestinationLabel}
-              riderLocation={riderLocation}
-              stops={mapStops}
-              progressDone={completed}
-              progressTotal={total}
-            />
-          </View>
-        ) : null}
-
-        {upcomingStops.length ? (
-          <View style={styles.upcomingSection}>
-            <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming stops</Text><Text style={styles.sectionHint}>{upcomingStops.length} to deliver</Text></View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.upcomingRail}>
-              {upcomingStops.map((stop, index) => {
-                const isCurrent = currentStop?.id === stop.id;
-                const point = stopCoordinates(stop);
-                return (
-                  <TouchableOpacity key={stop.id} activeOpacity={0.85} style={[styles.upcomingCard, { width: railCardWidth }, isCurrent && styles.upcomingCardCurrent]} onPress={() => openStop(stop)}>
-                    <View style={styles.upcomingTopRow}>
-                      <View style={[styles.upcomingSeq, isCurrent && styles.upcomingSeqCurrent]}><Text style={[styles.upcomingSeqText, isCurrent && styles.upcomingSeqTextCurrent]}>{stop.sequenceNumber}</Text></View>
-                      {isCurrent ? <Text style={styles.upcomingNow}>NOW</Text> : <Text style={styles.upcomingOrder}>#{index + 1}</Text>}
-                    </View>
-                    <Text style={styles.upcomingName} numberOfLines={1}>{stop.deliveryJob.order.customer?.name || 'Customer'}</Text>
-                    <Text style={styles.upcomingAddress} numberOfLines={1}>{planLabel(stop)}</Text>
-                    <Text style={styles.upcomingAddress} numberOfLines={2}>{addressFrom(stop)}</Text>
-                    {duplicateCustomerKeys.has(customerKey(stop)) ? <Text style={styles.upcomingMultiSub}>2 subscriptions</Text> : null}
-                    <View style={styles.upcomingFooter}>
-                      <StatusChip value={stop.status} />
-                      {point ? <MapPin size={14} color="#0F766E" /> : <Text style={styles.upcomingNoPin}>No pin</Text>}
-                    </View>
-                    <View style={styles.upcomingActions}>
-                      <TouchableOpacity accessibilityLabel={`Deliver stop ${stop.sequenceNumber} now`} style={styles.upcomingDeliver} onPress={() => { pendingQuickDeliverRef.current = stop.id; openStop(stop); }}><CheckCircle2 size={13} color="#FFFFFF" /><Text style={styles.upcomingDeliverText}>Deliver</Text></TouchableOpacity>
-                      <TouchableOpacity accessibilityLabel={`Skip stop ${stop.sequenceNumber}`} style={styles.upcomingSkip} onPress={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); openStop(stop); }}><Text style={styles.upcomingSkipText}>Skip</Text></TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Ordered stops</Text><Text style={styles.sectionHint}>No bulk completion</Text></View>
-        {run.stops.map((stop) => <StopCard key={stop.id} stop={stop} isCurrent={currentStop?.id === stop.id} duplicateCustomer={duplicateCustomerKeys.has(customerKey(stop))} onOpen={() => openStop(stop)} onNavigate={() => openNavigation(stop)} onMove={(direction) => reorderMutation.mutate({ stop, direction })} onDeliverNow={() => { pendingQuickDeliverRef.current = stop.id; openStop(stop); }} onSkip={() => { setSkipReason('Customer requested skip'); setSkipOpen(true); openStop(stop); }} />)}
-
-        {run.status === 'IN_PROGRESS' ? <TouchableOpacity style={styles.finishButton} disabled={runMutation.isPending} onPress={() => Alert.alert('Finish this route?', 'The server will block completion while any delivery, retry, or return requirement remains unresolved.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Check and finish', onPress: () => runMutation.mutate('finish') }])}><CheckCircle2 size={20} color="#FFFFFF" /><Text style={styles.finishButtonText}>Finish route after all stops</Text></TouchableOpacity> : null}
-
-        {run.status === 'AWAITING_SETTLEMENT' ? <View style={styles.cashCard}><View style={styles.cashTitleRow}><View style={styles.cashIcon}><Banknote size={23} color="#A15C00" /></View><View style={styles.cashCopy}><Text style={styles.cashTitle}>Return cash to store</Text><Text style={styles.cashText}>Individual COD ledgers stay intact. The store independently verifies the physical batch.</Text></View></View><View style={styles.cashTotals}><Text style={styles.cashTotalLabel}>Rider holding</Text><Text style={styles.cashTotalValue}>{money(cashQuery.data?.riderHoldingPaise || 0)}</Text></View><TouchableOpacity style={styles.cashButton} disabled={batchMutation.isPending || !cashQuery.data?.riderHoldingPaise} onPress={() => batchMutation.mutate()}><Text style={styles.cashButtonText}>{batchMutation.isPending ? 'Creating batch…' : 'Create deposit batch'}</Text><ChevronRight size={19} color="#FFFFFF" /></TouchableOpacity></View> : null}
-      </ScrollView>
+      <StatusBar barStyle="light-content" backgroundColor="#0B1B3A" />
+      {/* The run screen *is* the board: one map-first surface. The console's
+          expanded sheet hosts the ordered stops + lifecycle, so there is no
+          second map and no "open map" round-trip. */}
+      <RiderRunConsole
+        run={run}
+        riderLocation={riderLocation}
+        completed={completed}
+        total={total}
+        onClose={() => navigation.goBack()}
+        onNavigate={(stop) => openNavigation(stop)}
+        onStartRun={() => runMutation.mutate('start')}
+        starting={runMutation.isPending}
+        resolveLocation={currentLocation}
+        onRefresh={refresh}
+        renderBoard={() => board}
+        lifecycle={lifecycle}
+        headerChips={offlinePending > 0 ? <Text style={styles.headerChip}>{offlinePending} offline pending</Text> : null}
+      />
 
       <Modal visible={Boolean(selectedStop)} transparent animationType="slide" onRequestClose={() => setSelectedStopId(null)}>
         <View style={[styles.modalBackdrop, styles.modalBackdropFull]}><View style={[styles.bottomSheet, styles.bottomSheetFull]}>
@@ -1228,8 +1174,10 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F7F5' }, content: { paddingBottom: 110 },
+  screen: { flex: 1, backgroundColor: '#0B1B3A' }, content: { paddingBottom: 110 },
+  headerChip: { alignSelf: 'flex-start', marginTop: 10, color: '#8A4B00', backgroundColor: '#FFF2D9', borderRadius: 9, paddingHorizontal: 9, paddingVertical: 4, fontSize: 10.5, fontWeight: '700', overflow: 'hidden' },
   loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F3F7F5', gap: 12 }, loadingTitle: { color: '#17211D', fontSize: 19, fontWeight: '600' }, loadingText: { color: '#64748B', fontSize: 13, lineHeight: 19, textAlign: 'center' }, retryButton: { minHeight: 48, borderRadius: 15, backgroundColor: '#0F766E', paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }, retryButtonText: { color: '#FFFFFF', fontWeight: '600' },
+  mapConsoleButton: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 44, borderRadius: 15, backgroundColor: '#ECFFF7', paddingHorizontal: 12, marginRight: 8 }, mapConsoleButtonText: { color: '#0F766E', fontSize: 13, fontWeight: '700' },
   hero: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 21, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }, headerRow: { flexDirection: 'row', alignItems: 'center' }, backButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.13)', alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, marginLeft: 12 }, heroEyebrow: { color: '#BAF3DD', fontSize: 10, letterSpacing: 1.2, fontWeight: '600' }, heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 }, routeIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#ECFFF7', alignItems: 'center', justifyContent: 'center' }, storeAddressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14 }, storeAddressText: { flex: 1, color: '#D7F8EA', fontSize: 12, lineHeight: 18 }, progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 }, progressTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' }, progressPercent: { color: '#BAF3DD', fontSize: 13, fontWeight: '600' }, progressTrack: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden', marginTop: 8 }, progressFill: { height: 8, borderRadius: 4, backgroundColor: '#6EE7B7' }, routeStats: { flexDirection: 'row', marginTop: 16, paddingVertical: 12, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.11)' }, routeStat: { flex: 1, alignItems: 'center' }, routeStatValue: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' }, routeStatLabel: { color: '#CFF7E6', fontSize: 10, marginTop: 2 }, routeStatDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.22)' },
   stickyPrimary: { minHeight: 54, margin: 16, marginBottom: 0, borderRadius: 17, backgroundColor: '#0F766E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, stickyPrimaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' }, offlinePendingCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 16, flexDirection: 'row', gap: 12 }, noticeCard: { margin: 16, marginBottom: 0, borderRadius: 18, backgroundColor: '#FFF5DE', borderWidth: 1, borderColor: '#F0D9A7', padding: 16, flexDirection: 'row', gap: 12 }, noticeCopy: { flex: 1 }, noticeTitle: { color: '#704000', fontSize: 14, fontWeight: '600' }, noticeText: { color: '#8A5A14', fontSize: 12, lineHeight: 18, marginTop: 2 },
   nextStopCard: { margin: 16, marginBottom: 0, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B8DDCE', padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#0F2A20', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 }, nextStopIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, nextStopCopy: { flex: 1, marginHorizontal: 12 }, nextStopEyebrow: { color: '#0F766E', fontSize: 10, fontWeight: '600', letterSpacing: 1 }, nextStopName: { color: '#17211D', fontSize: 16, fontWeight: '600', marginTop: 2 }, nextStopAddress: { color: '#64748B', fontSize: 11, marginTop: 2 },

@@ -20,6 +20,10 @@ export type RiderRouteMapProps = {
   stops?: RiderMapStop[];
   progressDone?: number;
   progressTotal?: number;
+  /** Highlights one stop pin (its map stop id) and gently recentres. */
+  activeStopId?: string | null;
+  /** Fired when the rider taps a stop pin on the map. */
+  onStopPress?: (stopId: string, sequence: number) => void;
 };
 
 const validCoordinate = (point?: Coordinate | null): point is Coordinate => Boolean(
@@ -30,13 +34,15 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal, activeStopId, onStopPress }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
+  const stopPressRef = useRef(onStopPress);
+  stopPressRef.current = onStopPress;
   const [hasFix, setHasFix] = useState(false);
   const [ready, setReady] = useState(false);
   const [navigationMode, setNavigationMode] = useState(false);
   const hasProgress = Number.isFinite(progressDone) && Number.isFinite(progressTotal) && (progressTotal as number) > 0;
-  const stopsKey = (stops || []).map((stop) => `${stop.sequence}:${stop.latitude}:${stop.longitude}:${stop.state}`).join('|');
+  const stopsKey = (stops || []).map((stop) => `${stop.id}:${stop.sequence}:${stop.slot}:${stop.latitude}:${stop.longitude}:${stop.state}:${stop.status}:${stop.label}:${stop.plan}:${stop.address}:${stop.multiSub ? 1 : 0}:${stop.cashDuePaise}:${stop.cashPaidPaise}:${stop.extraCount}:${stop.skipped ? 1 : 0}`).join('|');
   const html = useMemo(
     () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN, { stops }) : null,
     [destination?.latitude, destination?.longitude, destinationLabel, stopsKey],
@@ -66,6 +72,23 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
     webView.current?.injectJavaScript(`if(window.setRouteProgress){window.setRouteProgress(${progressDone},${progressTotal});}true;`);
   }, [ready, hasProgress, progressDone, progressTotal]);
 
+  // Keep the focused pin in sync as the bottom sheet moves between stops.
+  useEffect(() => {
+    if (!ready) return;
+    webView.current?.injectJavaScript(`if(window.setActiveStop){window.setActiveStop(${JSON.stringify(activeStopId || '')});}true;`);
+  }, [ready, activeStopId]);
+
+  const handleMessage = (event: { nativeEvent?: { data?: string } }) => {
+    const raw = event?.nativeEvent?.data;
+    if (!raw || typeof raw !== 'string') return;
+    try {
+      const payload = JSON.parse(raw);
+      if (payload?.type === 'stop-tap' && payload.id) stopPressRef.current?.(String(payload.id), Number(payload.sequence) || 0);
+    } catch {
+      // Ignore non-JSON messages (e.g. the style toggle); the map keeps working.
+    }
+  };
+
   useEffect(() => {
     if (!active) setNavigationMode(false);
   }, [active]);
@@ -94,6 +117,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
           domStorageEnabled={false}
           scrollEnabled={false}
           overScrollMode="never"
+          onMessage={handleMessage}
           onLoadEnd={() => {
             // Belt-and-braces seed in case the map's own load handler fired
             // before the first location was available.

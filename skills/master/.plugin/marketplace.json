@@ -1,0 +1,17 @@
+{
+  "name": "aagam-master",
+  "owner": {
+    "name": "AAGAM Retail Pvt. Ltd.",
+    "email": "saikumarbali55@gmail.com"
+  },
+  "metadata": {
+    "description": "Standalone skills published from the AAGAM_E-commerce repository."
+  },
+  "skills": [
+    {
+      "name": "master",
+      "source": "./",
+      "description": "Master engineering protocol - a rigorous, evidence-based, production-quality workflow for every software engineering task."
+    }
+  ]
+}

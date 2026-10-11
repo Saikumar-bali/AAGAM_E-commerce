@@ -911,11 +911,45 @@ export class DeliveryRunOperationsService {
 
     const curSlot = stop.subscriptionDelivery.deliverySlot || 'AM';
     const newSlot = dto.targetSlot || (curSlot === 'AM' ? 'PM' : 'AM');
+    if (newSlot === curSlot) {
+      return { success: true, newSlot };
+    }
 
-    await prisma.subscriptionDelivery.update({
-      where: { id: stop.subscriptionDeliveryId },
-      data: { deliverySlot: newSlot },
+    // (subscriptionId, serviceDate, deliverySlot) is unique, so a customer who
+    // already holds a delivery in the target slot that day (e.g. two active
+    // plans) would otherwise trip the constraint as an opaque HTTP 500.
+    const clash = await prisma.subscriptionDelivery.findFirst({
+      where: {
+        subscriptionId: stop.subscriptionDelivery.subscriptionId,
+        serviceDate: stop.subscriptionDelivery.serviceDate,
+        deliverySlot: newSlot,
+        id: { not: stop.subscriptionDeliveryId },
+      },
+      select: { id: true },
     });
+    if (clash) {
+      throw new BadRequestException(
+        `This customer already has a ${newSlot} delivery that day, so this stop cannot be moved to ${newSlot}.`,
+      );
+    }
+
+    try {
+      await prisma.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: { deliverySlot: newSlot },
+      });
+    } catch (error) {
+      // The pre-check above is not atomic with the write: a concurrent move can
+      // occupy the target slot between them. Surface that race as the same 400
+      // contract instead of an opaque Prisma unique-constraint 500. Rethrow
+      // everything else unchanged.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException(
+          `This customer already has a ${newSlot} delivery that day, so this stop cannot be moved to ${newSlot}.`,
+        );
+      }
+      throw error;
+    }
 
     return { success: true, newSlot };
   }

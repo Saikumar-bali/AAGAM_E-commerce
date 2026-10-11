@@ -31,7 +31,22 @@ export type RiderMapStop = {
   latitude: number;
   longitude: number;
   sequence: number;
+  id?: string;
   label?: string;
+  address?: string;
+  plan?: string;
+  status?: string;
+  multiSub?: boolean;
+  cashDuePaise?: number;
+  /** Cash already collected against this stop's day (a partial or full payment). */
+  cashPaidPaise?: number;
+  /** Extra/add-on milk units attached to this stop, if any. */
+  extraCount?: number;
+  /** True when the day was skipped rather than delivered/failed. */
+  skipped?: boolean;
+  /** Delivery window for this stop (AM/PM), shown when it differs per stop. */
+  slot?: string;
+  parcelCount?: number;
   state?: 'done' | 'current' | 'upcoming';
 };
 
@@ -50,10 +65,21 @@ export const buildRiderMapHtml = (
     (options.stops || [])
       .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
       .map((stop) => ({
+        id: stop.id || '',
         latitude: Number(stop.latitude),
         longitude: Number(stop.longitude),
         sequence: Number(stop.sequence) || 0,
         label: stop.label || '',
+        address: stop.address || '',
+        plan: stop.plan || '',
+        status: stop.status || '',
+        multiSub: Boolean(stop.multiSub),
+        cashDuePaise: Number(stop.cashDuePaise) || 0,
+        cashPaidPaise: Number(stop.cashPaidPaise) || 0,
+        extraCount: Number(stop.extraCount) || 0,
+        skipped: Boolean(stop.skipped),
+        slot: stop.slot || '',
+        parcelCount: Number(stop.parcelCount) || 0,
         state: stop.state || 'upcoming',
       })),
   );
@@ -82,12 +108,44 @@ html,body,#map{height:100%;margin:0;background:#e8f3ef}
 .stop-marker.current{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.28),0 2px 6px rgba(2,6,23,.45)}
 .stop-label{position:absolute;top:30px;left:50%;transform:translateX(-50%);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:9px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.12);color:#0f172a;font:600 10px/1.3 system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(15,23,42,.18)}
 .stop-marker.current .stop-label{background:#dc2626;border-color:#dc2626;color:#fff}
+.stop-marker.active{box-shadow:0 0 0 5px rgba(37,99,235,.55),0 2px 6px rgba(2,6,23,.45);z-index:3;transform:scale(1.12)}
+/* Status skins layered onto the circular marker so a stop reads without a tap. */
+.stop-marker.delivered{background:#0f9d63}
+.stop-marker.partial{background:#f59e0b}
+.stop-marker.failed{background:#dc2626}
+.stop-marker.no-pin{background:#0f766e}
+.stop-marker.extra-milk{box-shadow:0 0 0 3.5px rgba(59,130,246,.9),0 2px 6px rgba(2,6,23,.45)}
+.stop-badges{position:absolute;top:29px;left:50%;transform:translateX(-50%);display:flex;gap:3px;align-items:center;white-space:nowrap}
+.stop-badge{display:flex;align-items:center;gap:2px;padding:1px 5px;border-radius:8px;font:700 9px/1.5 system-ui,-apple-system,sans-serif;border:1px solid transparent;box-shadow:0 1px 3px rgba(15,23,42,.18)}
+.stop-badge.paid{background:#e7f7ee;color:#075e45;border-color:#b7e4d7}
+.stop-badge.partial{background:#fff3d6;color:#8a4b00;border-color:#f3d59b}
+.stop-badge.skip{background:#eef2f6;color:#475569;border-color:#d5dde5}
+.stop-badge.extra{background:#e7efff;color:#1d4ed8;border-color:#c2d4ff}
+.map-legend{position:absolute;right:10px;bottom:12px;z-index:6;display:flex;flex-direction:column;gap:6px;padding:9px 11px;border-radius:14px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.1);box-shadow:0 4px 14px rgba(2,6,23,.2);font:600 10px/1.3 system-ui,-apple-system,sans-serif;color:#334155}
+.map-legend .legend-title{font:700 9px/1 system-ui,-apple-system,sans-serif;letter-spacing:1px;color:#0f766e;margin-bottom:2px}
+.map-legend .legend-row{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.map-legend .legend-dot{width:11px;height:11px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,.18)}
+.map-legend .legend-dot.delivered{background:#0f9d63}
+.map-legend .legend-dot.partial{background:#f59e0b}
+.map-legend .legend-dot.pending{background:#0f766e}
+.map-legend .legend-dot.skip{background:#94a3b8}
+.map-legend .legend-dot.extra{background:#3b82f6}
+.mapboxgl-popup-content{border-radius:12px;padding:9px 11px;font:500 11px/1.45 system-ui,-apple-system,sans-serif;box-shadow:0 6px 18px rgba(2,6,23,.24)}
+.mapboxgl-popup-content b{font-weight:700}
 .map-progress{position:absolute;left:10px;bottom:10px;z-index:6;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;background:rgba(11,27,58,.92);color:#fff;font:600 11px/1 system-ui,-apple-system,sans-serif;box-shadow:0 4px 14px rgba(2,6,23,.34)}
 .map-progress .bar{position:relative;width:74px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
 .map-progress .bar > i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:#34d399}
 </style>
 </head><body><div id="map"></div>
 <div class="map-progress" id="map-progress" style="display:none"><div class="bar"><i id="map-progress-fill" style="width:0%"></i></div><span id="map-progress-text"></span></div>
+<div class="map-legend" id="map-legend">
+  <div class="legend-title">STOP KEY</div>
+  <div class="legend-row"><span class="legend-dot pending"></span>To deliver</div>
+  <div class="legend-row"><span class="legend-dot delivered"></span>Delivered</div>
+  <div class="legend-row"><span class="legend-dot partial"></span>Part-paid</div>
+  <div class="legend-row"><span class="legend-dot skip"></span>Skipped</div>
+  <div class="legend-row"><span class="legend-dot extra"></span>Extra milk</div>
+</div>
 <div class="map-nav-banner" id="map-nav-banner"><div class="map-nav-arrow" id="map-nav-arrow">&#9650;</div><div class="map-nav-copy"><div class="map-nav-instruction" id="map-nav-instruction">Starting…</div><div class="map-nav-meta" id="map-nav-meta"></div></div></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.js"></script><script>
 mapboxgl.accessToken = '${token}';
@@ -135,24 +193,128 @@ new mapboxgl.Marker({ element: destEl, anchor: 'bottom' })
 var STOP_STATE_LABEL = { done: 'Delivered', current: 'Current stop', upcoming: 'Upcoming stop' };
 var routeStops = ${stopsJson};
 var stopMarkers = [];
+
+function postToRN(message) {
+  try {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    } else if (window.parent && window.parent !== window) {
+      window.parent.postMessage(JSON.stringify(message), '*');
+    }
+  } catch (e) {}
+}
+
+// Customer-controlled fields (name, address, plan) are rendered as HTML in the
+// popup via setHTML, so escape them first: an unescaped tag or attribute in a
+// name would otherwise run script inside the rider WebView.
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function stopPopupHtml(stop) {
+  var bits = [];
+  if (stop.label) bits.push('<b>' + esc(stop.label) + '</b>');
+  if (stop.plan) bits.push(esc(stop.plan));
+  if (stop.address) bits.push(esc(stop.address));
+  if (stop.multiSub) bits.push('2 subscriptions');
+  var paid = Number(stop.cashPaidPaise) || 0;
+  var due = Number(stop.cashDuePaise) || 0;
+  if (due > 0) {
+    if (paid > 0) bits.push('Collected ₹' + (paid / 100).toFixed(0) + ' of ₹' + (due / 100).toFixed(0));
+    else bits.push('Collect ₹' + (due / 100).toFixed(0));
+  } else if (paid > 0) {
+    bits.push('Collected ₹' + (paid / 100).toFixed(0));
+  } else {
+    bits.push('Prepaid');
+  }
+  if (Number(stop.extraCount) > 0) bits.push('+' + stop.extraCount + 'L extra milk');
+  if (stop.slot) bits.push(stop.slot + ' slot');
+  bits.push(stop.skipped ? 'Skipped' : (STOP_STATE_LABEL[stop.state] || 'Stop'));
+  return bits.join('<br/>');
+}
+
+// Two-letter status ring + compact signal badges under the pin, so a stop shows
+// what happened to it (delivered / part-paid / skipped / extra) at a glance.
+function markerClassFor(stop) {
+  var cls = 'stop-marker';
+  if (stop.skipped) cls += ' skip';
+  else if (stop.status === 'DELIVERED' || stop.status === 'COMPLETED' || stop.state === 'done') cls += ' delivered';
+  else if (stop.status === 'FAILED' || stop.status === 'RETURNED') cls += ' failed';
+  else if (Number(stop.cashPaidPaise) > 0 && Number(stop.cashDuePaise) > Number(stop.cashPaidPaise)) cls += ' partial';
+  else cls += ' no-pin';
+  if (stop.state === 'current') cls += ' current';
+  if (Number(stop.extraCount) > 0) cls += ' extra-milk';
+  return cls;
+}
+
+function badgesFor(stop) {
+  var badges = [];
+  var paid = Number(stop.cashPaidPaise) || 0;
+  var due = Number(stop.cashDuePaise) || 0;
+  var fullyPaid = (paid > 0 && paid >= due) || (due > 0 && paid >= due);
+  if (fullyPaid) badges.push('<span class="stop-badge paid">&#8377;' + (paid / 100).toFixed(0) + '</span>');
+  else if (paid > 0) badges.push('<span class="stop-badge partial">&#8377;' + (paid / 100).toFixed(0) + '</span>');
+  else if (stop.status === 'DELIVERED' && due <= 0) badges.push('<span class="stop-badge paid">paid</span>');
+  if (stop.skipped) badges.push('<span class="stop-badge skip">skip</span>');
+  if (Number(stop.extraCount) > 0) badges.push('<span class="stop-badge extra">+' + stop.extraCount + 'L</span>');
+  return badges.length ? badges.join('') : '';
+}
+
 for (var si = 0; si < routeStops.length; si++) {
   (function (stop) {
     var el = document.createElement('div');
-    el.className = 'stop-marker' + (stop.state === 'done' ? ' done' : stop.state === 'current' ? ' current' : '');
+    el.className = markerClassFor(stop);
+    el.setAttribute('data-seq', String(stop.sequence || ''));
+    if (stop.id) el.setAttribute('data-id', stop.id);
+    if (stop.status) el.setAttribute('data-status', stop.status);
     el.textContent = String(stop.sequence || '');
+    var badgeHtml = badgesFor(stop);
+    if (badgeHtml) {
+      var badgeWrap = document.createElement('div');
+      badgeWrap.className = 'stop-badges';
+      badgeWrap.innerHTML = badgeHtml;
+      el.appendChild(badgeWrap);
+    }
     if (stop.label) {
       var nameEl = document.createElement('div');
       nameEl.className = 'stop-label';
       nameEl.textContent = stop.label;
       el.appendChild(nameEl);
     }
-    var popupText = (stop.label ? stop.label + ' · ' : '') + (STOP_STATE_LABEL[stop.state] || 'Stop');
-    stopMarkers.push(new mapboxgl.Marker({ element: el, anchor: 'center' })
+    el.addEventListener('click', function (event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+      postToRN({ type: 'stop-tap', id: stop.id, sequence: stop.sequence });
+    });
+    var marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
       .setLngLat([stop.longitude, stop.latitude])
-      .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false }).setText(popupText))
-      .addTo(map));
+      .setPopup(new mapboxgl.Popup({ offset: 14, closeButton: false }).setHTML(stopPopupHtml(stop)))
+      .addTo(map);
+    stopMarkers.push({ id: stop.id, sequence: stop.sequence, el: el, marker: marker });
   })(routeStops[si]);
 }
+
+// The key is only meaningful when there is more than one stop to tell apart.
+(function () {
+  var legend = document.getElementById('map-legend');
+  if (legend && routeStops.length < 2) legend.style.display = 'none';
+})();
+
+// Highlight one stop as the focused/current pin. The native app drives this as
+// the rider moves the bottom sheet, so the map and the sheet never disagree.
+window.setActiveStop = function (id) {
+  for (var k = 0; k < stopMarkers.length; k++) {
+    var entry = stopMarkers[k];
+    if (!entry || !entry.el) continue;
+    var isActive = String(entry.id) === String(id);
+    entry.el.classList.toggle('active', isActive);
+    entry.el.classList.toggle('current', isActive);
+    if (isActive) {
+      try { map.easeTo({ center: [entry.marker.getLngLat().lng, entry.marker.getLngLat().lat], zoom: Math.max(map.getZoom(), 14.5), duration: 600 }); } catch (e) {}
+    }
+  }
+};
 
 // Mirror the run's progress bar on the map so the stop sheet keeps the same
 // progress context the main screen shows without repeating the header stats.
