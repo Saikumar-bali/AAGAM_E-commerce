@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { createRealtimeSocket } from '@/lib/realtimeSocket';
@@ -116,7 +116,14 @@ export default function AdminOrdersPage() {
     window.open(href, '_blank', 'noopener,noreferrer');
   };
 
+  // Orders come from a debounced filter refetch and from page clicks; keeping
+  // the highest request issued so far and ignoring any older response stops a
+  // slow search response from landing after a pagination click and silently
+  // reverting the page.
+  const ordersRequestRef = useRef(0);
+
   const fetchOrders = async (targetPage: number = page) => {
+    const requestId = ++ordersRequestRef.current;
     try {
       setLoading(true);
       // Filters run server-side so the endpoint only ever loads one page.
@@ -124,6 +131,7 @@ export default function AdminOrdersPage() {
       if (statusFilter && statusFilter !== 'All') params.status = statusFilter;
       if (searchTerm.trim()) params.search = searchTerm.trim();
       const response = await apiClient.get('/orders', { params });
+      if (requestId !== ordersRequestRef.current) return;
       const payload = response.data;
       setOrders(Array.isArray(payload?.items) ? payload.items : []);
       setTotal(payload?.total ?? 0);
@@ -132,7 +140,7 @@ export default function AdminOrdersPage() {
     } catch (err) {
       console.error('Failed to fetch orders', err);
     } finally {
-      setLoading(false);
+      if (requestId === ordersRequestRef.current) setLoading(false);
     }
   };
 
