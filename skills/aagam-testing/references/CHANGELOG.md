@@ -584,3 +584,130 @@ human), what changed, why.
   - Regression: `offline-customer-purge-run-counters.e2e.spec.ts` (purge with a
     run stop -> run counters equal the surviving rows; verified it fails on the
     pre-fix code and passes after).
+
+- **2026-10-11 · v1.7.0 · openhands (preview harness: live aagaam.in mode + token-free maps)**
+  - `mobile-web-preview/server.js` can now serve a second, live copy of every
+    RN app from the same port: set `AAGAAM_LIVE_ORIGIN=https://aagaam.in` and the
+    apps are served under `/live/<app>/` with their `/live/api` calls proxied to
+    `https://aagaam.in/api` (same-origin, so no CORS and no cross-origin call).
+    `/preview/<app>/` still targets the local gateway. Only ports 12000/12001 are
+    exposed on the work host and 12000 is the admin dashboard, so both modes are
+    multiplexed on 12001. `proxyHttp` now selects `https` vs `http` by scheme
+    (previously it always used `http`, which could not reach `aagaam.in`), and
+    `/live/socket.io` upgrades are proxied to the live origin.
+  - Token-free maps: no valid Mapbox token exists in the repo, git history or the
+    deployed VPS `.env`, so the harness now swaps the real Mapbox GL page for the
+    token-free SVG mock in the **real apps** too (`USE_MAP_MOCK`), not only the
+    `rider-map` preview. Also fixed the runtime-token path: the native resolvers
+    return a usable token only under `NODE_ENV=test`, so the bundle drives
+    webpack `optimization.nodeEnv=test` (was a conflicting `process.env.NODE_ENV`
+    define that warned and left production builds token-less).
+  - `webpack.config.js` gained `OUT_DIR`/`PUBLIC_BASE`; `run.sh all` builds the
+    local copy (`dist/`, `/preview`, `API_URL=/api`) and the live copy
+    (`dist-live/`, `/live`, `API_URL=/live/api`). Both apps render clean (no
+    console/page errors) in both modes; `/live/api/health` returns the prod
+    revision `7f8841007070cecb5aea36b28cafdc1e2d85e844`.
+  - Harness note: `mobile-web-preview/` is a tracked directory, not the
+    gitignored `agent_demo_shots/` scaffold this skill used to describe.
+
+- **2026-10-11 · v1.7.0 (cont.) · openhands (real Mapbox token wired in)**
+  - Corrected a false conclusion: a **valid** public Mapbox token DOES exist in
+    the deployed VPS env (`/opt/aagam/.env`, `EXPO_PUBLIC_MAPBOX_TOKEN` /
+    `NEXT_PUBLIC_MAPBOX_TOKEN`, verified 200 from the Mapbox styles API). The
+    earlier "no token anywhere" claim came from an unquoted grep that missed the
+    single-quoted `.env` value.
+  - Root cause of blank maps: `getMapboxToken` reads
+    `process.env.EXPO_PUBLIC_MAPBOX_TOKEN`, but webpack never populated
+    `process.env`, so a real `MAPBOX_TOKEN=` build still fell through to the dummy
+    `pk.test-dummy-token-for-jest`. `webpack.config.js` `DefinePlugin` now bakes
+    the Mapbox + Google public keys from a **gitignored**
+    `mobile-web-preview/.env` (auto-loaded by `run.sh` and `server.js`).
+  - With the real token the real Mapbox GL page renders: 33-37 tile requests,
+    all 200, one live `<canvas>`, in both `/preview` and `/live`. The token-free
+    SVG mock is now used only when no valid token is supplied (`USE_MAP_MOCK`),
+    so the `rider-map` preview also renders the real map when a token is present.
+  - BUG-031 rewritten to the true root cause; no server secrets are read or
+    written (only public client keys, kept out of version control).
+
+- **2026-10-11 · v1.7.0 (cont. 2) · openhands (mock-swap regex fix)**
+  - The mock-swap `NormalModuleReplacementPlugin` regex was
+    `components[\\/]rider[\\/]riderRouteMapHtml$`, but the apps import it
+    relatively as `./riderRouteMapHtml`, so the pattern never matched and the
+    token-free mock was never applied. Now `/riderRouteMapHtml(\.\w+)?$/`.
+    Verified in dev mode (comments survive): tokenless -> mock, real token ->
+    real Mapbox GL page.
+
+- **2026-10-11 · v1.7.1 · openhands (live rider completion attempt)**
+  - Added **BUG-032**: live rider run RUN-AAGA-AM-2026-10-11-f2ce is stuck at
+    pickup — storeHandoffConfirmedAt is stamped but packingConfirmedAt is null
+    and packedBagCount=0, so the rider receipt rejects with
+    "Verify exactly 2 route bags before pickup" and every stop fails with
+    "Delivery run is not in progress".
+  - Confirmed the rider has no rider-facing unblock: run packing/handoff and the
+    milk-grid quick action are all STORE_OWNER|ADMIN, and the portal
+    pickup/:jobId/verify only writes a checklist record.
+  - Recorded that the AAGAM_STORE_* / AAGAM_ADMIN_* demo logins and the VPS
+    STORE_* / ADMIN_* values are 401 on live (they belong to the separate demo
+    database). Do not force-clear the run by writing rows.
+
+- **2026-10-11 · v1.7.2 · openhands (live rider delivery completed)**
+  - Completed both stops on live run RUN-AAGA-AM-2026-10-11-f2ce as the rider:
+    arrive -> upload proof -> complete for Rani and Vaddi Venkatesh; run finished
+    (COMPLETED). Recorded the ₹200 for Rani store-side and set the rider ONLINE.
+  - Added **BUG-033**: the rider route board shows ₹0 due on a stop whose
+    subscription still owes ₹899.03 — the stop exposes the per-delivery
+    cashDuePaise (0) instead of the reconciled subscription balance, and the
+    rider app cannot call record-payment, so a partially funded balance is
+    uncollectable from the rider portal.
+  - Confirmed the rider completion path end to end: POST /upload/evidence
+    (multipart, magic-byte checked) -> storageKey -> complete with
+    {version,latitude,longitude,riderConfirmed,evidenceId}; job and order both
+    advance to DELIVERED.
+
+- **2026-10-11 · v1.7.3 · openhands (rider completion blocker fixed)**
+  - Added **BUG-034**: a stop with `proofMode = RIDER_PHOTO_GPS` but a stale
+    `subscription.deliveryMethod = TRUSTED_DROP` could not be completed from the
+    rider app — the guard demanded a Trusted Drop QR while the UI (keyed on
+    `proofMode`) showed the photo path, so "Verify and complete this stop" threw
+    "Scan the current Trusted Drop QR" and never called `/complete`.
+  - Fixed `RiderRunDetailScreen.tsx`, `RiderRunConsole.tsx` and
+    `(rider)/rider/runs/page.tsx` to derive trusted-drop from `proofMode` first
+    (fallback to `deliveryMethod`, always `cashDuePaise === 0`) via one
+    `isTrustedDropStop` helper each.
+  - Verified live: completed Rani's stop → 201, stop/job/order all DELIVERED, run
+    COMPLETED (2/2).
+  - Documented the mobile-web-preview proxy links for both apps (customer +
+    partners) under `/preview` (local gateway on `AAGAAM_DATABASE`) and `/live`
+    (aagaam.in), plus `/preview/rider-map/`.
+
+
+- **2026-10-11 · v1.8.0 · openhands (store-first assignment; rider Home trimmed; Rapido-style alert)**
+  - Added **BUG-035**: stale subscription days resurfaced on the rider board. The
+    rider Home showed 18 "active" jobs, 10 of them linked to already-terminal
+    subscription cells (5 `DELIVERED`, 5 `FAILED`). `RiderPortalService.activeJobs()`
+    / `activeJob()` now also exclude any order whose `subscriptionDelivery` is
+    terminal (`DELIVERED|SKIPPED|CANCELLED|FAILED|RESCHEDULED`); the missed-day
+    resolver (`resolveMissedDeliveries`) runs from the preparation `flush()`.
+    Verified on `AAGAAM_DATABASE`: 21 past-day `SCHEDULED` cells → `SKIPPED`
+    (skipped 35→56, scheduled 39→18); rider `activeJobs` 18→16.
+  - Added **BUG-036**: subscription deliveries were auto-offered to riders by two
+    background sweeps before the store assigned. Fixed to **store-first**: the
+    generic `AutoDispatchService` sweep skips subscription orders
+    (`subscriptionDeliveryId: null`, reason `STORE_ASSIGNED_DELIVERY`) and the
+    planner's final-assignment step is gated behind `SUBSCRIPTION_AUTO_FINAL_ASSIGN`
+    (off by default). Locked by `auto-dispatch-recovery.contract.spec.ts`.
+  - **Rider Home is now assigned-deliveries only.** Job Offers and the
+    Online/Offline toggle were removed from `RiderDashboard.tsx`; the toggle and
+    "Tracking and GPS diagnostics" moved to `RiderProfileScreen.tsx`
+    (`rider_availability_switch`). `notifications.contract.spec.ts` updated for the
+    asset-based sound.
+  - **Rapido-style rider alert (mobile-partners Android).** Replaced the
+    synthesized default tone with a bundled urgent two-stage WAV asset
+    (`android/app/src/main/res/raw/rider_alert.wav`), played by
+    `PartnerAlertToneModule.kt` via `MediaPlayer`; the background channel sound is
+    the same asset and the channel id was bumped `aagam_priority_operations_v3` →
+    `v4` in `MainApplication.kt` and `AndroidManifest.xml`.
+  - Route console: added a "Navigate to customer" hand-off
+    (`RouteConsoleScreen.tsx`, `rider_navigate_to_customer`) that opens the device
+    map app to the stop's coordinates (address fallback).
+  - Documented rider Home scope in `references/flows.md`.

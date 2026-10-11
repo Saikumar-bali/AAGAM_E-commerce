@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiClient } from '@aagam/utils';
 import { createRealtimeSocket } from '@/lib/realtimeSocket';
@@ -73,6 +73,11 @@ export default function AdminOrdersPage() {
   const [reassignUserId, setReassignUserId] = useState('');
   const [reassigning, setReassigning] = useState(false);
   const [forceCompleting, setForceCompleting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(25);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState({ totalOrders: 0, pending: 0, delivered: 0, deliveredRevenue: 0 });
 
   const getAddressText = (order: Order) => {
     const a = order.addressSnapshot;
@@ -111,14 +116,31 @@ export default function AdminOrdersPage() {
     window.open(href, '_blank', 'noopener,noreferrer');
   };
 
-  const fetchOrders = async () => {
+  // Orders come from a debounced filter refetch and from page clicks; keeping
+  // the highest request issued so far and ignoring any older response stops a
+  // slow search response from landing after a pagination click and silently
+  // reverting the page.
+  const ordersRequestRef = useRef(0);
+
+  const fetchOrders = async (targetPage: number = page) => {
+    const requestId = ++ordersRequestRef.current;
     try {
-      const response = await apiClient.get('/orders');
-      setOrders(response.data);
+      setLoading(true);
+      // Filters run server-side so the endpoint only ever loads one page.
+      const params: Record<string, string | number> = { page: targetPage, pageSize };
+      if (statusFilter && statusFilter !== 'All') params.status = statusFilter;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      const response = await apiClient.get('/orders', { params });
+      if (requestId !== ordersRequestRef.current) return;
+      const payload = response.data;
+      setOrders(Array.isArray(payload?.items) ? payload.items : []);
+      setTotal(payload?.total ?? 0);
+      setTotalPages(payload?.totalPages ?? 1);
+      if (payload?.summary) setSummary(payload.summary);
     } catch (err) {
       console.error('Failed to fetch orders', err);
     } finally {
-      setLoading(false);
+      if (requestId === ordersRequestRef.current) setLoading(false);
     }
   };
 
@@ -134,7 +156,7 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     requestNotificationPermission();
-    fetchOrders();
+    fetchOrders(1);
     const s = createRealtimeSocket();
     s.on('connect', () => s.emit('joinAdminOrders'));
     s.on('connect_error', (socketError) => {
@@ -147,28 +169,34 @@ export default function AdminOrdersPage() {
         icon: '/favicon.ico',
         tag: 'new-order',
       });
-      setOrders((prev) => [{ id: payload.id, status: payload.status, totalAmount: payload.totalAmount, deliveryLat: null, deliveryLng: null, riderId: null, createdAt: payload.createdAt, customer: payload.customer, store: { name: payload.store?.name || '' }, items: [] }, ...prev]);
+      // The list is one page of a server-paginated set; reload page 1 so the new
+      // order appears in order and the totals stay consistent.
+      if (page === 1) fetchOrders(1);
     });
     return () => s.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-query the server whenever the filters change (debounced for search).
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setPage(1);
+      fetchOrders(1);
+    }, 350);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter]);
 
   const filteredOrders = orders.filter((order) => {
     const ageMinutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
     const isUnassigned = !order.riderId && ['CONFIRMED', 'PICKING', 'PACKED'].includes(order.status);
     const isAtRisk = (order.status === 'PENDING' && ageMinutes > 10) || (order.status === 'CONFIRMED' && ageMinutes > 20) || (order.status === 'OUT_FOR_DELIVERY' && ageMinutes > 45);
 
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.store?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer?.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.addressSnapshot?.phoneE164?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' ? true : order.status === statusFilter;
     const matchesQueue =
       queueFilter === 'ALL' ? true :
       queueFilter === 'AT_RISK' ? isAtRisk :
       isUnassigned;
-    return matchesSearch && matchesStatus && matchesQueue;
+    return matchesQueue;
   });
 
   const queueStats = useMemo(() => {
@@ -182,17 +210,13 @@ export default function AdminOrdersPage() {
     return { atRisk, unassigned };
   }, [orders]);
 
-  const totalRevenue = orders
-    .filter((order) => order.status === 'DELIVERED')
-    .reduce((acc, order) => acc + order.totalAmount, 0);
-  const pendingOrders = orders.filter((o) => o.status === 'PENDING').length;
-  const deliveredOrders = orders.filter((o) => o.status === 'DELIVERED').length;
-
+  // Server-side KPIs over the whole order table (see findAllPaginated summary),
+  // so the cards do not shrink to "this page only".
   const stats = [
-    { label: 'Total Orders', value: orders.length, icon: ShoppingCart, color: 'bg-blue-500' },
-    { label: 'Pending', value: pendingOrders, icon: Clock, color: 'bg-amber-500' },
-    { label: 'Delivered', value: deliveredOrders, icon: CheckCircle, color: 'bg-emerald-500' },
-    { label: 'Delivered Revenue', value: `₹${totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
+    { label: 'Total Orders', value: summary.totalOrders, icon: ShoppingCart, color: 'bg-blue-500' },
+    { label: 'Pending', value: summary.pending, icon: Clock, color: 'bg-amber-500' },
+    { label: 'Delivered', value: summary.delivered, icon: CheckCircle, color: 'bg-emerald-500' },
+    { label: 'Delivered Revenue', value: `₹${Number(summary.deliveredRevenue).toFixed(2)}`, icon: DollarSign, color: 'bg-purple-500' },
   ];
 
   const renderEtaSummary = () => {
@@ -355,7 +379,7 @@ export default function AdminOrdersPage() {
             <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
             <p className="text-gray-500">Track and manage all customer orders.</p>
           </div>
-          <button onClick={fetchOrders} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all  shadow-emerald-900/10">
+          <button onClick={() => fetchOrders(page)} className="flex items-center justify-center px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all  shadow-emerald-900/10">
             <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh Orders
           </button>
@@ -440,6 +464,29 @@ export default function AdminOrdersPage() {
               })}
             </tbody>
           </table>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="text-sm text-gray-500">
+            Showing {orders.length === 0 ? 0 : (page - 1) * pageSize + 1}–{(page - 1) * pageSize + orders.length} of {total}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { const next = Math.max(1, page - 1); setPage(next); fetchOrders(next); }}
+              disabled={page <= 1 || loading}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-sm font-medium text-gray-600">Page {page} / {totalPages}</span>
+            <button
+              onClick={() => { const next = Math.min(totalPages, page + 1); setPage(next); fetchOrders(next); }}
+              disabled={page >= totalPages || loading}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

@@ -12,16 +12,34 @@
  *   MAPBOX_TOKEN   injected as window.__ENV__ (optional)
  */
 const http = require('http');
+const https = require('https');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+
+// Optional local config (gitignored) with public client keys + origins, so
+// `node server.js` works on its own without exporting everything first.
+(function loadDotEnv() {
+  const file = path.resolve(__dirname, '.env');
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match) continue;
+    const value = match[2].replace(/^['"]|['"]$/g, '');
+    if (process.env[match[1]] === undefined) process.env[match[1]] = value;
+  }
+})();
 
 const PORT = parseInt(process.env.PORT || '12001', 10);
 const API_ORIGIN = (process.env.API_ORIGIN || 'http://127.0.0.1:3005').replace(/\/+$/, '');
 const STRIP_API_PREFIX = process.env.STRIP_API_PREFIX !== '0';
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '';
 const DIST = path.resolve(__dirname, 'dist');
+// Second copy of every app served under /live/<app>/ and built with
+// API_URL=/live/api, so its /live/api/* calls land on this live origin.
+const LIVE_ORIGIN = (process.env.AAGAAM_LIVE_ORIGIN || '').replace(/\/+$/, '');
+const DIST_LIVE = path.resolve(__dirname, 'dist-live');
 
 const apiUrl = new URL(API_ORIGIN);
 const API_PROTOCOL = apiUrl.protocol.replace(':', '');
@@ -49,19 +67,22 @@ function rateLimit(req, res, next) {
   next();
 }
 
-function proxyHttp(req, res, targetPath) {
-  const target = new URL(API_ORIGIN + targetPath);
+function proxyHttp(req, res, targetPath, origin = API_ORIGIN) {
+  const originUrl = new URL(origin);
+  const originProtocol = originUrl.protocol.replace(':', '');
+  const target = new URL(originUrl.origin + targetPath);
   const headers = { ...req.headers };
   delete headers.host;
   delete headers.origin;
   delete headers.referer;
-  headers.host = apiUrl.host;
+  headers.host = originUrl.host;
 
-  const upstream = http.request(
+  const client = originProtocol === 'https' ? https : http;
+  const upstream = client.request(
     {
-      protocol: apiUrl.protocol,
-      hostname: apiUrl.hostname,
-      port: apiUrl.port || (API_PROTOCOL === 'https' ? 443 : 80),
+      protocol: originUrl.protocol,
+      hostname: originUrl.hostname,
+      port: originUrl.port || (originProtocol === 'https' ? 443 : 80),
       path: target.pathname + target.search,
       method: req.method,
       headers,
@@ -73,7 +94,7 @@ function proxyHttp(req, res, targetPath) {
   );
   upstream.on('error', (error) => {
     if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: 'bad_gateway', message: error.message, apiOrigin: API_ORIGIN }));
+    res.end(JSON.stringify({ error: 'bad_gateway', message: error.message, apiOrigin: origin }));
   });
   req.pipe(upstream);
 }
@@ -81,13 +102,18 @@ function proxyHttp(req, res, targetPath) {
 // WebSocket upgrades (socket.io) are proxied at the TCP level.
 const server = http.createServer();
 server.on('upgrade', (req, socket, head) => {
+  const isLive = req.url.startsWith('/live/socket.io');
+  const origin = isLive && LIVE_ORIGIN ? LIVE_ORIGIN : API_ORIGIN;
+  const originUrl = new URL(origin);
+  const originProtocol = originUrl.protocol.replace(':', '');
   const upstream = net.connect(
-    Number(apiUrl.port) || (API_PROTOCOL === 'https' ? 443 : 80),
-    apiUrl.hostname,
+    Number(originUrl.port) || (originProtocol === 'https' ? 443 : 80),
+    originUrl.hostname,
     () => {
-      const headerLines = [`GET ${req.url} HTTP/1.1`];
+      const url = isLive ? req.url.replace(/^\/live/, '') : req.url;
+      const headerLines = [`GET ${url} HTTP/1.1`];
       for (const [key, value] of Object.entries(req.headers)) {
-        if (key.toLowerCase() === 'host') headerLines.push(`Host: ${apiUrl.host}`);
+        if (key.toLowerCase() === 'host') headerLines.push(`Host: ${originUrl.host}`);
         else headerLines.push(`${key}: ${value}`);
       }
       upstream.write(headerLines.join('\r\n') + '\r\n\r\n');
@@ -102,7 +128,7 @@ server.on('upgrade', (req, socket, head) => {
 const app = express();
 
 app.get('/__health', (_req, res) =>
-  res.json({ ok: true, apiOrigin: API_ORIGIN, stripApiPrefix: STRIP_API_PREFIX, port: PORT }),
+  res.json({ ok: true, apiOrigin: API_ORIGIN, stripApiPrefix: STRIP_API_PREFIX, liveOrigin: LIVE_ORIGIN || null, port: PORT }),
 );
 
 // Live-reload stream: the watcher below pings connected browsers on rebuild.
@@ -118,18 +144,29 @@ app.get('/__live', (req, res) => {
   req.on('close', () => clients.delete(res));
 });
 
-const APPS = ['mobile-partners', 'mobile-customer'];
+const APPS = ['mobile-partners', 'mobile-customer', 'rider-map'];
 
 // Throttle only the disk-reading static preview routes; health/live/proxy stay
 // unthrottled so hot-reload and API traffic are never dropped.
 app.use('/preview', rateLimit);
+// /live/* carries both the static bundles and the /live/api + /live/socket.io
+// proxies; throttle only the disk-reading static routes, never the API traffic.
+app.use('/live', (req, res, next) =>
+  req.path.startsWith('/api') || req.path.startsWith('/socket.io') ? next() : rateLimit(req, res, next),
+);
 
 app.use('/api', (req, res) => {
   const targetPath = STRIP_API_PREFIX ? req.url : '/api' + req.url;
-  proxyHttp(req, res, targetPath || '/');
+  proxyHttp(req, res, targetPath || '/', API_ORIGIN);
 });
 // socket.io connects to the origin root once API_URL ends in /api.
-app.use('/socket.io', (req, res) => proxyHttp(req, res, '/socket.io' + req.url));
+app.use('/socket.io', (req, res) => proxyHttp(req, res, '/socket.io' + req.url, API_ORIGIN));
+
+// Live copy: /live/api/* -> LIVE_ORIGIN + /api/*, /live/socket.io/* -> root.
+if (LIVE_ORIGIN) {
+  app.use('/live/api', (req, res) => proxyHttp(req, res, '/api' + req.url, LIVE_ORIGIN));
+  app.use('/live/socket.io', (req, res) => proxyHttp(req, res, '/socket.io' + req.url, LIVE_ORIGIN));
+}
 
 // Cache-bust the bundle per build (mtime+size). Without this a browser that
 // cached an older /bundle.js keeps it (the tag is unhashed and `max-age=0`
@@ -144,7 +181,7 @@ function bundleVersion(dir) {
   }
 }
 
-function injectEnv(html, name) {
+function injectEnv(html, distRoot, name, publicBase) {
   // Client keys are read from the DOM at runtime, never baked into the bundle.
   const env = {
     MAPBOX_TOKEN,
@@ -153,8 +190,11 @@ function injectEnv(html, name) {
     GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_WEB_CLIENT_ID || '',
     GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID || '',
   };
-  const version = bundleVersion(path.join(DIST, name));
-  const busted = html.replace(/(src=")(\/preview\/[^"]*\/bundle\.js)(")/, `$1$2?v=${version}$3`);
+  const version = bundleVersion(path.join(distRoot, name));
+  const busted = html.replace(
+    new RegExp(`(src=")(${publicBase}/[^"]*/bundle\\.js)(")`),
+    `$1$2?v=${version}$3`,
+  );
   return busted.replace(
     '</head>',
     `<script>window.__ENV__ = ${JSON.stringify(env)};</script>\n` +
@@ -166,42 +206,54 @@ function injectEnv(html, name) {
 // cached string, so no request path reads the filesystem. The cache is rebuilt
 // below whenever the watcher sees a new build.
 const indexCache = new Map();
-function buildIndex(name) {
-  const file = path.join(DIST, name, 'index.html');
+function buildIndex(distRoot, publicBase, name) {
+  const file = path.join(distRoot, name, 'index.html');
+  const key = `${publicBase}/${name}`;
   if (!fs.existsSync(file)) {
-    indexCache.set(name, null);
+    indexCache.set(key, null);
     return;
   }
-  indexCache.set(name, injectEnv(fs.readFileSync(file, 'utf8'), name));
+  indexCache.set(key, injectEnv(fs.readFileSync(file, 'utf8'), distRoot, name, publicBase));
 }
 
-for (const name of APPS) {
-  const dir = path.join(DIST, name);
-  buildIndex(name);
-  app.get(`/preview/${name}/`, (_req, res) => {
-    const html = indexCache.get(name);
-    if (!html) return res.status(503).send(`${name} not built yet. Run the build command.`);
-    res.type('html').send(html);
-  });
-  app.use(`/preview/${name}`, express.static(dir, { index: false }));
-  app.get(`/preview/${name}`, (_req, res) => res.redirect(`/preview/${name}/`));
+// Union of the local and live trees; either may be absent.
+function serveTree(distRoot, publicBase) {
+  for (const name of APPS) {
+    const dir = path.join(distRoot, name);
+    const key = `${publicBase}/${name}`;
+    buildIndex(distRoot, publicBase, name);
+    app.get(`${publicBase}/${name}/`, (_req, res) => {
+      const html = indexCache.get(key);
+      if (!html) return res.status(503).send(`${name} not built yet. Run the build command.`);
+      res.type('html').send(html);
+    });
+    app.use(`${publicBase}/${name}`, express.static(dir, { index: false }));
+    app.get(`${publicBase}/${name}`, (_req, res) => res.redirect(`${publicBase}/${name}/`));
+  }
 }
 
-app.get('/', (_req, res) =>
+serveTree(DIST, '/preview');
+if (LIVE_ORIGIN) serveTree(DIST_LIVE, '/live');
+
+app.get('/', (_req, res) => {
+  const li = (base) => APPS.map((a) => `<li><a href="${base}/${a}/">${a}</a></li>`).join('');
   res.type('html').send(
-    '<h1>AAGAM mobile web preview</h1><ul>' +
-      APPS.map((a) => `<li><a href="/preview/${a}/">${a}</a></li>`).join('') +
-      '</ul>',
-  ),
-);
+    '<h1>AAGAM mobile web preview</h1>' +
+      '<h2>Local api-gateway</h2><ul>' + li('/preview') + '</ul>' +
+      (LIVE_ORIGIN
+        ? `<h2>Live origin (${LIVE_ORIGIN})</h2><ul>` + li('/live') + '</ul>'
+        : '<p>Set AAGAAM_LIVE_ORIGIN to also serve the live copy.</p>'),
+  );
+});
 
-// Watch the built bundle and reload connected browsers.
+// Watch the built bundles and reload connected browsers.
 let reloadTimer = null;
-if (fs.existsSync(DIST)) {
-  fs.watch(DIST, { recursive: true }, () => {
+for (const [distRoot, publicBase] of [[DIST, '/preview'], [DIST_LIVE, '/live']]) {
+  if (!fs.existsSync(distRoot)) continue;
+  fs.watch(distRoot, { recursive: true }, () => {
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
-      for (const name of APPS) buildIndex(name);
+      for (const name of APPS) buildIndex(distRoot, publicBase, name);
       clients.forEach((client) => client.write('data: reload\n\n'));
     }, 250);
   });
@@ -212,4 +264,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[preview] listening on :${PORT}`);
   console.log(`[preview] /api -> ${API_ORIGIN}${STRIP_API_PREFIX ? '' : ' (prefix kept)'}`);
   console.log(`[preview] static: ${DIST}`);
+  if (LIVE_ORIGIN) console.log(`[preview] /live/api -> ${LIVE_ORIGIN}/api  (static: ${DIST_LIVE})`);
 });

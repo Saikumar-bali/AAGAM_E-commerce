@@ -144,9 +144,12 @@ describe('auto-dispatch recovery contracts', () => {
     expect(source).toContain('heartbeatController?.abort()');
   });
 
-  it('stops native availability and exposes permission remediation when refreshed workspace state is offline', () => {
+  it('keeps Home focused on assigned work while availability and diagnostics move to Profile', () => {
     const dashboard = read(
       'apps/mobile-partners/src/screens/rider/RiderDashboard.tsx',
+    );
+    const profile = read(
+      'apps/mobile-partners/src/screens/rider/RiderProfileScreen.tsx',
     );
     const availability = read(
       'apps/mobile-partners/src/services/RiderAvailabilityController.ts',
@@ -154,11 +157,18 @@ describe('auto-dispatch recovery contracts', () => {
     const diagnostics = read(
       'apps/mobile-partners/src/screens/rider/RiderTrackingDiagnosticsScreen.tsx',
     );
+    // Home still keeps the native heartbeat lifecycle alive and shows only the
+    // rider's assigned deliveries — no offers, no availability switch.
     expect(dashboard).toContain('RiderOnlineService.stop().catch');
-    expect(dashboard).toContain('permissionMissing');
     expect(dashboard).toContain('ensureRiderOnlineService');
-    expect(dashboard).toContain('performRiderOnlineTransition');
-    expect(dashboard).toContain("navigation?.navigate?.('TrackingDiagnostics')");
+    expect(dashboard).toContain('activeJobs');
+    expect(dashboard).not.toContain('pendingOffers');
+    expect(dashboard).not.toContain('performRiderOnlineTransition');
+    // Availability and diagnostics now live on Profile.
+    expect(profile).toContain('rider_availability_switch');
+    expect(profile).toContain('performRiderOnlineTransition');
+    expect(profile).toContain('performRiderOfflineTransition');
+    expect(profile).toContain("navigation.navigate('TrackingDiagnostics')");
     expect(availability).toContain('PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION');
     expect(availability).toContain('PermissionsAndroid.request(background');
     expect(availability).toContain('Linking.openSettings()');
@@ -168,6 +178,33 @@ describe('auto-dispatch recovery contracts', () => {
     expect(diagnostics).toContain('Open location permissions');
     expect(diagnostics).toContain('Open battery optimisation');
     expect(diagnostics).toContain('Retry health check');
+  });
+
+  it('keeps subscription deliveries store-first: no rider offer until the store assigns', () => {
+    const autoDispatch = read(
+      'apps/api-gateway/src/orders/auto-dispatch.service.ts',
+    );
+    const preparation = read(
+      'apps/api-gateway/src/subscriptions/subscription-preparation.service.ts',
+    );
+    // The generic nearest-rider sweep must skip subscription orders entirely...
+    expect(autoDispatch).toContain('order: { is: { subscriptionDeliveryId: null } }');
+    expect(autoDispatch).toContain('STORE_ASSIGNED_DELIVERY');
+    // ...and the scheduled final-assignment step is off unless explicitly enabled.
+    expect(preparation).toContain('SUBSCRIPTION_AUTO_FINAL_ASSIGN');
+    expect(preparation).toContain('autoFinalAssignEnabled');
+    expect(preparation).toContain('if (!this.autoFinalAssignEnabled()) return;');
+  });
+
+  it('resolves missed subscription delivery days so they stop shadowing the rider board', () => {
+    const preparation = read(
+      'apps/api-gateway/src/subscriptions/subscription-preparation.service.ts',
+    );
+    expect(preparation).toContain('resolveMissedDeliveries');
+    expect(preparation).toContain('MISSED_SKIP_REASON');
+    expect(preparation).toContain('MISSED_DELIVERY_GRACE_DAYS');
+    expect(preparation).toContain('cancelRiderArtifactsWithinTransaction');
+    expect(preparation).toContain('await this.resolveMissedDeliveries()');
   });
 
   it('stops the Rider availability heartbeat before signing out', () => {

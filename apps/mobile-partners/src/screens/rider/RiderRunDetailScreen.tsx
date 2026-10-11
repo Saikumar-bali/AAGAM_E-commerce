@@ -178,8 +178,17 @@ function StatusChip({ value }: { value: string }) {
   );
 }
 
+function isTrustedDropStop(stop: DeliveryRunStop): boolean {
+  // proofMode is stamped at order generation and is exactly what the server
+  // enforces in complete(); subscription.deliveryMethod can lag a later change,
+  // so a RIDER_PHOTO_GPS stop must complete with a photo, never a QR token.
+  if (stop.cashDuePaise !== 0) return false;
+  if (stop.proofMode) return stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO';
+  return stop.subscriptionDelivery?.subscription?.deliveryMethod === 'TRUSTED_DROP';
+}
+
 function proofDescriptor(stop: DeliveryRunStop): { kind: 'PHOTO_GPS' | 'TRUSTED_DROP' | 'OTP'; Icon: typeof Camera; tint: string; summary: string; quickLabel: string } {
-  const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS';
+  const isPhotoGps = stop.proofMode === 'RIDER_PHOTO_GPS';
   const method = stop.subscriptionDelivery?.subscription?.deliveryMethod;
   const cash = stop.cashDuePaise > 0;
   if (isPhotoGps) {
@@ -192,7 +201,7 @@ function proofDescriptor(stop: DeliveryRunStop): { kind: 'PHOTO_GPS' | 'TRUSTED_
   if (cash) {
     return { kind: 'OTP', Icon: Banknote, tint: '#A15C00', summary: `Collect exactly ${money(stop.cashDuePaise)} with customer OTP`, quickLabel: 'Deliver now' };
   }
-  if (method === 'TRUSTED_DROP') {
+  if (isTrustedDropStop(stop)) {
     return { kind: 'TRUSTED_DROP', Icon: Camera, tint: '#0F766E', summary: '₹0 due · one-time QR, arrival/completion GPS and fresh photo required', quickLabel: 'Deliver now' };
   }
   if (method === 'SECURITY_RECEPTION') {
@@ -552,8 +561,8 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const completeMutation = useMutation({
     mutationFn: async (stop: DeliveryRunStop) => {
       const coordinates = await currentLocation();
-      const isPhotoGps = (stop as any).proofMode === 'RIDER_PHOTO_GPS';
-      const trusted = stop.subscriptionDelivery?.subscription?.deliveryMethod === 'TRUSTED_DROP' && stop.cashDuePaise === 0;
+      const isPhotoGps = stop.proofMode === 'RIDER_PHOTO_GPS';
+      const trusted = isTrustedDropStop(stop);
       if (!(await PartnerConnectivity.getCurrent())) {
         if (trusted || isPhotoGps) {
           throw new Error('Reconnect before completing; delivery proof photos are verified online.');
@@ -881,7 +890,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                 <TouchableOpacity accessibilityLabel="Navigate to customer" style={styles.sheetChip} onPress={() => openNavigation(selectedStop)}><Navigation size={16} color="#0F766E" /><Text style={styles.sheetChipText}>Navigate</Text></TouchableOpacity>
                 {!showFullStop ? <TouchableOpacity accessibilityLabel="Show full stop details" style={styles.sheetChipGhost} onPress={() => setShowFullStop(true)}><Text style={styles.sheetChipGhostText}>More details</Text></TouchableOpacity> : null}
               </View>
-              <View style={selectedStop.cashDuePaise > 0 ? styles.cashDueBanner : styles.fundedBanner}><Banknote size={21} color={selectedStop.cashDuePaise > 0 ? '#8A4B00' : '#0F766E'} /><View style={styles.bannerCopy}><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueTitle : styles.fundedTitle}>{selectedStop.cashDuePaise > 0 ? `${money(selectedStop.cashDuePaise)} due now` : 'Customer amount due: ₹0'}</Text><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueText : styles.fundedText}>{selectedStop.cashDuePaise > 0 ? ((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery) ? 'Collect the exact cash amount and take delivery photo proof. No OTP needed.' : 'Collect the exact amount only after valid OTP.') : 'Subscription already funded. Do not collect cash.'}</Text></View></View>
+              <View style={selectedStop.cashDuePaise > 0 ? styles.cashDueBanner : styles.fundedBanner}><Banknote size={21} color={selectedStop.cashDuePaise > 0 ? '#8A4B00' : '#0F766E'} /><View style={styles.bannerCopy}><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueTitle : styles.fundedTitle}>{selectedStop.cashDuePaise > 0 ? `${money(selectedStop.cashDuePaise)} due now` : 'Customer amount due: ₹0'}</Text><Text style={selectedStop.cashDuePaise > 0 ? styles.cashDueText : styles.fundedText}>{selectedStop.cashDuePaise > 0 ? (selectedStop.proofMode === 'RIDER_PHOTO_GPS' || Boolean(selectedStop.subscriptionDelivery) ? 'Collect the exact cash amount and take delivery photo proof. No OTP needed.' : 'Collect the exact amount only after valid OTP.') : 'Subscription already funded. Do not collect cash.'}</Text></View></View>
 
               {selectedStop.cashDuePaise > 0 || Number(selectedStop.subscriptionDelivery?.cashCollectedPaise || 0) > 0 ? (() => {
                 const outstanding = stopOutstandingPaise(selectedStop);
@@ -1123,7 +1132,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                 </View>
               ) : null}
               {selectedStop.status === 'ARRIVED' ? <>
-                {((selectedStop as any).proofMode === 'RIDER_PHOTO_GPS') ? (
+                {(selectedStop.proofMode === 'RIDER_PHOTO_GPS') ? (
                   <>
                     <Text style={styles.inputLabel}>Delivery Photo Proof</Text>
                     <TouchableOpacity
@@ -1140,8 +1149,8 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
                   </>
                 ) : (
                   <>
-                    {!(selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0) ? <TouchableOpacity style={styles.otpButton} disabled={otpMutation.isPending} onPress={() => otpMutation.mutate(selectedStop)}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{otpMutation.isPending ? 'Sending OTP…' : 'Send / resend OTP'}</Text></TouchableOpacity> : null}
-                    {selectedStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && selectedStop.cashDuePaise === 0 ? <><Text style={styles.inputLabel}>One-time Trusted Drop QR</Text><TouchableOpacity style={styles.otpButton} disabled={scanTrustedDropMutation.isPending} onPress={() => scanTrustedDropMutation.mutate()}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{dropToken ? 'QR scanned · scan again' : scanTrustedDropMutation.isPending ? 'Opening scanner…' : 'Scan customer QR'}</Text></TouchableOpacity><Text style={styles.inputLabel}>Fresh drop photo</Text><TouchableOpacity style={styles.otpButton} disabled={!dropToken || evidenceMutation.isPending} onPress={() => evidenceMutation.mutate({ stop: selectedStop, photoGpsOnly: false })}><Camera size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{trustedEvidenceId ? `Photo secured · ${trustedEvidenceName || 'evidence ready'}` : evidenceMutation.isPending ? 'Uploading secure photo…' : 'Take delivery photo'}</Text></TouchableOpacity><Text style={styles.fundedText}>The QR secret is never saved for offline replay. If connectivity changes before completion, rescan the current QR.</Text></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
+                    {!isTrustedDropStop(selectedStop) ? <TouchableOpacity style={styles.otpButton} disabled={otpMutation.isPending} onPress={() => otpMutation.mutate(selectedStop)}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{otpMutation.isPending ? 'Sending OTP…' : 'Send / resend OTP'}</Text></TouchableOpacity> : null}
+                    {isTrustedDropStop(selectedStop) ? <><Text style={styles.inputLabel}>One-time Trusted Drop QR</Text><TouchableOpacity style={styles.otpButton} disabled={scanTrustedDropMutation.isPending} onPress={() => scanTrustedDropMutation.mutate()}><KeyRound size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{dropToken ? 'QR scanned · scan again' : scanTrustedDropMutation.isPending ? 'Opening scanner…' : 'Scan customer QR'}</Text></TouchableOpacity><Text style={styles.inputLabel}>Fresh drop photo</Text><TouchableOpacity style={styles.otpButton} disabled={!dropToken || evidenceMutation.isPending} onPress={() => evidenceMutation.mutate({ stop: selectedStop, photoGpsOnly: false })}><Camera size={19} color="#0F766E" /><Text style={styles.otpButtonText}>{trustedEvidenceId ? `Photo secured · ${trustedEvidenceName || 'evidence ready'}` : evidenceMutation.isPending ? 'Uploading secure photo…' : 'Take delivery photo'}</Text></TouchableOpacity><Text style={styles.fundedText}>The QR secret is never saved for offline replay. If connectivity changes before completion, rescan the current QR.</Text></> : <><Text style={styles.inputLabel}>Six-digit OTP</Text><TextInput style={[styles.input, styles.otpInput]} value={otpCode} onChangeText={(value) => setOtpCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="000000" placeholderTextColor="#94A3B8" /></>}
                   </>
                 )}
                 <Text style={styles.inputLabel}>Delivery note (optional)</Text><TextInput style={[styles.input, styles.noteInput]} multiline value={deliveryNote} onChangeText={setDeliveryNote} placeholder="Quantity confirmed, drop location, recipient…" placeholderTextColor="#94A3B8" />

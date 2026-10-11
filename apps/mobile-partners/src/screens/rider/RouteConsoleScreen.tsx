@@ -219,6 +219,16 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
     navigation.navigate('RiderRunDetail', { runId: run.id });
   };
 
+  // Live navigation to the customer: prefer the stop's coordinates, fall back
+  // to the formatted address, and hand off to the device map app.
+  const navigateToStop = (stop: DeliveryRunStop) => {
+    const point = stopCoordinates(stop);
+    const target = point
+      ? `${point.latitude},${point.longitude}`
+      : encodeURIComponent(addressFrom(stop));
+    void Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${target}&travelmode=driving`);
+  };
+
   const runTone = run ? statusChipTone(run.status) : statusChipTone('PLANNED');
   const busy = arriveMutation.isPending || runMutation.isPending;
 
@@ -369,6 +379,12 @@ export const RouteConsoleScreen = ({ navigation }: { navigation: NavigationProp<
                 <View style={styles.metaRow}><Package size={15} color="#64748B" /><Text style={styles.metaText}>{activeStop.expectedParcelCount || activeStop.expectedItemCount || 1} parcel(s)</Text></View>
                 {activeStop.cashDuePaise > 0 ? <View style={styles.metaRow}><Banknote size={15} color="#B45309" /><Text style={[styles.metaText, styles.cashText]}>Collect {money(activeStop.cashDuePaise)}</Text></View> : null}
               </View>
+              {['ARRIVED', 'READY', 'PLANNED', 'RETRY_PENDING'].includes(activeStop.status) ? (
+                <TouchableOpacity accessibilityRole="button" testID="rider_navigate_to_customer" style={styles.navigateButton} onPress={() => navigateToStop(activeStop)}>
+                  <Navigation size={18} color="#FFFFFF" />
+                  <Text style={styles.navigateText}>Navigate to customer</Text>
+                </TouchableOpacity>
+              ) : null}
               {heroAction}
               {activeStop.proofMode === 'RIDER_PHOTO_GPS' ? (
                 <TouchableOpacity style={styles.linkButton} onPress={() => openFullProof()}>
@@ -463,5 +479,7 @@ const styles = StyleSheet.create({
   infoTile: { marginHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E6F4EF', borderRadius: 12, padding: 12 },
   infoText: { color: '#0F766E', fontSize: 12, fontWeight: '600', flex: 1 },
   linkButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 4 },
+  navigateButton: { minHeight: 48, borderRadius: 15, backgroundColor: '#0F766E', marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  navigateText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   linkText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
 });

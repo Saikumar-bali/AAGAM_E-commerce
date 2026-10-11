@@ -20,6 +20,7 @@ import { randomUUID } from 'crypto';
 import { enqueueOutboxEvent } from '../notifications/outbox.service';
 import { captureBackgroundError } from '../common/sentry-config';
 import { RegionalRoutePlanningService } from './regional-route-planning.service';
+import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
 import {
   StoreStockReadinessDecision,
   UpdateSubscriptionPreparationPolicyDto,
@@ -36,6 +37,9 @@ const TERMINAL_DELIVERY_STATUSES: SubscriptionDeliveryStatus[] = [
   SubscriptionDeliveryStatus.SKIPPED,
   SubscriptionDeliveryStatus.CANCELLED,
 ];
+
+/** Marker for a delivery day that was never delivered and is now settled as missed. */
+export const MISSED_SKIP_REASON = 'MISSED';
 
 function startOfUtcDay(value: Date | string) {
   const date = new Date(value);
@@ -91,7 +95,10 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
   private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(private readonly regionalPlanner: RegionalRoutePlanningService) {}
+  constructor(
+    private readonly regionalPlanner: RegionalRoutePlanningService,
+    private readonly lifecycle: SubscriptionLifecycleService,
+  ) {}
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
@@ -117,6 +124,7 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
     if (this.running) return;
     this.running = true;
     try {
+      await this.resolveMissedDeliveries();
       await this.ensureMinimumPreparationLead();
       await this.notifyNewSubscriptions();
       await this.notifyUpcomingPreparation();
@@ -296,7 +304,93 @@ export class SubscriptionPreparationService implements OnModuleInit, OnModuleDes
     }
   }
 
+  /**
+   * Store-first rider assignment. Automatic route planning may build a run
+   * (riderId null), but the last step of handing that run to a rider is the
+   * store's decision. Default keeps final assignment off so a subscription
+   * delivery reaches a rider only via the store's dispatch action; set
+   * `SUBSCRIPTION_AUTO_FINAL_ASSIGN=true` to restore the old auto-assign.
+   */
+  private autoFinalAssignEnabled() {
+    return process.env.SUBSCRIPTION_AUTO_FINAL_ASSIGN === 'true';
+  }
+
+  /**
+   * Settles subscription delivery days whose service date is already past and
+   * that were never delivered, so they stop shadowing an order/job on the rider
+   * network forever ("the rider keeps seeing last week's stop").
+   *
+   * A day still leaves a grace window after its service date before this runs,
+   * because a late-evening run may be completed after midnight UTC. Each missed
+   * day is marked SKIPPED (reason MISSED), its order/job/run-stop are cancelled
+   * through the shared lifecycle teardown, and the order is closed. Runs emptied
+   * by the teardown are cancelled and their rider reconciled by the lifecycle
+   * helper.
+   */
+  async resolveMissedDeliveries(now: Date = new Date()): Promise<number> {
+    const graceStart = startOfUtcDay(now);
+    graceStart.setUTCDate(graceStart.getUTCDate() - this.missedGraceDays());
+    const missed = await prisma.subscriptionDelivery.findMany({
+      where: {
+        serviceDate: { lt: graceStart },
+        status: { notIn: TERMINAL_DELIVERY_STATUSES },
+        subscription: { status: { not: CustomerSubscriptionStatus.CANCELLED } },
+      },
+      select: { id: true, order: { select: { id: true } } },
+      orderBy: { serviceDate: 'asc' },
+      take: 500,
+    });
+
+    let resolved = 0;
+    for (const delivery of missed) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          const claimed = await tx.subscriptionDelivery.updateMany({
+            where: { id: delivery.id, status: { notIn: TERMINAL_DELIVERY_STATUSES } },
+            data: {
+              status: SubscriptionDeliveryStatus.SKIPPED,
+              skipReason: MISSED_SKIP_REASON,
+              skippedAt: now,
+            },
+          });
+          if (claimed.count === 0) return;
+
+          await this.lifecycle.cancelRiderArtifactsWithinTransaction(
+            tx,
+            delivery.id,
+            MISSED_SKIP_REASON,
+            { cancelOrder: false },
+          );
+
+          if (delivery.order) {
+            await tx.order.updateMany({
+              where: { id: delivery.order.id, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+              data: { status: 'CANCELLED', cancelledAt: now },
+            });
+          }
+        });
+        resolved += 1;
+      } catch (error: unknown) {
+        captureBackgroundError(
+          this.logger,
+          `Missed-delivery resolution failed for ${delivery.id}`,
+          error,
+        );
+      }
+    }
+    if (resolved > 0) {
+      this.logger.log(`Resolved ${resolved} missed subscription delivery day(s)`);
+    }
+    return resolved;
+  }
+
+  /** Grace window after a service date before it counts as missed. Default 1 day. */
+  private missedGraceDays() {
+    return Math.max(1, Math.min(7, Number(process.env.MISSED_DELIVERY_GRACE_DAYS || 1)));
+  }
+
   private async finalizeNearTermRiderAssignments() {
+    if (!this.autoFinalAssignEnabled()) return;
     const now = new Date();
     const cutoff = new Date(now.getTime() + this.finalAssignmentHours() * 3_600_000);
     const retryBefore = new Date(now.getTime() - 5 * 60_000);

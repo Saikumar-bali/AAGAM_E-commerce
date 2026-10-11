@@ -173,6 +173,13 @@ function title(value: string) {
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+/** proofMode is the server-enforced proof; subscription.deliveryMethod can lag. */
+function isTrustedDropStop(stop: RunStop): boolean {
+  if (stop.cashDuePaise !== 0) return false;
+  if (stop.proofMode)
+    return stop.proofMode === "TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO";
+  return stop.subscriptionDelivery.subscription.deliveryMethod === "TRUSTED_DROP";
+}
 function snapshotText(snapshot: Record<string, unknown> | null | undefined) {
   return (
     [
@@ -1539,11 +1546,7 @@ function RiderRunsPage() {
                         </div>
                       )}
                     </div>
-                  ) : !(
-                    selectedStop.subscriptionDelivery.subscription
-                      .deliveryMethod === "TRUSTED_DROP" &&
-                    selectedStop.cashDuePaise === 0
-                  ) ? (
+                  ) : !isTrustedDropStop(selectedStop) ? (
                     <>
                       <button
                         disabled={working === `otp-${selectedStop.id}`}

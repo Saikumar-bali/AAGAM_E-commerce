@@ -37,6 +37,20 @@ const TERMINAL_STATUSES = [
   "RETURNED_TO_STORE",
   "CANCELLED",
 ];
+
+// A subscription delivery's day cell is the source of truth for whether that
+// day is still owed. When the cell is terminal (delivered, skipped, cancelled,
+// failed, rescheduled) the linked job/order is only kept for the audit trail
+// and must not resurface on the rider board. Order status alone is not enough:
+// cancel/skip/pause flip the delivery row, while the order can lag behind at
+// RIDER_ASSIGNED / OUT_FOR_DELIVERY.
+const CLOSED_SUBSCRIPTION_DELIVERY_STATUSES = [
+  "DELIVERED",
+  "SKIPPED",
+  "CANCELLED",
+  "FAILED",
+  "RESCHEDULED",
+];
 const jobInclude = {
   order: {
     include: {
@@ -109,7 +123,13 @@ export class RiderPortalService {
       where: {
         currentRiderId: riderProfileId,
         status: { in: ACTIVE_STATUSES as any },
-        order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
+        order: {
+          status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any },
+          OR: [
+            { subscriptionDeliveryId: null },
+            { subscriptionDelivery: { status: { notIn: CLOSED_SUBSCRIPTION_DELIVERY_STATUSES as any } } },
+          ],
+        },
       },
       include: jobInclude,
       orderBy: { updatedAt: "desc" },
@@ -121,7 +141,13 @@ export class RiderPortalService {
       where: {
         currentRiderId: riderProfileId,
         status: { in: ACTIVE_STATUSES as any },
-        order: { status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any } },
+        order: {
+          status: { notIn: ['CANCELLED', 'PAYMENT_FAILED', 'DELIVERED'] as any },
+          OR: [
+            { subscriptionDeliveryId: null },
+            { subscriptionDelivery: { status: { notIn: CLOSED_SUBSCRIPTION_DELIVERY_STATUSES as any } } },
+          ],
+        },
       },
       include: jobInclude,
       orderBy: [{ order: { deliveryWindowEnd: "asc" } }, { createdAt: "asc" }],

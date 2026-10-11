@@ -4,33 +4,58 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 const APP = process.env.APP || 'mobile-partners';
-if (!['mobile-partners', 'mobile-customer'].includes(APP)) {
-  throw new Error(`Unknown APP "${APP}" (expected mobile-partners or mobile-customer)`);
+if (!['mobile-partners', 'mobile-customer', 'rider-map'].includes(APP)) {
+  throw new Error(`Unknown APP "${APP}" (expected mobile-partners, mobile-customer or rider-map)`);
 }
 
 const ROOT = path.resolve(__dirname, '..');
 const here = (p) => path.resolve(__dirname, p);
-const appDir = path.resolve(ROOT, 'apps', APP);
+// `rider-map` is a small preview entry that mounts the real RiderRouteMap with
+// mock data; it renders the partners app's components.
+const APP_DIR_NAME = APP === 'rider-map' ? 'mobile-partners' : APP;
+const appDir = path.resolve(ROOT, 'apps', APP_DIR_NAME);
 const appModuleDir = path.resolve(appDir, 'node_modules');
+const ENTRY = APP === 'rider-map' ? here('src/rider-map.js') : here('src/index.js');
 
 const API_URL = process.env.API_URL || 'http://127.0.0.1:3005';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
-const BASE = `/preview/${APP}`;
+// The harness serves two independent copies of every app from one origin:
+//   /preview/<app>/  -> local api-gateway (API_URL=/api)
+//   /live/<app>/     -> live origin (API_URL=/live/api)
+// OUT_DIR / PUBLIC_BASE let the build emit the second copy under a distinct
+// directory and asset prefix so the two never collide.
+const PUBLIC_BASE = process.env.PUBLIC_BASE || '/preview';
+const OUT_DIR = process.env.OUT_DIR || 'dist';
+const BASE = `${PUBLIC_BASE}/${APP}`;
+
+// No valid Mapbox public token ships with this repo (the only `pk.` values are
+// test/dummy placeholders that the Mapbox API rejects with 401). When no real
+// token is supplied at build time, swap the real Mapbox GL page for the
+// token-free SVG mock so the in-app route maps still render the same window.*
+// API (stop pins, route line, rider dot, progress) instead of a blank frame.
+// Pass MAPBOX_TOKEN=pk.… at build time to use real Mapbox tiles.
+const MAPBOX_TOKEN_BUILD = process.env.MAPBOX_TOKEN || process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '';
+const DUMMY_TOKENS = ['pk.test-dummy-token-for-jest', 'pk.eyJ1IjoiZmFsbGJhY2siLCJhIjoiY20wMCJ9.none'];
+const USE_MAP_MOCK = !/^pk\.[A-Za-z0-9]/.test(MAPBOX_TOKEN_BUILD) || DUMMY_TOKENS.includes(MAPBOX_TOKEN_BUILD);
 
 module.exports = {
   mode: isProduction ? 'production' : 'development',
   target: ['web', 'es2019'],
-  entry: here('src/index.js'),
+  entry: ENTRY,
   devtool: isProduction ? false : 'eval-source-map',
   output: {
-    path: path.resolve(__dirname, 'dist', APP),
+    path: path.resolve(__dirname, OUT_DIR, APP),
     filename: 'bundle.js',
     publicPath: `${BASE}/`,
     clean: true,
   },
   performance: { hints: false },
   stats: 'errors-warnings',
+  // The native map resolvers return a usable (test) token only when
+  // NODE_ENV==='test'; drive webpack's own NODE_ENV definition from here so we
+  // don't register a second conflicting `process.env.NODE_ENV` define below.
+  optimization: { nodeEnv: 'test' },
   ignoreWarnings: [/Failed to parse source map/],
   resolve: {
     extensions: ['.web.tsx', '.web.ts', '.web.jsx', '.web.js', '.tsx', '.ts', '.jsx', '.js', '.json'],
@@ -102,12 +127,29 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({ template: here('src/static/index.html') }),
+    // Swap the real Mapbox GL page for the token-free SVG mock only when no
+    // valid token is supplied; with a real MAPBOX_TOKEN the real map renders.
+    // The apps import it relatively (`./riderRouteMapHtml`), so match the bare
+    // trailing module name — no leading-slash requirement (a `.` precedes it).
+    ...(USE_MAP_MOCK
+      ? [new webpack.NormalModuleReplacementPlugin(/riderRouteMapHtml(\.\w+)?$/, here('mocks/rider-route-map-html.js'))]
+      : []),
+    // The partner apps' document/photo picker is Android-only (NativeModules);
+    // swap it for a browser file-input shim so capture flows work in preview.
+    new webpack.NormalModuleReplacementPlugin(/PartnerDocumentPicker$/, here('mocks/partner-document-picker.js')),
     new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify(NODE_ENV),
       __DEV__: JSON.stringify(!isProduction),
       'process.env.__AAGAM_API_URL__': JSON.stringify(API_URL),
       'process.env.__AAGAM_APP_VARIANT__': JSON.stringify(APP === 'mobile-customer' ? 'CUSTOMER' : 'PARTNERS'),
       'process.env.__AAGAM_APP_VERSION_CODE__': JSON.stringify('0'),
+      // The real map page reads process.env.EXPO_PUBLIC_MAPBOX_TOKEN; webpack
+      // does not populate process.env, so bake the public client keys here or
+      // the map silently falls back to the dummy token and renders blank.
+      'process.env.EXPO_PUBLIC_MAPBOX_TOKEN': JSON.stringify(MAPBOX_TOKEN_BUILD),
+      'process.env.NEXT_PUBLIC_MAPBOX_TOKEN': JSON.stringify(MAPBOX_TOKEN_BUILD),
+      'process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY': JSON.stringify(process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
+      'process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY': JSON.stringify(process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
+      'process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID': JSON.stringify(process.env.GOOGLE_WEB_CLIENT_ID || ''),
     }),
     new webpack.ProvidePlugin({ process: here('mocks/process.js') }),
   ],

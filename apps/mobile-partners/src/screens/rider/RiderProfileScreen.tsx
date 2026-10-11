@@ -1,6 +1,6 @@
 import { useAuthStore } from '@aagam/mobile-shared';
 import { GradientSurface } from '../../components/GradientSurface';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Banknote,
   BellRing,
@@ -14,24 +14,32 @@ import {
   ShieldAlert,
   ShieldCheck,
   WalletCards,
+  Wifi,
+  WifiOff,
 } from 'lucide-react-native';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { riderService } from '../../api/riderService';
+import Toast from 'react-native-toast-message';
+import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
 import { notificationService } from '../../api/notificationService';
 import { PartnerTabBrand } from '../../components/PartnerTabBrand';
 import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
+import {
+  performRiderOfflineTransition,
+  performRiderOnlineTransition,
+} from '../../services/RiderAvailabilityController';
 
 export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
   const insets = useSafeAreaInsets();
@@ -62,6 +70,43 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
       await RiderOnlineService.stop();
     } finally {
       await logout();
+    }
+  };
+
+  // Availability now lives here rather than on Home, which is reserved for the
+  // rider's assigned deliveries. This mirrors the online/offline transitions
+  // the Home toggle used to own.
+  const queryClient = useQueryClient();
+  const [statusBusy, setStatusBusy] = useState(false);
+  const workspaceQuery = useQuery({
+    queryKey: RIDER_WORKSPACE_QUERY_KEY,
+    queryFn: riderService.getWorkspace,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+  const riderStatus = workspaceQuery.data?.rider?.status || 'OFFLINE';
+  const isOnline = riderStatus !== 'OFFLINE';
+
+  const changeAvailability = async (online: boolean) => {
+    if (statusBusy) return;
+    setStatusBusy(true);
+    try {
+      if (online) {
+        await performRiderOnlineTransition(user?.name || 'Rider');
+      } else {
+        await performRiderOfflineTransition();
+      }
+      await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
+      Toast.show({
+        type: 'success',
+        text1: online ? 'You are online' : 'You are offline',
+        text2: online ? 'Your store can assign deliveries to you.' : 'Deliveries and heartbeats are paused.',
+      });
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Could not update availability.';
+      Toast.show({ type: 'error', text1: 'Availability update failed', text2: Array.isArray(message) ? message.join(', ') : message });
+    } finally {
+      setStatusBusy(false);
     }
   };
 
@@ -103,6 +148,26 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
               <ChevronRight size={21} color={approved ? '#15803D' : '#B45309'} />
             </TouchableOpacity>
 
+            <View style={styles.availabilityCard}>
+              <View style={[styles.availabilityIcon, isOnline ? styles.availabilityOnline : styles.availabilityOffline]}>
+                {isOnline ? <Wifi size={22} color="#166534" /> : <WifiOff size={22} color="#991B1B" />}
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.availabilityTitle}>{isOnline ? (riderStatus === 'BUSY' ? 'Busy on a delivery' : 'Online for assignments') : 'Offline'}</Text>
+                <Text style={styles.availabilityText}>{isOnline ? 'Your store can assign deliveries to you.' : 'Go online to receive assigned deliveries.'}</Text>
+              </View>
+              {statusBusy ? <ActivityIndicator color="#0F766E" /> : (
+                <Switch
+                  testID="rider_availability_switch"
+                  value={isOnline}
+                  disabled={riderStatus === 'BUSY'}
+                  onValueChange={(value) => void changeAvailability(value)}
+                  trackColor={{ false: '#CBD5E1', true: '#86EFAC' }}
+                  thumbColor={isOnline ? '#0F766E' : '#FFFFFF'}
+                />
+              )}
+            </View>
+
             <Text style={styles.sectionTitle}>Account</Text>
               <MenuRow icon={<BellRing size={21} color="#0F766E" />} title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread update${unreadCount === 1 ? '' : 's'}` : 'Delivery runs, offers and route alerts'} onPress={() => navigation.navigate('Notifications')} />
             <MenuRow icon={<Bike size={21} color="#0F766E" />} title="Profile, vehicle and bank" subtitle="Edit protected Rider information" onPress={() => navigation.navigate('RiderProfileDetails')} />
@@ -116,6 +181,7 @@ export const RiderProfileScreen = ({ navigation }: { navigation: any }) => {
 
             <Text style={styles.sectionTitle}>App controls</Text>
             <MenuRow icon={<Settings2 size={21} color="#0F766E" />} title="Notification settings" subtitle="Priority operations alerts" onPress={() => navigation.navigate('NotificationSettings')} />
+            <MenuRow icon={<Wifi size={21} color="#0F766E" />} title="Tracking and GPS diagnostics" subtitle="Location permissions, heartbeat and battery" onPress={() => navigation.navigate('TrackingDiagnostics')} />
 
             <TouchableOpacity accessibilityRole="button" style={styles.logout} onPress={() => void signOut()}>
               <LogOut size={20} color="#B91C1C" /><Text style={styles.logoutText}>Sign out</Text>
@@ -143,6 +209,12 @@ const styles = StyleSheet.create({
   avatar: { width: 58, height: 58, borderRadius: 19, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#0F766E', fontSize: 20, fontWeight: '600' },
   eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1 }, title: { color: '#FFFFFF', fontSize: 22, fontWeight: '600', marginTop: 2 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   content: { padding: 14 },
+  availabilityCard: { marginHorizontal: 16, marginTop: 16, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  availabilityIcon: { width: 45, height: 45, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  availabilityOnline: { backgroundColor: '#DCFCE7' },
+  availabilityOffline: { backgroundColor: '#FEE2E2' },
+  availabilityTitle: { color: '#0F172A', fontSize: 15, fontWeight: '600' },
+  availabilityText: { color: '#64748B', fontSize: 10, marginTop: 4 },
   statusCard: { borderRadius: 18, borderWidth: 1, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, statusApproved: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }, statusAttention: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
   statusLabel: { color: '#64748B', fontSize: 10, fontWeight: '600' }, statusValue: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginTop: 2 }, statusHint: { color: '#475569', fontSize: 10, lineHeight: 15, marginTop: 4 },
   sectionTitle: { color: '#0F172A', fontSize: 15, fontWeight: '600', marginTop: 19, marginBottom: 8 },
