@@ -408,9 +408,11 @@ with a `service` tag:
 
 - `apps/api-gateway` — `instrument.ts` → `common/sentry-config.ts`,
   `SentryExceptionFilter` for 5xx and `captureBackgroundError` for schedulers.
-- `apps/admin-dashboard` — `instrumentation.ts` (server/edge, using Next's
-  `onRequestError` hook) and `instrumentation-client.ts` (browser); DSN comes
-  from `apps/admin-dashboard/sentry-config.ts`.
+- `apps/admin-dashboard` — `src/instrumentation.ts` (server/edge, using Next's
+  `onRequestError` hook) and `src/instrumentation-client.ts` (browser); DSN
+  comes from `src/lib/sentry-config.ts`. Both instrumentation files must stay
+  under `src/`: with a src-dir layout Next silently ignores root-level ones,
+  and only the client bundle would get Sentry.
 - `apps/worker-service` — inits `@sentry/node` at the top of `src/index.ts` and
   reports redis/startup failures through `captureWorkerError`.
 - `apps/mobile-customer`, `apps/mobile-partners` — `src/lib/sentry.ts` init plus
