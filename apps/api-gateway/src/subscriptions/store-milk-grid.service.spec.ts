@@ -303,6 +303,21 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         expect.objectContaining({ create: expect.objectContaining({ expectedAmountPaise: 1500 }) }),
       );
     });
+
+    it('assigns every delivery the customer has that day, not just the picked contract', async () => {
+      // Dispatching is per customer: picking one of a customer's contracts must
+      // pull in the sibling contract's stop for the same day/slot too.
+      const sibling = { ...delivery, id: 'del-2', subscriptionId: 'sub-2' };
+      (prisma.subscriptionDelivery.findMany as jest.Mock)
+        .mockResolvedValueOnce([delivery])       // the requested stop
+        .mockResolvedValueOnce([delivery, sibling]); // the customer's full day set
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(dispatchTx.subscriptionDelivery.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'del-2' }, data: expect.objectContaining({ status: 'ASSIGNED' }) }),
+      );
+    });
   });
 });
 
@@ -406,13 +421,12 @@ describe('StoreMilkGridService — merged rows keep each contract\'s partial due
     deliveries,
   });
 
-  // Regression: a customer's contracts used to be merged into one row and the
-  // active contract's ledger reconciled against every merged delivery, so a
-  // sibling fully-paid ledger could absorb an under-collected day cell and
-  // clamp its residual to zero. Each contract now gets its own row, and each
-  // contract's delivery stays visible on its own day (the sibling on day 11
-  // must not overwrite the under-collected day-10 cell).
-  it('does not let a sibling contract absorb an under-collected day cell', async () => {
+  // Regression: one grid row per customer. A customer who holds several
+  // contracts must not render one row (and one "Dispatch Deliveries" entry)
+  // per contract — they merge onto one day map, and money is reconciled per
+  // contract so a sibling's fully-paid ledger cannot absorb an under-collected
+  // day cell and clamp its residual to zero (BUG-028/BUG-037).
+  it('merges a customer contracts into one row and reconciles each contract', async () => {
     (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
       sub('sub-active', 0, 39900, [cell(10, 20000, 39900)]),
       sub('sub-sibling', 39900, 0, [cell(11, 39900, 39900)]),
@@ -420,16 +434,15 @@ describe('StoreMilkGridService — merged rows keep each contract\'s partial due
 
     const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
 
-    // One row per contract now; each keeps its own reconciled due.
-    expect(grid.rows).toHaveLength(2);
-    const activeRow = grid.rows.find((r) => r.subscriptionId === 'sub-active')!;
-    const siblingRow = grid.rows.find((r) => r.subscriptionId === 'sub-sibling')!;
-    expect(activeRow.totalDuePaise).toBe(19900);
-    expect(activeRow.totalCollectedPaise).toBe(20000);
-    expect(siblingRow.totalDuePaise).toBe(0);
+    expect(grid.rows).toHaveLength(1);
+    const row = grid.rows[0];
     // Each contract's delivery stays visible on its own day.
-    expect(activeRow.days[10]).toMatchObject({ cashCollectedPaise: 20000, cashDuePaise: 39900 });
-    expect(siblingRow.days[11]).toMatchObject({ cashCollectedPaise: 39900, cashDuePaise: 39900 });
+    expect(row.days[10]).toMatchObject({ cashCollectedPaise: 20000, cashDuePaise: 39900 });
+    expect(row.days[11]).toMatchObject({ cashCollectedPaise: 39900, cashDuePaise: 39900 });
+    // ₹200 collected against ₹399 due on one contract keeps its ₹199 short;
+    // the sibling's fully-paid ledger must not erase it.
+    expect(row.totalCollectedPaise).toBe(59900);
+    expect(row.totalDuePaise).toBe(19900);
     // The customer counts once, not once per plan.
     expect(grid.totalSubscribers).toBe(1);
   });
@@ -472,9 +485,10 @@ describe('StoreMilkGridService — one row per live contract', () => {
     deliveries,
   });
 
-  // Regression: a same-day cell from a second contract used to overwrite the
-  // first in a day-keyed map, dropping one plan entirely from that day.
-  it('renders one row per live contract so a same-day second plan is not dropped', async () => {
+  // Regression: a customer with a same-day second plan used to collide on the
+  // day-keyed cell map and drop one plan. Both contracts now merge into ONE
+  // customer row, and that day shows both quantities folded into one cell.
+  it('merges a same-day second plan into one customer row instead of spamming rows', async () => {
     (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
       sub('sub-cow', 'Cow Milk 1/4L', [delivery('c11', 11, 'SCHEDULED'), delivery('c12', 12, 'SCHEDULED')]),
       sub('sub-buffalo', 'Buffalo Milk (BM) - 1L Daily', [delivery('b11', 11, 'ORDER_GENERATED'), delivery('b12', 12, 'SCHEDULED')]),
@@ -482,18 +496,15 @@ describe('StoreMilkGridService — one row per live contract', () => {
 
     const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
 
-    expect(grid.rows).toHaveLength(2);
+    // One row for the customer, not one per contract.
+    expect(grid.rows).toHaveLength(1);
     expect(grid.totalSubscribers).toBe(1);
-    const cow = grid.rows.find((r) => r.subscriptionId === 'sub-cow')!;
-    const buffalo = grid.rows.find((r) => r.subscriptionId === 'sub-buffalo')!;
-    // Day 11 is present on BOTH rows — the collision no longer drops one.
-    expect(cow.days[11]?.deliveryId).toBe('c11');
-    expect(buffalo.days[11]?.deliveryId).toBe('b11');
-    // Each row carries only its own contract's cells.
-    expect(cow.days[11]?.status).toBe('SCHEDULED');
-    expect(buffalo.days[11]?.status).toBe('ORDER_GENERATED');
-    expect(cow.plan.name).toBe('Cow Milk 1/4L');
-    expect(buffalo.plan.name).toContain('Buffalo');
+    const row = grid.rows[0];
+    // Day 11 carries both plans' quantities folded into the single cell.
+    expect(row.days[11]?.baseQuantity).toBe('0.25L + 1L');
+    // The row's plan label lists both plans.
+    expect(row.plan.name).toContain('Cow Milk 1/4L');
+    expect(row.plan.name).toContain('Buffalo');
   });
 
   it('keeps a single row for a customer whose plans are all terminal', async () => {

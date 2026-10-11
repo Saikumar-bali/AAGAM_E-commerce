@@ -1545,3 +1545,71 @@ area, and treat a recurrence as a **major** finding.
   so a planned run stays rider-less until the store hands off. Locks in
   `auto-dispatch-recovery.contract.spec.ts`.
 - **Notes:** one-time (non-subscription) orders keep the existing auto-dispatch.
+
+### BUG-037 — "Dispatch Deliveries to Rider" re-lists one row per contract (customer spam)
+
+- **Found:** 2026-10-11 by openhands (store owner / rider-assignment request)
+- **Severity:** major (a single customer appears N times in the dispatch list and the grid, so dispatching assigns only one of their plans and the rest of their milk is left unassigned)
+- **Surface:** store milk grid `GET /store/subscriptions/grid` → "Dispatch Deliveries to Rider" modal (`MilkDeliveryGrid.tsx`), and the same `rows` array that feeds the matrix.
+- **Role:** store owner
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. A customer holds more than one non-terminal subscription (a renewal, a
+     re-subscription, or a switch to a second plan).
+  2. Open the store milk grid's "Dispatch to Rider" modal for a day.
+  3. The customer is listed once per contract — e.g. the demo customer
+     `E2E698861 Offline Alpha` held 11 duplicate contracts and produced **11
+     identical rows**, all `Cow Milk 1/4L`, all with the same 7 delivery days.
+- **Observed:** `GET /store/subscriptions/grid` returned **39 rows for 15
+  customers** (Alpha and Beta 11 each, `Customer 1`/`Customer 2` 3 each). The
+  "Dispatch Deliveries to Rider" list is built from `gridData.rows`, so each
+  duplicate contract became its own checkbox; selecting the customer dispatched
+  only one contract's stop.
+- **Expected:** the grid and the dispatch list show **one row per customer**;
+  dispatching a customer assigns **all** of that customer's deliveries for the
+  day (their other plans included), so the rider never leaves milk behind.
+- **Root cause:** commit `d551eeff` ("one grid row per live contract") made the
+  grid emit one row per non-`COMPLETED` subscription to stop a *different-plan*
+  same-day cell collision (BUG-028). It had no guard against a customer holding
+  many near-duplicate contracts of the *same* plan, so the row count equalled the
+  contract count. Separately, `StoreMilkGridService.dispatchToRider` only ever
+  processed the exact `deliveryIds` it was handed, so even a corrected single
+  entry would assign just one contract.
+- **Code path:**
+  - `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts` — `getGrid()` row shaping; `dispatchToRider()` stop selection.
+  - `apps/admin-dashboard/src/components/MilkDeliveryGrid.tsx` — `dispatchEligibleStops` / `stopsWithDefaultRider` read `gridData.rows`.
+- **Fix:**
+  - `getGrid()` renders exactly one row per customer again (`primaryForCustomer`
+    picks the contract that actually delivers the window — deliveries first, then
+    non-terminal, then newest) and merges every contract the customer holds onto
+    that one day map. A same-day second plan now folds into the single day cell
+    (`0.25L + 1L`) instead of colliding; money is reconciled per contract and
+    summed so BUG-028's under-collected residual is still preserved; a
+    multi-plan row lists all plans (`Cow Milk 1/4L + Buffalo Milk …`).
+  - `dispatchToRider()` expands the requested stops to every non-terminal
+    delivery the same customer has on the same day (narrowed to the chosen slot
+    and to the store(s) already represented), so one store action assigns the
+    whole customer. `dispatchedCount` reports the full expanded set.
+  - Regression tests: `store-milk-grid.service.spec.ts` — "merges a customer
+    contracts into one row…", "merges a same-day second plan…", "assigns every
+    delivery the customer has that day…".
+- **Notes:** the interactive-transaction budget for `dispatchToRider` was raised
+  to `{ maxWait: 15000, timeout: 60000 }` because the fan-out can issue ~2x the
+  round-trips of the picked contract; against the demo pooler an 11-stop
+  duplicate customer still exceeded the old 30s budget. Live verification (demo
+  DB): grid rows 39 → **15** (= 15 customers), 0 customers with >1 row; single
+  delivery-dispatch still returns `dispatchedCount: 1`.
+
+- **Live reproduction (aagaam.in, deployed revision `f80fafea`, 2026-10-11):**
+  the live grid returned **42 rows for 33 customers** and the owner's
+  "Dispatch Deliveries to Rider" list showed one **Saikumar Bali** row seven
+  times (plans `Cow Milk 1/4L 7 Days` \u00d75 and `Cow Milk 1/4L 15 Days` \u00d72,
+  subscriptions `cmutd3pcm\u2026`, `cmuyunjav\u2026`, `cmuz9o3pa\u2026`, `cmuz9py9b\u2026`,
+  `cmuza1qh4\u2026`, `cmuza57cf\u2026`, `cmuzgw6le\u2026`). The screenshot the owner
+  reported showed the modal collapsed to the 4 plans that deliver the chosen
+  day \u2014 the same per-contract spam. Why the merged fix did not help: the
+  deployed revision (`f80fafea`, PR #470) contains only the per-contract loop,
+  not this fix \u2014 our change was never committed, so the merge shipped the
+  cause instead. Confirm with
+  `grep -c primaryForCustomer apps/api-gateway/dist/src/subscriptions/store-milk-grid.service.js`
+  on the host: `0` before deploy.

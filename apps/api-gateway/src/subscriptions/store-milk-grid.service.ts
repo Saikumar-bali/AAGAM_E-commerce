@@ -211,21 +211,32 @@ export class StoreMilkGridService {
       dailyTotals[day] = { deliveredCount: 0, scheduledCount: 0, totalDeliveries: 0, totalLiters: 0, cashCollectedPaise: 0 };
     }
 
-    // A customer can hold several live contracts. Render one row per contract
-    // (the grid key is already the subscription id) so a day that two plans
-    // both deliver shows both cells instead of one overwriting the other.
-    // A customer whose plans are all terminal keeps a single row for its
+    // A customer must get exactly ONE row. Two different plans cancel out into
+    // a cell collision (their day maps are keyed by day number), and a customer
+    // with several contracts — renewals, re-subscriptions, a switch to another
+    // plan — would otherwise render one near-identical row per contract, which
+    // is what spammed the "Dispatch Deliveries to Rider" list and the grid
+    // (a demo customer with 11 duplicate contracts produced 11 rows).
+    //
+    // The contract that actually delivers this month is the row's driver: prefer
+    // one with live deliveries in the window, then a non-terminal status, then
+    // the newest. A customer whose plans are all terminal keeps one row for its
     // most-recent contract, preserving the old shape.
-    const rowSpecs: Array<{ contract: any }> = [];
     const customerIds = new Set<string>();
+    const primaryForCustomer = new Map<string, any>();
     for (const [customerId, custSubs] of customerSubsMap) {
       customerIds.add(customerId);
-      const liveSubs = custSubs.filter((s) => s.status !== 'COMPLETED');
-      const contracts = liveSubs.length > 0 ? liveSubs : [custSubs[custSubs.length - 1]];
-      for (const contract of contracts) rowSpecs.push({ contract });
+      // custSubs is already createdAt asc (query order). Prefer a contract with
+      // deliveries in the window, then a non-terminal one, then the newest.
+      const withDeliveries = custSubs.filter((s) => s.deliveries.length > 0);
+      const pool = withDeliveries.length > 0 ? withDeliveries : custSubs;
+      const live = pool.filter((s) => s.status !== 'COMPLETED');
+      const candidates = live.length > 0 ? live : pool;
+      primaryForCustomer.set(customerId, candidates[candidates.length - 1]);
     }
 
-    for (const { contract: activeSub } of rowSpecs) {
+    for (const [_customerId, custSubs] of customerSubsMap) {
+      const activeSub = primaryForCustomer.get(_customerId)!;
       const address = (activeSub.addressSnapshot as any)?.line1 || (activeSub.addressSnapshot as any)?.street || 'Local Area';
       const planName = activeSub.plan.name || 'Milk Plan';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
@@ -241,8 +252,10 @@ export class StoreMilkGridService {
       let totalExtraLiters = 0;
       let calculatedLiters = 0;
 
-      // This row belongs to a single contract, so process only that contract.
-      for (const sub of [activeSub]) {
+      // One row per customer: merge every contract onto the same day map so a
+      // day two plans both deliver shows one cell per plan side by side on its
+      // own day. (A single contract just renders itself.)
+      for (const sub of custSubs) {
         const subPlanName = sub.plan.name || 'Milk Plan';
         const subIsBuffalo = subPlanName.toLowerCase().includes('buffalo') || subPlanName.toLowerCase().includes('bm');
         const subItemsSnap = (sub as any).itemsSnapshot || (sub.priceSnapshot as any)?.itemsSnapshot || [];
@@ -333,7 +346,18 @@ export class StoreMilkGridService {
               : null,
           };
 
-          daysMap[dayNum] = cell;
+          // One day cell per day. If a second contract also delivers on this
+          // day, fold its quantity and cash into the same cell instead of
+          // letting the day-keyed map drop one of them.
+          const existing = daysMap[dayNum];
+          if (existing) {
+            existing.baseQuantity = `${existing.baseQuantity} + ${cell.baseQuantity}`;
+            existing.extraMilk = [existing.extraMilk, cell.extraMilk].filter(Boolean).join(', ') || null;
+            existing.cashCollectedPaise += cell.cashCollectedPaise;
+            existing.cashDuePaise += cell.cashDuePaise;
+          } else {
+            daysMap[dayNum] = cell;
+          }
 
           // Track plan day ranges
           const planKey = sub.plan.id;
@@ -374,11 +398,21 @@ export class StoreMilkGridService {
       const totalLiters = calculatedLiters;
 
       // Money columns must agree with the day cells rendered in the same row.
-      // This row holds one contract, so reconcile that contract against its
-      // own deliveries. (Summing across merged contracts previously let a
-      // sibling fully-paid ledger clamp another contract's partial residual to
-      // zero — BUG-028; that is moot now that each contract is its own row.)
-      const reconciled = reconcileSubscriptionBalance(activeSub, activeSub.deliveries);
+      // This row merges every contract the customer holds, so reconcile each
+      // against its own deliveries and sum. Reconciling one contract's ledger
+      // against every delivery let a sibling's fully-paid ledger absorb another
+      // contract's under-collected day cell and clamp that residual to zero, so
+      // a row with a day-cell amount against a due figure read as ₹0.00 due
+      // (BUG-028).
+      const reconciled = custSubs.reduce(
+        (totals, sub) => {
+          const balance = reconcileSubscriptionBalance(sub, sub.deliveries);
+          totals.amountCollectedPaise += balance.amountCollectedPaise;
+          totals.amountDuePaise += balance.amountDuePaise;
+          return totals;
+        },
+        { amountCollectedPaise: 0, amountDuePaise: 0 },
+      );
 
       // Build allPlans array sorted by earliest day
       const allPlans: PlanInfo[] = Array.from(planDayMap.values())
@@ -406,13 +440,19 @@ export class StoreMilkGridService {
           customerType: isOfflineSubscription(activeSub) ? 'offline' : 'online',
         },
         plan: {
-          id: activeSub.plan.id,
-          name: activeSub.plan.name,
-          code: activeSub.plan.code,
-          dailyQuantity: allPlans[0]?.dailyQuantity || `${allPlans[0]?.name || 'Milk Plan'}`,
+          id: allPlans.length > 1 ? activeSub.customer.id : activeSub.plan.id,
+          name: allPlans.length > 1
+            ? allPlans.map((p) => p.name).join(' + ')
+            : activeSub.plan.name,
+          code: allPlans.length > 1 ? 'MULTI' : activeSub.plan.code,
+          dailyQuantity: allPlans.length > 1
+            ? allPlans.map((p) => p.dailyQuantity).join(' + ')
+            : (allPlans[0]?.dailyQuantity || `${allPlans[0]?.name || 'Milk Plan'}`),
         },
-        planDayRange: allPlans[0]?.dayRange || '',
-        slot: splitItems ? 'AM+PM' : (activeSub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
+        planDayRange: allPlans.length > 1 ? '' : (allPlans[0]?.dayRange || ''),
+        slot: allPlans.length > 1
+          ? 'AM+PM'
+          : (splitItems ? 'AM+PM' : (activeSub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM')),
         status: activeSub.status,
         pauseEffectiveFrom: (activeSub as any).pauseEffectiveFrom?.toISOString() || null,
         defaultRider: (activeSub as any).defaultRider?.user
@@ -1787,14 +1827,49 @@ export class StoreMilkGridService {
 
     if (!deliveries.length) throw new NotFoundException('No matching deliveries found');
 
+    // Dispatching is per customer, not per contract. A customer who holds more
+    // than one subscription gets one grid entry for the day; picking it must
+    // send every delivery that same customer has that day/slot, otherwise the
+    // rider is given only one plan's stop and the customer's other milk is left
+    // behind. Expand each selected stop to its customer's full set for the day,
+    // narrowed to the chosen slot and to the store(s) already represented.
+    const requestedStoreIds = Array.from(new Set(deliveries.map((d) => d.subscription.homeStoreId).filter(Boolean)));
+    const siblingDeliveries = await prisma.subscriptionDelivery.findMany({
+      where: {
+        serviceDate: { in: Array.from(new Set(deliveries.map((d) => d.serviceDate))) },
+        subscription: {
+          customerId: { in: Array.from(new Set(deliveries.map((d) => d.subscription.customerId))) },
+          homeStoreId: { in: requestedStoreIds as string[] },
+        },
+        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
+        ...(dto.slot ? { deliverySlot: dto.slot } : {}),
+      },
+      include: {
+        subscription: {
+          include: {
+            customer: true,
+            homeStore: { select: { id: true, ownerId: true, name: true, address: true, latitude: true, longitude: true } },
+            plan: true,
+            address: true,
+          },
+        },
+        order: { include: { items: true, payment: true } },
+        deliveryJob: true,
+        runStop: true,
+      },
+    });
+    const deliveryById = new Map(deliveries.map((d) => [d.id, d]));
+    for (const d of siblingDeliveries) deliveryById.set(d.id, d as any);
+    const effectiveDeliveries = Array.from(deliveryById.values());
+
     const isMaster = actor.role === Role.ADMIN || (actor.email && (actor.email.includes('aagaam') || actor.email.includes('aagam') || actor.email.includes('store@')));
-    for (const d of deliveries) {
+    for (const d of effectiveDeliveries) {
       if (!isMaster && d.subscription.homeStore?.ownerId !== actor.id) {
         throw new ForbiddenException('You can only dispatch deliveries for your assigned store');
       }
     }
 
-    const first = deliveries[0];
+    const first = effectiveDeliveries[0];
     const store = first.subscription.homeStore || await prisma.store.findFirst({ where: { ownerId: actor.id } });
     if (!store) throw new BadRequestException('Store could not be determined for dispatch');
 
@@ -1806,7 +1881,7 @@ export class StoreMilkGridService {
     // assignment.
     return prisma.$transaction(async (tx) => {
       if (dto.saveAsDefaultRider) {
-        const subIds = Array.from(new Set(deliveries.map((d) => d.subscriptionId)));
+        const subIds = Array.from(new Set(effectiveDeliveries.map((d) => d.subscriptionId)));
         await tx.customerSubscription.updateMany({
           where: { id: { in: subIds } },
           data: { defaultRiderId: rider.id },
@@ -1814,8 +1889,8 @@ export class StoreMilkGridService {
       }
 
       // Group deliveries by serviceDate and slot so runs are properly partitioned
-      const groups = new Map<string, typeof deliveries>();
-      for (const d of deliveries) {
+      const groups = new Map<string, typeof effectiveDeliveries>();
+      for (const d of effectiveDeliveries) {
         const groupSlot = dto.slot || d.deliverySlot || 'AM';
         const groupDateStr = d.serviceDate.toISOString().slice(0, 10);
         const groupKey = `${groupDateStr}_${groupSlot}`;
@@ -2122,7 +2197,7 @@ export class StoreMilkGridService {
       }
 
       if (dto.saveAsTemporaryRange && dto.temporaryStartDate && dto.temporaryEndDate) {
-        const subIds = Array.from(new Set(deliveries.map((d) => d.subscriptionId)));
+        const subIds = Array.from(new Set(effectiveDeliveries.map((d) => d.subscriptionId)));
         const start = new Date(dto.temporaryStartDate);
         const end = new Date(dto.temporaryEndDate);
         if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end) {
@@ -2143,10 +2218,14 @@ export class StoreMilkGridService {
         success: true,
         runId: lastRunId,
         routeCode: lastRouteCode,
-        dispatchedCount: deliveries.length,
+        dispatchedCount: effectiveDeliveries.length,
         riderName: rider.user.name,
       };
-    }, { maxWait: 10000, timeout: 30000 });
+    // Dispatching now fans a picked stop out to every delivery the customer has
+    // that day/slot, so a multi-plan customer can issue ~2x the round-trips of
+    // the picked contract. Keep the same generous budget the stop-write loop
+    // already needed against the remote pooler.
+    }, { maxWait: 15000, timeout: 60000 });
   }
 
   /**

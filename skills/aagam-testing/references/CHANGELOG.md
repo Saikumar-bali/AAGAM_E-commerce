@@ -711,3 +711,22 @@ human), what changed, why.
     (`RouteConsoleScreen.tsx`, `rider_navigate_to_customer`) that opens the device
     map app to the stop's coordinates (address fallback).
   - Documented rider Home scope in `references/flows.md`.
+
+- **2026-10-11 · v1.8.1 · openhands (store milk-grid dispatch request)**
+  - BUG-037 — the store "Dispatch Deliveries to Rider" list (and the grid it
+    reads) rendered one row *per contract*, so a customer with several
+    subscriptions appeared many times (demo: `E2E698861 Offline Alpha` ×11 for 39
+    rows / 15 customers) and dispatching assigned only one of their plans.
+  - `StoreMilkGridService.getGrid()` restored to exactly one row per customer
+    (`primaryForCustomer` pick + merge all contracts onto one day map); a
+    same-day second plan now folds into one cell (`0.25L + 1L`) instead of
+    colliding, money is reconciled per contract and summed, and a multi-plan row
+    lists all plans. `dispatchToRider()` now fans the picked stop out to every
+    non-terminal delivery the same customer has that day/slot/store, and its
+    transaction budget was raised to `maxWait 15000 / timeout 60000`.
+  - Regression tests added in `store-milk-grid.service.spec.ts`. Live demo-DB
+    check: grid rows 39 → 15 (= customers), 0 duplicated customers.
+  - Live production check: aagaam.in (revision `f80fafea`) still served the
+    per-contract grid — **42 rows / 33 customers**, the owner's dispatch list
+    showing **Saikumar Bali 7×**. The fix was uncommitted, so PR #470 merged the
+    cause; shipped here for deploy.
