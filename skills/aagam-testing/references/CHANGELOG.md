@@ -478,3 +478,30 @@ human), what changed, why.
 - BUG-027 (out-of-sequence `arrive`) re-confirmed as still OPEN; it did not
   block the run.
 
+- **2026-10-11 · v1.5.5 · aagam-testing (local E2E + partial-cash session)**
+  - Ran the full rider delivery chain against the local `development` build
+    (`AAGAAM_DATABASE` on the sandbox Postgres) on the seeded PM route
+    `RUN-AAGA-PM-2026-10-10-f5dc` (2 online self-subscribe + 2 offline
+    store-assigned): rider checklist → run receipt → start → 4× arrive/complete
+    → finish. All 8 stops `DELIVERED`, run `AWAITING_SETTLEMENT`; every stop's
+    `deliveryJob`, linked `Order` (with a real `OUT_FOR_DELIVERY->DELIVERED`
+    history row) and day cell finished `DELIVERED`.
+  - Re-verified BUG-010 against the current build with a genuine partial
+    collection (stop 5: ₹399 due, ₹200 collected). Subscription ledger stayed
+    `amountCollectedPaise 20000` / `amountDuePaise 19900`; reconciled balance
+    identical, drift 0. Added the re-verification note to the BUG-010 entry.
+  - Confirmed the preview proxy path end to end: browser `fetch('/api/health')`
+    → 200 `{service:"aagam-api-gateway"}`, `POST /api/auth/login` → 201 with a
+    `RIDER` session cookie, `GET /api/auth/me` → `RIDER`.
+  - Operational note (no code change): a stale run re-aligned from
+    `IN_PROGRESS` back to `READY_FOR_PICKUP` needs `packedBagCount ===
+    expectedBagCount` for the rider receipt; the seeded run sat at
+    `packedBagCount 4 / expectedBagCount 8`.
+  - **BUG-028 found + fixed (PR pending):** drove Store → Subscriptions → Milk
+    Grid in the browser. A merged row (one customer, overlapping contracts) with
+    an under-collected day cell (₹200 against ₹399) rendered **Due ₹0.00** — the
+    ₹199 short vanished. `getGrid()` reconciled the active contract's ledger
+    against every merged contract's deliveries, so a sibling fully-paid ledger
+    clamped the partial residual to zero. Now reconciled per contract and summed;
+    the same UI reads Paid ₹1,796.00 / Due ₹9,781.00. Regression test added.
+

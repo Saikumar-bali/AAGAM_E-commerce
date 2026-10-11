@@ -369,6 +369,62 @@ describe('StoreMilkGridService — getGrid litre totals include undelivered plan
   });
 });
 
+describe('StoreMilkGridService — merged rows keep each contract\'s partial due', () => {
+  const funding: any = { consumeDeliveredWithinTransaction: jest.fn() };
+  const lifecycle = new SubscriptionLifecycleService();
+  const service = new StoreMilkGridService(funding, lifecycle, {} as any);
+
+  const cell = (day: number, cash: number, due: number) => ({
+    id: `del-${day}-${cash}`,
+    status: 'DELIVERED',
+    serviceDate: new Date(Date.UTC(2026, 9, day)),
+    cashCollectedPaise: cash,
+    cashDuePaise: due,
+    deliverySlot: 'AM',
+    deferredReason: null,
+    failureReason: null,
+    sequenceNumber: day,
+    runStop: null,
+    riderPhotoProof: null,
+  });
+
+  const sub = (id: string, collected: number, due: number, deliveries: any[]) => ({
+    id,
+    status: 'ACTIVE',
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    addressSnapshot: { line1: 'Street 1' },
+    priceSnapshot: {},
+    itemsSnapshot: [],
+    homeStore: { id: 'store-1', name: 'Store' },
+    defaultRider: null,
+    temporaryRider: null,
+    pauseEffectiveFrom: null,
+    amountCollectedPaise: collected,
+    amountDuePaise: due,
+    customer: { id: 'cust-1', name: 'Cust', phone: '999', email: 'c@example.com', acquisitionSource: 'MANUAL' },
+    plan: { id: 'plan-1', name: 'Cow Milk 1L', code: 'CM1' },
+    deliveries,
+  });
+
+  // Regression: a merged row reconciled the active contract's ledger against
+  // every merged delivery, so a sibling contract's fully-paid ledger absorbed
+  // an under-collected day cell and clamped its residual to zero.
+  it('does not let a sibling contract absorb an under-collected day cell', async () => {
+    (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
+      sub('sub-active', 0, 39900, [cell(10, 20000, 39900)]),
+      sub('sub-sibling', 39900, 0, [cell(10, 39900, 39900)]),
+    ]);
+
+    const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
+
+    expect(grid.rows).toHaveLength(1);
+    // ₹200 collected against ₹399 due on one contract keeps its ₹199 short;
+    // the sibling's fully-paid ledger must not erase it.
+    expect(grid.rows[0].totalCollectedPaise).toBe(59900);
+    expect(grid.rows[0].totalDuePaise).toBe(19900);
+  });
+});
+
 describe('StoreMilkGridService — query parameter validation', () => {
   const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService(), {} as any);
 

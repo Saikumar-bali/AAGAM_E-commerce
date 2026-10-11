@@ -359,11 +359,22 @@ export class StoreMilkGridService {
       const totalLiters = calculatedLiters;
 
       // Money columns must agree with the day cells rendered in the same row.
-      // The ledger can lag the cash evidenced on deliveries, so reconcile the
-      // whole customer (all merged subscriptions) before totalling.
-      const reconciled = reconcileSubscriptionBalance(
-        activeSub,
-        custSubs.flatMap((sub) => sub.deliveries),
+      // A merged row holds several contracts, so reconcile each one against
+      // its own deliveries and sum. Reconciling the active contract's ledger
+      // against every merged delivery let a sibling contract's fully-paid
+      // ledger absorb another contract's under-collected day cell and clamp
+      // that residual to zero, so a row with a ₹200 cell against ₹399 due
+      // read as ₹0.00 due.
+      const reconciled = custSubs.reduce(
+        (totals, sub) => {
+          const balance = reconcileSubscriptionBalance(sub, sub.deliveries);
+          totals.amountCollectedPaise += balance.amountCollectedPaise;
+          totals.amountDuePaise += balance.amountDuePaise;
+          totals.deliveryCashPaise += balance.deliveryCashPaise;
+          totals.driftPaise += balance.driftPaise;
+          return totals;
+        },
+        { amountCollectedPaise: 0, amountDuePaise: 0, deliveryCashPaise: 0, driftPaise: 0 },
       );
 
       // Build allPlans array sorted by earliest day

@@ -491,6 +491,18 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   fully COD-settled plan (cash lives on the ledger, not the cell) still
   reaches zero instead of double-counting the window just funded. Regression:
   `subscription-cash-funding.service.spec.ts` (carry-forward + no-phantom).
+- **Re-verified 2026-10-11 (local `development` build).** Drove the seeded PM
+  route `RUN-AAGA-PM-2026-10-10-f5dc` end to end with one stop deliberately
+  under-collected: 8/8 stops `DELIVERED`, run `AWAITING_SETTLEMENT`,
+  `collectedCashPaise 299300` / `expectedCashPaise 319200`. The partial stop
+  (`cashDuePaise 39900`, `cashCollectedPaise 20000`) left the subscription
+  `ACTIVE` with `amountCollectedPaise 20000` / `amountDuePaise 19900`, and
+  `reconcileSubscriptionBalance` returned the same 20000/19900 with **drift 0**
+  and `deliveryCashPaise 20000` — i.e. the ₹199 short is real and visible, not
+  rounded away. The day cell advertises ₹399 expected, so a later allocation
+  still has a non-zero residual to carry forward (not re-tested here: the plan's
+  next cycle is still `SCHEDULED`, no second generation/funding ran). Distinct
+  from the collection guards, which correctly reject over-collection.
 
 
 ### BUG-011 — A route-partial run cannot be packed or handed off: the run-level action rejects a run whose already-delivered stops sit on the same route
@@ -1151,4 +1163,45 @@ area, and treat a recurrence as a **major** finding.
   was `PLANNED` returned 201 and set seq 6 `ARRIVED`. Stops were subsequently
   all delivered, so the run still completed correctly.
 - **Fix:** — (open)
+
+
+### BUG-028 — A merged 31-Day Matrix row shows ₹0.00 due while a day cell in the same row is under-collected
+
+- **Found:** 2026-10-11 by openhands (UI-driven store milk-grid session, local
+  `development` build)
+- **Severity:** major (a customer who under-paid a delivered day reads as fully
+  settled in the Paid/Due columns, so the store stops chasing the balance)
+- **Surface:** Store → Subscriptions → Milk Grid (`GET /store/subscriptions/grid`);
+  the same reconciled money also feeds the Subscribers tab and the customer
+  statement modal. **Reproduced through the UI, not the API.**
+- **Role:** store owner
+- **Status:** FIXED (pending PR)
+- **Repro (UI only):**
+  1. Give a customer two overlapping subscriptions whose deliveries merge into
+     one grid row, one of them with a delivered day cell that collected part of
+     its due (e.g. a ₹399 day cell showing `₹200`).
+  2. Open Store → Subscriptions → Milk Grid, search the customer.
+- **Observed:** the day-10 cell renders `₹200` and the row's **Due** column
+  renders `₹0.00` (Paid ₹1,796.00). The ₹199 the customer still owes for that
+  day is invisible.
+- **Expected:** the row's Due column includes the day cell's shortfall; a ₹399
+  cell with ₹200 collected leaves ₹199 due on the row.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `getGrid()` reconciled the **active** contract's ledger against **every merged
+  contract's** deliveries:
+  `reconcileSubscriptionBalance(activeSub, custSubs.flatMap(s => s.deliveries))`.
+  A sibling contract with a fully-paid ledger (`collected 39900 / due 0`) pushed
+  `deliveryCash` above the active ledger, so the helper's `Math.max(0, storedDue
+  - drift)` clamped the under-collected contract's residual to zero.
+- **Fix:** reconcile **per contract** and sum —
+  `custSubs.reduce((t, s) => reconcileSubscriptionBalance(s, s.deliveries))`.
+  Each contract keeps its own under-collected day cell; the ledger-drift
+  absorption (Nookalamma) still works because it only fires when a ledger is
+  genuinely short of its own deliveries.
+- **Regression test:** `store-milk-grid.service.spec.ts` →
+  “merged rows keep each contract's partial due” (two overlapping contracts,
+  asserts `totalDuePaise` = 19900, not 0).
+- **Evidence:** live grid for `Customer 1` (24 merged test contracts) before the
+  fix read Paid ₹1,796.00 / Due ₹0.00; after the fix the same UI read Paid
+  ₹1,796.00 / Due ₹9,781.00.
 
