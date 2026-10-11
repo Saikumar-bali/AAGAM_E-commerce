@@ -478,3 +478,109 @@ human), what changed, why.
 - BUG-027 (out-of-sequence `arrive`) re-confirmed as still OPEN; it did not
   block the run.
 
+- **2026-10-11 · v1.5.5 · aagam-testing (local E2E + partial-cash session)**
+  - Ran the full rider delivery chain against the local `development` build
+    (`AAGAAM_DATABASE` on the sandbox Postgres) on the seeded PM route
+    `RUN-AAGA-PM-2026-10-10-f5dc` (2 online self-subscribe + 2 offline
+    store-assigned): rider checklist → run receipt → start → 4× arrive/complete
+    → finish. All 8 stops `DELIVERED`, run `AWAITING_SETTLEMENT`; every stop's
+    `deliveryJob`, linked `Order` (with a real `OUT_FOR_DELIVERY->DELIVERED`
+    history row) and day cell finished `DELIVERED`.
+  - Re-verified BUG-010 against the current build with a genuine partial
+    collection (stop 5: ₹399 due, ₹200 collected). Subscription ledger stayed
+    `amountCollectedPaise 20000` / `amountDuePaise 19900`; reconciled balance
+    identical, drift 0. Added the re-verification note to the BUG-010 entry.
+  - Confirmed the preview proxy path end to end: browser `fetch('/api/health')`
+    → 200 `{service:"aagam-api-gateway"}`, `POST /api/auth/login` → 201 with a
+    `RIDER` session cookie, `GET /api/auth/me` → `RIDER`.
+  - Operational note (no code change): a stale run re-aligned from
+    `IN_PROGRESS` back to `READY_FOR_PICKUP` needs `packedBagCount ===
+    expectedBagCount` for the rider receipt; the seeded run sat at
+    `packedBagCount 4 / expectedBagCount 8`.
+  - **BUG-028 found + fixed (PR pending):** drove Store → Subscriptions → Milk
+    Grid in the browser. A merged row (one customer, overlapping contracts) with
+    an under-collected day cell (₹200 against ₹399) rendered **Due ₹0.00** — the
+    ₹199 short vanished. `getGrid()` reconciled the active contract's ledger
+    against every merged contract's deliveries, so a sibling fully-paid ledger
+    clamped the partial residual to zero. Now reconciled per contract and summed;
+    the same UI reads Paid ₹1,796.00 / Due ₹9,781.00. Regression test added.
+
+
+- **2026-10-11 · v1.6.0 · openhands (store milk-grid UI session)**
+  - **BUG-029 found + fixed:** the grid merged every contract of a customer into
+    one row and stored day cells in a map keyed by day only, so when two live
+    plans both delivered on a day the second overwrote the first and one plan
+    vanished from that day while the row totals still summed both. The grid now
+    emits **one row per live contract** (keyed by `subscriptionId`), each showing
+    its own day cells, plan, riders and reconciled money; a customer whose plans
+    are all terminal keeps a single row. A `plan N of M` chip and a per-row
+    `Days 11–31` range label make the grouped rows readable.
+  - Fixed a latent `dayRange` formatter in the same path: compiling
+    `Array(16).join(null)` produced `–16`, so every "all days" range read
+    `Days –16`; replaced with a proper consecutive-run collapser
+    (`formatDayRange`), unit-tested.
+  - BUG-028's regression test was re-pointed at the new one-row-per-contract
+    shape (the old single-row assertion no longer applied).
+  - Verified live via the store web UI (Playwright): Customer 1 rendered 24
+    per-contract rows (`plan 1 of 24` …), the Buffalo plan `Days 11–31` and the
+    Cow plan `Days 10–16` on separate rows with independent cells, 0 console
+    errors. Evidence: `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
+
+## 2026-10-10 — one customer entry, plans stacked (web + mobile grids)
+  - Follow-up to BUG-029: the one-row-per-contract grid repeated the
+    name/phone/address once per plan and inflated the `#` index (Customer 1 read
+    as 24 rows). Both grids now group a customer adjacent plan rows so the
+    details render once and only the plan column stacks below.
+  - Web MilkDeliveryGrid.tsx: # and customer cells get rowSpan across the
+    live plans; plan cell repeats per row; "N plans this month" badge.
+  - Mobile StoreMilkGridScreen.tsx: rows sorted by customer then plan; helpers
+    sortGridRows / groupRowsByCustomer in storeMilkGridRows.ts; name shown on the
+    group first row only. Spec added (8/8 pass).
+  - Verified live (Playwright): web Customer 1 -> single customer cell
+    (rowSpan=24), Buffalo then Cow plans stacked, #=1; mobile grid -> "Customer
+    1 / 24 plans this month / Buffalo Milk (BM) - 1L Daily - AM". Evidence:
+    docs/qa/web-nextjs-guide/img/{after-grouped-plans,mobile-grid-grouped-plans}.png.
+
+- **2026-10-11 · v1.6.1 · openhands (PR #465 bot-review remediation)**
+  - Corrected the BUG-028/BUG-029 evidence wording to match the committed
+    screenshots: BUG-029's merged row shows the Cow 0.25L cell winning days
+    11–16 (the dropped cell is Buffalo's), and the live evidence account is
+    `Customer 1` with 24 live contracts, not a two-contract repro.
+  - Redacted customer phone numbers, street addresses and rider names from the
+    web-guide screenshots (`03`–`05`, `before-merged-row`, `after-two-rows`) and
+    re-rendered the guide PDF; guide §3 now states the redaction step.
+  - Rewrote guide §4 around the shipped one-row-per-live-contract model and
+    fixed the Figure 2/4/5 captions that described states their captures do not
+    show; corrected the `formatDayRange` docstring example.
+
+- **2026-10-11 · v1.6.2 · openhands (web four-role simulation; BUG-030)**
+  - Ran all four role surfaces of the single Next.js build (`apps/admin-dashboard`)
+    through headless Chromium against the gateway on `$AAGAAM_DATABASE`: admin
+    (dashboard/riders/orders/subscriptions), store (dashboard/milk grid/deliveries/
+    orders), rider (dashboard/runs/console/history/pickup), customer (shop/
+    subscriptions/orders/addresses). All four log in and land on their portal; each
+    page renders live DB data. Guide: docs/qa/web-nextjs-guide/roles-guide.html +
+    AAGAM-Web-NextJS-Role-Simulation.pdf (18 screenshots in img/role-*.png).
+  - Re-confirmed the grid merge (BUG-029 follow-up) on the web surface: 15
+    subscribers / 39 contract rows, each customer name once with "N plans this
+    month" (Customer 1 and the E2E offline customer each appear once).
+  - New defect BUG-030 (OPEN, major): `DeliveryRun.totalStopCount` /
+    `completedStopCount` drift from the run stop rows because the offline-customer
+    purge deletes `DeliveryRunStop` rows without `recomputeRunCounters`. Live: run
+    cmv2ofooq03k9x03jmkubsgyy reports 4/4 but has 3 rows; /rider/runs shows 4/4
+    while /rider/console shows 3/4 for the same run. 4 of 6 runs drift.
+  - Run notes: PLAYWRIGHT_QA=true lifts the 3/min /auth/login throttle; the
+    dashboard needs NEXT_PUBLIC_API_URL=/api baked at build time.
+
+- **2026-10-11 · v1.6.3 · openhands (BUG-030 fix + regression)**
+  - Fixed BUG-030: `permanentDeleteCustomer` deleted a purged customer's
+    `DeliveryRunStop` rows without re-deriving the parent run's stop counters,
+    so `totalStopCount`/`completedStopCount` drifted from the rows the run had
+    (rider board `4/4` vs console `3/4`). Added `deleteRunStopsAndRecompute`,
+    which reads the affected runs before deleting and calls
+    `recomputeRunCounters` on each; both delete sites in the anonymize branch use
+    it. The hard-delete branch cannot carry run stops (a stop needs a job; a job
+    needs an order; any order takes the anonymize branch).
+  - Regression: `offline-customer-purge-run-counters.e2e.spec.ts` (purge with a
+    run stop -> run counters equal the surviving rows; verified it fails on the
+    pre-fix code and passes after).

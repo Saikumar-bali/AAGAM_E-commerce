@@ -491,6 +491,18 @@ Reference records by order code (`JFS8M0RE`-style) or by DB id prefix only.
   fully COD-settled plan (cash lives on the ledger, not the cell) still
   reaches zero instead of double-counting the window just funded. Regression:
   `subscription-cash-funding.service.spec.ts` (carry-forward + no-phantom).
+- **Re-verified 2026-10-11 (local `development` build).** Drove the seeded PM
+  route `RUN-AAGA-PM-2026-10-10-f5dc` end to end with one stop deliberately
+  under-collected: 8/8 stops `DELIVERED`, run `AWAITING_SETTLEMENT`,
+  `collectedCashPaise 299300` / `expectedCashPaise 319200`. The partial stop
+  (`cashDuePaise 39900`, `cashCollectedPaise 20000`) left the subscription
+  `ACTIVE` with `amountCollectedPaise 20000` / `amountDuePaise 19900`, and
+  `reconcileSubscriptionBalance` returned the same 20000/19900 with **drift 0**
+  and `deliveryCashPaise 20000` — i.e. the ₹199 short is real and visible, not
+  rounded away. The day cell advertises ₹399 expected, so a later allocation
+  still has a non-zero residual to carry forward (not re-tested here: the plan's
+  next cycle is still `SCHEDULED`, no second generation/funding ran). Distinct
+  from the collection guards, which correctly reject over-collection.
 
 
 ### BUG-011 — A route-partial run cannot be packed or handed off: the run-level action rejects a run whose already-delivered stops sit on the same route
@@ -1151,4 +1163,161 @@ area, and treat a recurrence as a **major** finding.
   was `PLANNED` returned 201 and set seq 6 `ARRIVED`. Stops were subsequently
   all delivered, so the run still completed correctly.
 - **Fix:** — (open)
+
+
+### BUG-028 — A merged 31-Day Matrix row shows ₹0.00 due while a day cell in the same row is under-collected
+
+- **Found:** 2026-10-11 by openhands (UI-driven store milk-grid session, local
+  `development` build)
+- **Severity:** major (a customer who under-paid a delivered day reads as fully
+  settled in the Paid/Due columns, so the store stops chasing the balance)
+- **Surface:** Store → Subscriptions → Milk Grid (`GET /store/subscriptions/grid`);
+  the same reconciled money also feeds the Subscribers tab and the customer
+  statement modal. **Reproduced through the UI, not the API.**
+- **Role:** store owner
+- **Status:** FIXED (pending PR)
+- **Repro (UI only):**
+  1. Give a customer two overlapping subscriptions whose deliveries merge into
+     one grid row, one of them with a delivered day cell that collected part of
+     its due (e.g. a ₹399 day cell showing `₹200`).
+  2. Open Store → Subscriptions → Milk Grid, search the customer.
+- **Observed:** the day-10 cell renders `₹200` and the row's **Due** column
+  renders `₹0.00` (Paid ₹1,796.00). The ₹199 the customer still owes for that
+  day is invisible.
+- **Expected:** the row's Due column includes the day cell's shortfall; a ₹399
+  cell with ₹200 collected leaves ₹199 due on the row.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `getGrid()` reconciled the **active** contract's ledger against **every merged
+  contract's** deliveries:
+  `reconcileSubscriptionBalance(activeSub, custSubs.flatMap(s => s.deliveries))`.
+  A sibling contract with a fully-paid ledger (`collected 39900 / due 0`) pushed
+  `deliveryCash` above the active ledger, so the helper's `Math.max(0, storedDue
+  - drift)` clamped the under-collected contract's residual to zero.
+- **Fix:** reconcile **per contract** and sum (the merged-row version) —
+  `custSubs.reduce((t, s) => reconcileSubscriptionBalance(s, s.deliveries))`.
+  Each contract keeps its own under-collected day cell; the ledger-drift
+  absorption (Nookalamma) still works because it only fires when a ledger is
+  genuinely short of its own deliveries. BUG-029 later replaced the merged row
+  itself, so the shipped code reconciles a single contract per row:
+  `reconcileSubscriptionBalance(activeSub, activeSub.deliveries)`.
+- **Regression test:** `store-milk-grid.service.spec.ts` →
+  “does not let a sibling contract absorb an under-collected day cell” (two
+  overlapping contracts, one row each now, asserts the under-collected row's
+  `totalDuePaise` = 19900, not 0).
+- **Evidence:** live grid for `Customer 1` (the sandbox stress account — 24 live
+  contracts, all merged into one row before BUG-029) before the fix read Paid
+  ₹1,796.00 / Due ₹0.00; after the fix the same UI read Paid ₹1,796.00 /
+  Due ₹9,781.00. The unit repro uses two overlapping contracts, not 24.
+
+
+### BUG-029 — A customer with two live plans shows one merged row; a day they both deliver loses one plan's cell
+
+- **Found:** 2026-10-11 by openhands (UI-driven store milk-grid session, local
+  `development` build)
+- **Severity:** major (the store cannot see or act on the second plan's milk or
+  its delivered/not-delivered state; the cell disagrees with the row totals)
+- **Surface:** Store → Subscriptions → Milk Grid (`GET /store/subscriptions/grid`)
+- **Role:** store owner
+- **Status:** FIXED (pending PR)
+- **Repro (UI only):**
+  1. Give one customer two live plans (e.g. Cow Milk 1/4L + Buffalo 1L) whose
+     deliveries overlap on a day.
+  2. Open Store → Subscriptions → Milk Grid and search the customer.
+- **Observed:** one row for the customer. The header shows a `2 plans this month`
+  badge but is labelled with the active **Cow Milk 1/4L** plan, and on any day
+  both plans deliver only **one** cell is drawn — the second contract overwrites
+  the first. On Customer 1 the Cow 0.25L cells run days 10–16 while the Buffalo
+  cells only appear from day 17, where Cow ends: the Buffalo plan also delivers
+  days 11–16 (its `Days 11–31` range) but those cells are gone.
+- **Expected:** both plans are visible and independently actionable — one row
+  per live contract, each with its own day cells, litres and Paid/Due.
+- **Code path:** `apps/api-gateway/src/subscriptions/store-milk-grid.service.ts`
+  `getGrid()` groups by customer and merges all contracts into one row, storing
+  cells in a day-keyed map: `daysMap[dayNum] = cell` (keyed by day only, not by
+  plan/slot), so a same-day cell from a second contract overwrites the first
+  while the row's litre/money totals still sum both.
+- **Fix:** emit one row **per non-terminal contract** (the grid row key was
+  already `subscriptionId`, so no id churn), each row showing only its own
+  contract's day cells, plan, riders and reconciled money. A customer whose
+  plans are all terminal still gets one row (most-recent completed contract),
+  preserving the old shape. A customer now counts once in `totalSubscribers`.
+- **Regression test:** `store-milk-grid.service.spec.ts` → “renders one row per
+  live contract so a same-day second plan is not dropped”.
+- **Evidence:** live grid for `Customer 1` (Cow Milk 1/4L + Buffalo 1L among its
+  24 live contracts) before: one merged row (`2 plans this month`) labelled
+  `Cow Milk 1/4L`, with the Buffalo cells missing on days 11–16. After: one row
+  per live contract (`plan 1 of 24` …), Buffalo `Days 11–31` and Cow
+  `Days 10–16` each carrying their own cells. Screenshots:
+  `docs/qa/web-nextjs-guide/img/{before-merged-row,after-two-rows}.png`.
+- **Follow-up (same PR):** the one-row-per-contract model repeated the customer's
+  name/phone/address once per plan and inflated the `#` index (Customer 1 read as
+  24 numbered rows). The user asked for the customer's details to appear once
+  with only the plan column stacking below. Both grids now group a customer's
+  adjacent plan rows: the `#` and customer cells use `rowSpan` (web
+  `MilkDeliveryGrid.tsx`) / render-on-first-row (mobile
+  `StoreMilkGridScreen.tsx`, helpers in `storeMilkGridRows.ts`), so the name shows
+  once with an `N plans this month` badge and each plan prints on its own line in
+  the plan column. Verified live: Customer 1 → one customer cell
+  (`rowSpan=24`) with Buffalo then Cow plans stacked; `#` index is 1. Evidence:
+  `docs/qa/web-nextjs-guide/img/{after-grouped-plans,mobile-grid-grouped-plans}.png`.
+
+
+### BUG-030 — Rider run counters drift from its own stop rows (offline purge deletes stops without recompute)
+
+- **Found:** 2026-10-11 by web role-simulation session
+- **Severity:** major
+- **Surface:** `GET /rider/delivery-runs/today`, `GET /rider/delivery-runs/:runId`; web `/rider/runs` vs `/rider/console`
+- **Role:** rider (admin/store run reads too)
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Have a rider run whose deliveries were created by the store demo flow
+     (these include `RIDER_PHOTO_GPS` occurrences), then permanently delete one
+     of those offline customers (store "purge offline customer").
+  2. Read the run: `GET /rider/delivery-runs/today` (or the rider web pages).
+  3. Compare the run's counters with the number of `DeliveryRunStop` rows the
+     same endpoint returns.
+- **Observed:** `DeliveryRun.totalStopCount`/`completedStopCount` do not match
+  the stop rows. Live examples: run `cmv2ofooq03k9x03jmkubsgyy` (2026-10-11 AM,
+  `COMPLETED`) reports `totalStopCount=4, completedStopCount=4` but has only **3**
+  `DeliveryRunStop` rows (sequences 2, 3, 4 — sequence 1 is gone); run
+  `cmv2eehzl000d33gypxr3jyyy` (2026-10-10 AM, `READY_FOR_PICKUP`) reports
+  `totalStopCount=28` with only **16** rows. The web `/rider/runs` list shows the
+  run's own counters (`4/4`), while `/rider/console` derives from the stop rows
+  (`3/4 done`), so the two pages disagree about the same run.
+- **Expected:** `totalStopCount` equals the run's `DeliveryRunStop` row count and
+  `completedStopCount` equals its `DELIVERED` rows (what `recomputeRunCounters`
+  derives). Every writer that deletes a stop row must recompute, not just the
+  cancel/reorder paths.
+- **Code path:** `apps/api-gateway/src/subscriptions/offline-customer.service.ts`
+  `permanentDeleteCustomer` deletes `DeliveryRunStop` rows
+  (`deliveryRunStop.deleteMany`, ~lines 913 and 993) for the purged customer's
+  deliveries but never calls `SubscriptionLifecycleService.recomputeRunCounters`
+  on the affected runs. `totalStopCount` is otherwise a snapshot written at
+  planning/dispatch (`regional-route-operations.service.ts`,
+  `delivery-run-planning.service.ts`), and the only recompute
+  (`subscription-lifecycle.service.ts` `recomputeRunCounters`) runs on
+  cancel/skip/pause/reorder — none of which fire here. `DeliveryRunStop.deliveryRun`
+  is `onDelete: Cascade`, so deleting the `DeliveryRun` itself is not the cause;
+  the customer purge is.
+- **Evidence:** local sandbox, gateway against `$AAGAAM_DATABASE`, 2026-10-11.
+  `GET /rider/delivery-runs/today` -> `[{totalStopCount:4, completedStopCount:4,
+  status:COMPLETED}]`; `GET /rider/delivery-runs/:id` -> 3 stops, all `DELIVERED`;
+  DB `deliveryRunStop.findMany({deliveryRunId})` -> 3 rows (seq 2/3/4). Runs with
+  drift: `cmv2ofooq03k9x03jmkubsgyy` (4 vs 3), `cmv2eehzl000d33gypxr3jyyy`
+  (28 vs 16), `cmv2nyks802cpx03jqb9evf2f` (8 vs 7),
+  `cmv2fh2iz00l2zhsikl3pp3c3` (4 vs 3) — 4 of 6 runs.
+- **Fix:** `permanentDeleteCustomer` now routes every stop deletion through a new
+  `deleteRunStopsAndRecompute(tx, where)` helper: it reads the affected
+  `deliveryRunId`s first, deletes the rows, then calls
+  `SubscriptionLifecycleService.recomputeRunCounters` for each so
+  `totalStopCount`/`completedStopCount` are re-derived from the surviving rows.
+  Applied to both delete sites in the anonymize branch (the hard-delete branch
+  cannot carry run stops — a stop needs a job and a job needs an order, so any
+  customer with a stop takes the anonymize branch). A `SubscriptionLifecycleService`
+  instance is created locally, matching the existing pattern in
+  `subscription-admin-reporting.service.ts`.
+- **Regression test:** `offline-customer-purge-run-counters.e2e.spec.ts` —
+  purges an offline customer whose subscription has a run stop and asserts the
+  run's `totalStopCount`/`completedStopCount` equal the surviving rows (0). Fails
+  on the pre-fix code (counter stayed 1), passes after.
 

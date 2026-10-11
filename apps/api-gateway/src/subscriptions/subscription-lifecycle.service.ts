@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SubscriptionDeliveryStatus } from '@aagam/database';
 import { reconcileRiderOperationalStatus } from '../riders/rider-operational-status';
+import { recomputeRunCounters as recomputeRunCountersImpl } from './run-counters';
 
 type Tx = Prisma.TransactionClient;
 
@@ -146,27 +147,7 @@ export class SubscriptionLifecycleService {
 
   /** Re-derives a run's stop counters after a stop is added, moved or cancelled. */
   async recomputeRunCounters(tx: Tx, deliveryRunId: string) {
-    const [agg, completedStopCount] = await Promise.all([
-      tx.deliveryRunStop.aggregate({
-        where: { deliveryRunId },
-        _count: { _all: true },
-        _sum: { cashDuePaise: true, expectedItemCount: true, expectedParcelCount: true },
-      }),
-      tx.deliveryRunStop.count({ where: { deliveryRunId, status: 'DELIVERED' } }),
-    ]);
-
-    await tx.deliveryRun.update({
-      where: { id: deliveryRunId },
-      data: {
-        totalStopCount: agg._count._all,
-        completedStopCount,
-        expectedCashPaise: agg._sum.cashDuePaise ?? 0,
-        expectedItemCount: agg._sum.expectedItemCount ?? 0,
-        expectedParcelCount: agg._sum.expectedParcelCount ?? 0,
-        expectedBagCount: agg._sum.expectedParcelCount ?? 0,
-        version: { increment: 1 },
-      },
-    });
+    await recomputeRunCountersImpl(tx, deliveryRunId);
   }
 
   /**

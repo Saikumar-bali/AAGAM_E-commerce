@@ -77,6 +77,8 @@ export interface GridRow {
     code: string;
     dailyQuantity: string;
   };
+  /** Days this contract delivers in the month, e.g. `11–13`, `1–5, 9`. */
+  planDayRange?: string;
   slot: string;
   /** Live subscription state so the store can see a paused/upcoming customer. */
   status: string;
@@ -209,9 +211,21 @@ export class StoreMilkGridService {
       dailyTotals[day] = { deliveredCount: 0, scheduledCount: 0, totalDeliveries: 0, totalLiters: 0, cashCollectedPaise: 0 };
     }
 
-    for (const [_customerId, custSubs] of customerSubsMap) {
-      // Pick the primary subscription: prefer ACTIVE, then most recent.
-      const activeSub = custSubs.find((s) => s.status !== 'COMPLETED') || custSubs[custSubs.length - 1];
+    // A customer can hold several live contracts. Render one row per contract
+    // (the grid key is already the subscription id) so a day that two plans
+    // both deliver shows both cells instead of one overwriting the other.
+    // A customer whose plans are all terminal keeps a single row for its
+    // most-recent contract, preserving the old shape.
+    const rowSpecs: Array<{ contract: any }> = [];
+    const customerIds = new Set<string>();
+    for (const [customerId, custSubs] of customerSubsMap) {
+      customerIds.add(customerId);
+      const liveSubs = custSubs.filter((s) => s.status !== 'COMPLETED');
+      const contracts = liveSubs.length > 0 ? liveSubs : [custSubs[custSubs.length - 1]];
+      for (const contract of contracts) rowSpecs.push({ contract });
+    }
+
+    for (const { contract: activeSub } of rowSpecs) {
       const address = (activeSub.addressSnapshot as any)?.line1 || (activeSub.addressSnapshot as any)?.street || 'Local Area';
       const planName = activeSub.plan.name || 'Milk Plan';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
@@ -227,7 +241,8 @@ export class StoreMilkGridService {
       let totalExtraLiters = 0;
       let calculatedLiters = 0;
 
-      for (const sub of custSubs) {
+      // This row belongs to a single contract, so process only that contract.
+      for (const sub of [activeSub]) {
         const subPlanName = sub.plan.name || 'Milk Plan';
         const subIsBuffalo = subPlanName.toLowerCase().includes('buffalo') || subPlanName.toLowerCase().includes('bm');
         const subItemsSnap = (sub as any).itemsSnapshot || (sub.priceSnapshot as any)?.itemsSnapshot || [];
@@ -283,9 +298,9 @@ export class StoreMilkGridService {
           else if (d.cashCollectedPaise > 0 || d.failureReason?.includes('[CASH]')) paymentMode = 'CASH';
           else if (d.cashDuePaise > 0) paymentMode = 'DUE';
 
-          // Determine if this delivery's plan differs from the primary plan.
-          const isDifferentPlan = sub.id !== activeSub.id;
-          const planLabel = isDifferentPlan ? subDailyQuantityLabel : null;
+          // Each row is a single contract, so the plan is shown in the row's
+          // plan cell; no per-cell plan-change chip is needed.
+          const planLabel = null;
 
           const cell: GridCell = {
             deliveryId: d.id,
@@ -359,34 +374,25 @@ export class StoreMilkGridService {
       const totalLiters = calculatedLiters;
 
       // Money columns must agree with the day cells rendered in the same row.
-      // The ledger can lag the cash evidenced on deliveries, so reconcile the
-      // whole customer (all merged subscriptions) before totalling.
-      const reconciled = reconcileSubscriptionBalance(
-        activeSub,
-        custSubs.flatMap((sub) => sub.deliveries),
-      );
+      // This row holds one contract, so reconcile that contract against its
+      // own deliveries. (Summing across merged contracts previously let a
+      // sibling fully-paid ledger clamp another contract's partial residual to
+      // zero — BUG-028; that is moot now that each contract is its own row.)
+      const reconciled = reconcileSubscriptionBalance(activeSub, activeSub.deliveries);
 
       // Build allPlans array sorted by earliest day
       const allPlans: PlanInfo[] = Array.from(planDayMap.values())
-        .map((p) => ({
-          name: p.name,
-          dailyQuantity: p.dailyQuantity,
-          dayRange: Array.from(p.days).sort((a, b) => a - b).reduce((range, d) => {
-            const parts = range.split('–');
-            const last = parseInt(parts[parts.length - 1]);
-            if (d === last + 1) {
-              parts[parts.length - 1] = String(d);
-            } else {
-              parts.push(String(d));
-            }
-            return parts.join('–');
-          }, ''),
-        }))
-        .sort((a, b) => {
-          const aMin = Math.min(...a.dayRange.split('–').map(Number));
-          const bMin = Math.min(...b.dayRange.split('–').map(Number));
-          return aMin - bMin;
-        });
+        .map((p) => {
+          const dayList = Array.from(p.days).sort((a, b) => a - b);
+          return {
+            name: p.name,
+            dailyQuantity: p.dailyQuantity,
+            dayRange: StoreMilkGridService.formatDayRange(dayList),
+            earliestDay: dayList[0] ?? Infinity,
+          };
+        })
+        .sort((a, b) => a.earliestDay - b.earliestDay)
+        .map(({ name, dailyQuantity, dayRange }) => ({ name, dailyQuantity, dayRange }));
 
       rows.push({
         subscriptionId: activeSub.id,
@@ -405,6 +411,7 @@ export class StoreMilkGridService {
           code: activeSub.plan.code,
           dailyQuantity: allPlans[0]?.dailyQuantity || `${allPlans[0]?.name || 'Milk Plan'}`,
         },
+        planDayRange: allPlans[0]?.dayRange || '',
         slot: splitItems ? 'AM+PM' : (activeSub.deliveryWindowStartMinute >= 900 ? 'PM' : 'AM'),
         status: activeSub.status,
         pauseEffectiveFrom: (activeSub as any).pauseEffectiveFrom?.toISOString() || null,
@@ -439,7 +446,7 @@ export class StoreMilkGridService {
       year: targetYear,
       month: targetMonth,
       daysInMonth,
-      totalSubscribers: rows.length,
+      totalSubscribers: customerIds.size,
       rows,
       dailyTotals,
     };
@@ -1144,6 +1151,26 @@ export class StoreMilkGridService {
         metadata: { source: 'store-grid-quick-action', deliveryJobId },
       },
     });
+  }
+
+  /**
+   * Collapses a sorted list of day numbers into a compact label:
+   * `[1,2,3,5,9,10]` → `1–3, 5, 9–10`.
+   */
+  static formatDayRange(days: number[]): string {
+    if (days.length === 0) return '';
+    const parts: string[] = [];
+    let start = days[0];
+    let prev = days[0];
+    for (let i = 1; i <= days.length; i++) {
+      const d = days[i];
+      if (d !== prev + 1) {
+        parts.push(start === prev ? `${start}` : `${start}–${prev}`);
+        start = d;
+      }
+      prev = d;
+    }
+    return parts.join(', ');
   }
 
   /**

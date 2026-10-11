@@ -47,7 +47,18 @@ export function GradientSurface({
   const id = rid.current;
   return (
     <View style={[styles.wrap, radius !== undefined && { borderRadius: radius }, style]}>
-      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height="100%">
+      {/*
+        No width/height props on the Svg, on purpose. RN's Fabric layout enables
+        Yoga's YGErrataAll, which resolves an absolutely positioned node's
+        percentage width/height against the parent's inner (padding-excluded)
+        box. Passing width="100%" height="100%" therefore paints only
+        (width - horizontal padding) x (height - vertical padding) from the
+        top-left corner, leaving the padded right/bottom edges of every hero
+        transparent: content below the cut renders on the screen background.
+        absoluteFill's top/left/right/bottom insets size the Svg to the full
+        border box instead, so the gradient covers the whole surface.
+      */}
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0" stopColor={stops[0]} />

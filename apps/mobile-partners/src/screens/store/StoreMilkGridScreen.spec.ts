@@ -50,6 +50,26 @@ describe('StoreMilkGridScreen — operational console parity with the web grid',
     expect(source).toContain('getEvidenceUrl');
     expect(service).toContain("'/upload/evidence-url'");
   });
+
+  it('groups a customer\'s plan rows so their details render once', () => {
+    const { sortGridRows, groupRowsByCustomer } = require('./storeMilkGridRows');
+    const rows = [
+      { customer: { id: 'c2', name: 'Zed' }, plan: { name: 'Cow' } },
+      { customer: { id: 'c1', name: 'Ann' }, plan: { name: 'Buffalo' } },
+      { customer: { id: 'c1', name: 'Ann' }, plan: { name: 'Cow' } },
+    ];
+    const sorted = sortGridRows(rows);
+    expect(sorted.map((r: any) => `${r.customer.id}:${r.plan.name}`)).toEqual([
+      'c1:Buffalo',
+      'c1:Cow',
+      'c2:Cow',
+    ]);
+    const groups = groupRowsByCustomer(sorted);
+    // Only the first row of each customer run carries the name.
+    expect(groups[0]).toEqual({ index: 1, count: 2 });
+    expect(groups[1]).toEqual({ index: 2, count: 2 });
+    expect(groups[2]).toEqual({ index: 1, count: 1 });
+  });
 });
 
 describe('subscriptionOperationsService — new store grid endpoints', () => {

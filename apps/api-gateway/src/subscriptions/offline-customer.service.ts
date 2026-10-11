@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, Role, prisma } from '@aagam/database';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { reconcileSubscriptionBalance } from './subscription-balances';
+import { recomputeRunCounters } from './run-counters';
 
 export type OfflineCustomerActor = { id: string; role: Role };
 
@@ -767,6 +768,29 @@ export class OfflineCustomerService {
   }
 
   /**
+   * Deletes the given deliveries' `DeliveryRunStop` rows and re-derives the
+   * parent runs' stop counters. A delete drops a stop from its run, so the
+   * run's `totalStopCount`/`completedStopCount` aggregate must be recomputed or
+   * it drifts from the rows the run actually has (BUG-030): the rider board,
+   * run prep and admin workload all read those counters.
+   */
+  private async deleteRunStopsAndRecompute(
+    tx: Prisma.TransactionClient,
+    where: Prisma.DeliveryRunStopWhereInput,
+  ) {
+    const stops = await tx.deliveryRunStop.findMany({
+      where,
+      select: { deliveryRunId: true },
+    });
+    if (stops.length === 0) return;
+    await tx.deliveryRunStop.deleteMany({ where });
+    const runIds = new Set(stops.map((stop) => stop.deliveryRunId));
+    for (const deliveryRunId of runIds) {
+      await recomputeRunCounters(tx, deliveryRunId);
+    }
+  }
+
+  /**
    * Removes a purged customer's addresses. Addresses still referenced by a
    * retained (cancelled) subscription must survive the delete, so their PII is
    * scrubbed in place; the remaining unreferenced addresses are deleted.
@@ -910,13 +934,11 @@ export class OfflineCustomerService {
             .filter((id): id is string => Boolean(id));
 
           if (pendingDeliveryIds.length > 0) {
-            await tx.deliveryRunStop.deleteMany({
-              where: {
-                OR: [
-                  { subscriptionDeliveryId: { in: pendingDeliveryIds } },
-                  { deliveryJobId: { in: pendingJobIds } },
-                ],
-              },
+            await this.deleteRunStopsAndRecompute(tx, {
+              OR: [
+                { subscriptionDeliveryId: { in: pendingDeliveryIds } },
+                { deliveryJobId: { in: pendingJobIds } },
+              ],
             });
             await tx.subscriptionDelivery.updateMany({
               where: { id: { in: pendingDeliveryIds } },
@@ -990,8 +1012,8 @@ export class OfflineCustomerService {
           await tx.storeDeliveryProof.deleteMany({
             where: { deliveryJobId: { in: deliveryJobIds } },
           });
-          await tx.deliveryRunStop.deleteMany({
-            where: { deliveryJobId: { in: deliveryJobIds } },
+          await this.deleteRunStopsAndRecompute(tx, {
+            deliveryJobId: { in: deliveryJobIds },
           });
         }
 

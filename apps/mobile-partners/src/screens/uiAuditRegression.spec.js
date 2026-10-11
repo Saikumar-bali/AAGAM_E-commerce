@@ -318,6 +318,22 @@ describe('partner mobile UI audit regressions', () => {
     expect(gradient).not.toContain('const { id, stops } = gradients[preset];');
   });
 
+  it('sizes the GradientSurface Svg with absolute insets, never percentage width/height', () => {
+    const gradient = fs.readFileSync(
+      path.join(__dirname, '..', 'components', 'GradientSurface.tsx'),
+      'utf8',
+    );
+    // Fabric configures Yoga with YGErrataAll, so an absolutely positioned
+    // node's percentage width/height resolves against the parent's inner
+    // (padding-excluded) box. A width="100%" height="100%" Svg inside a padded
+    // hero paints only the unpadded area and the hero's right/bottom edges lose
+    // the gradient. The Svg must let StyleSheet.absoluteFill's insets size it.
+    const svgTag = (gradient.match(/<Svg pointerEvents="none"[^>]*>/) || [''])[0];
+    expect(svgTag).toContain('StyleSheet.absoluteFill');
+    expect(svgTag).not.toContain('width=');
+    expect(svgTag).not.toContain('height=');
+  });
+
   it('pins the partner app to LTR so an RTL device locale cannot mirror the layout', () => {
     const index = repoFile('apps/mobile-partners/index.js');
     expect(index).toContain('I18nManager');

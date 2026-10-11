@@ -49,6 +49,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { subscriptionOperationsService } from '../../api/subscriptionOperationsService';
 import { GradientSurface } from '../../components/GradientSurface';
+import { sortGridRows, groupRowsByCustomer } from './storeMilkGridRows';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -235,7 +236,7 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return rawRows.filter((row) => {
+    const matched = rawRows.filter((row) => {
       if (slotFilter !== 'ALL') {
         const slot = String(row.slot || '').toUpperCase();
         if (slotFilter === 'AM' && slot !== 'AM' && slot !== 'AM+PM') return false;
@@ -249,7 +250,14 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
       }
       return true;
     });
+    // One row per live plan; keep a customer's plans adjacent so their details
+    // render once and only the plan column repeats.
+    return sortGridRows(matched);
   }, [rawRows, search, slotFilter, dueOnly, channel]);
+
+  // Group adjacent rows of the same customer so the name shows once and each
+  // subsequent row shows only its plan below the previous one.
+  const rowGroups = useMemo(() => groupRowsByCustomer(rows), [rows]);
 
   const totals = useMemo(() => {
     let liters = 0, delivered = 0, collected = 0, due = 0;
@@ -503,10 +511,18 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
               contentContainerStyle={{ paddingBottom: 110 }}
               refreshControl={<RefreshControl refreshing={gridQuery.isRefetching} onRefresh={() => void gridQuery.refetch()} />}
             >
-              {rows.map((row: any, rowIndex: number) => (
+              {rows.map((row: any, rowIndex: number) => {
+                const grp = rowGroups[rowIndex] || { index: 1, count: 1 };
+                const showName = grp.index === 1;
+                return (
                 <View key={row.subscriptionId || rowIndex} style={[styles.gridRow, rowIndex % 2 === 0 && styles.gridRowEven]}>
                   <View style={styles.nameCell}>
-                    <Text style={styles.customerName} numberOfLines={1}>{rowName(row)}</Text>
+                    {showName ? (
+                      <Text style={styles.customerName} numberOfLines={1}>{rowName(row)}</Text>
+                    ) : null}
+                    {showName && grp.count > 1 ? (
+                      <Text style={styles.plansBadge} numberOfLines={1}>{grp.count} plans this month</Text>
+                    ) : null}
                     <Text style={styles.riderLabel} numberOfLines={1}>
                       {row.plan?.name || row.slot || ''}{row.slot ? ` · ${row.slot}` : ''}
                     </Text>
@@ -539,7 +555,8 @@ export const StoreMilkGridScreen = ({ navigation }: { navigation: any }) => {
                     <Share2 size={15} color={PAGE} />
                   </TouchableOpacity>
                 </View>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         </ScrollView>
@@ -948,6 +965,7 @@ const styles = StyleSheet.create({
   gridRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   gridRowEven: { backgroundColor: '#FAFBFC' },
   customerName: { color: '#0F172A', fontSize: 11, fontWeight: '600' },
+  plansBadge: { color: '#475569', fontSize: 8, fontWeight: '700', marginTop: 1 },
   riderLabel: { color: PAGE, fontSize: 9, marginTop: 2 },
   dueLabel: { color: '#B91C1C', fontSize: 9, marginTop: 1 },
   todayCell: { borderLeftWidth: 2, borderLeftColor: PAGE, borderRightWidth: 2, borderRightColor: PAGE },

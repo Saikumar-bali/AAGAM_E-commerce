@@ -167,6 +167,13 @@ versa) is a rendering bug — compare the cell against
 
 ## 6. Money assertion — the trap that has bitten before
 
+**Row model (changed v1.6.0):** the grid now emits **one row per live
+contract**, keyed by `subscriptionId`; a customer with two live plans gets two
+adjacent rows (each labelled `plan N of M`, with its own `Days 11–31` range) so
+a day both plans deliver shows both cells. A customer whose plans are all
+terminal keeps a single row (most-recent contract). `totalSubscribers` counts
+distinct customers, not rows. Reconciliation is therefore per row/contract.
+
 Subscription cash lives in **two places that can drift**:
 
 1. the ledger: `CustomerSubscription.amountCollectedPaise` / `amountDuePaise`
