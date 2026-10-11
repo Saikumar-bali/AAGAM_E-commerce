@@ -552,3 +552,22 @@ human), what changed, why.
   - Rewrote guide §4 around the shipped one-row-per-live-contract model and
     fixed the Figure 2/4/5 captions that described states their captures do not
     show; corrected the `formatDayRange` docstring example.
+
+- **2026-10-11 · v1.6.2 · openhands (web four-role simulation; BUG-030)**
+  - Ran all four role surfaces of the single Next.js build (`apps/admin-dashboard`)
+    through headless Chromium against the gateway on `$AAGAAM_DATABASE`: admin
+    (dashboard/riders/orders/subscriptions), store (dashboard/milk grid/deliveries/
+    orders), rider (dashboard/runs/console/history/pickup), customer (shop/
+    subscriptions/orders/addresses). All four log in and land on their portal; each
+    page renders live DB data. Guide: docs/qa/web-nextjs-guide/roles-guide.html +
+    AAGAM-Web-NextJS-Role-Simulation.pdf (18 screenshots in img/role-*.png).
+  - Re-confirmed the grid merge (BUG-029 follow-up) on the web surface: 15
+    subscribers / 39 contract rows, each customer name once with "N plans this
+    month" (Customer 1 and the E2E offline customer each appear once).
+  - New defect BUG-030 (OPEN, major): `DeliveryRun.totalStopCount` /
+    `completedStopCount` drift from the run stop rows because the offline-customer
+    purge deletes `DeliveryRunStop` rows without `recomputeRunCounters`. Live: run
+    cmv2ofooq03k9x03jmkubsgyy reports 4/4 but has 3 rows; /rider/runs shows 4/4
+    while /rider/console shows 3/4 for the same run. 4 of 6 runs drift.
+  - Run notes: PLAYWRIGHT_QA=true lifts the 3/min /auth/login throttle; the
+    dashboard needs NEXT_PUBLIC_API_URL=/api baked at build time.

@@ -1261,3 +1261,50 @@ area, and treat a recurrence as a **major** finding.
   (`rowSpan=24`) with Buffalo then Cow plans stacked; `#` index is 1. Evidence:
   `docs/qa/web-nextjs-guide/img/{after-grouped-plans,mobile-grid-grouped-plans}.png`.
 
+
+### BUG-030 — Rider run counters drift from its own stop rows (offline purge deletes stops without recompute)
+
+- **Found:** 2026-10-11 by web role-simulation session
+- **Severity:** major
+- **Surface:** `GET /rider/delivery-runs/today`, `GET /rider/delivery-runs/:runId`; web `/rider/runs` vs `/rider/console`
+- **Role:** rider (admin/store run reads too)
+- **Status:** OPEN
+- **Repro:**
+  1. Have a rider run whose deliveries were created by the store demo flow
+     (these include `RIDER_PHOTO_GPS` occurrences), then permanently delete one
+     of those offline customers (store "purge offline customer").
+  2. Read the run: `GET /rider/delivery-runs/today` (or the rider web pages).
+  3. Compare the run's counters with the number of `DeliveryRunStop` rows the
+     same endpoint returns.
+- **Observed:** `DeliveryRun.totalStopCount`/`completedStopCount` do not match
+  the stop rows. Live examples: run `cmv2ofooq03k9x03jmkubsgyy` (2026-10-11 AM,
+  `COMPLETED`) reports `totalStopCount=4, completedStopCount=4` but has only **3**
+  `DeliveryRunStop` rows (sequences 2, 3, 4 — sequence 1 is gone); run
+  `cmv2eehzl000d33gypxr3jyyy` (2026-10-10 AM, `READY_FOR_PICKUP`) reports
+  `totalStopCount=28` with only **16** rows. The web `/rider/runs` list shows the
+  run's own counters (`4/4`), while `/rider/console` derives from the stop rows
+  (`3/4 done`), so the two pages disagree about the same run.
+- **Expected:** `totalStopCount` equals the run's `DeliveryRunStop` row count and
+  `completedStopCount` equals its `DELIVERED` rows (what `recomputeRunCounters`
+  derives). Every writer that deletes a stop row must recompute, not just the
+  cancel/reorder paths.
+- **Code path:** `apps/api-gateway/src/subscriptions/offline-customer.service.ts`
+  `permanentDeleteCustomer` deletes `DeliveryRunStop` rows
+  (`deliveryRunStop.deleteMany`, ~lines 913 and 993) for the purged customer's
+  deliveries but never calls `SubscriptionLifecycleService.recomputeRunCounters`
+  on the affected runs. `totalStopCount` is otherwise a snapshot written at
+  planning/dispatch (`regional-route-operations.service.ts`,
+  `delivery-run-planning.service.ts`), and the only recompute
+  (`subscription-lifecycle.service.ts` `recomputeRunCounters`) runs on
+  cancel/skip/pause/reorder — none of which fire here. `DeliveryRunStop.deliveryRun`
+  is `onDelete: Cascade`, so deleting the `DeliveryRun` itself is not the cause;
+  the customer purge is.
+- **Evidence:** local sandbox, gateway against `$AAGAAM_DATABASE`, 2026-10-11.
+  `GET /rider/delivery-runs/today` -> `[{totalStopCount:4, completedStopCount:4,
+  status:COMPLETED}]`; `GET /rider/delivery-runs/:id` -> 3 stops, all `DELIVERED`;
+  DB `deliveryRunStop.findMany({deliveryRunId})` -> 3 rows (seq 2/3/4). Runs with
+  drift: `cmv2ofooq03k9x03jmkubsgyy` (4 vs 3), `cmv2eehzl000d33gypxr3jyyy`
+  (28 vs 16), `cmv2nyks802cpx03jqb9evf2f` (8 vs 7),
+  `cmv2fh2iz00l2zhsikl3pp3c3` (4 vs 3) — 4 of 6 runs.
+- **Fix:** —
+
