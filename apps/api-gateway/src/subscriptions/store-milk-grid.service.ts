@@ -1841,7 +1841,19 @@ export class StoreMilkGridService {
           customerId: { in: Array.from(new Set(deliveries.map((d) => d.subscription.customerId))) },
           homeStoreId: { in: requestedStoreIds as string[] },
         },
-        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
+        // Only dispatchable siblings. A picked stop legitimately excludes
+        // SKIPPED/CANCELLED in the grid UI, but this fan-out is automatic, so it
+        // must also refuse a terminal sibling a rider has already completed:
+        // flipping a DELIVERED day back to ASSIGNED resurrects a finished stop,
+        // whose rider artifact was already torn down (the same grid-vs-rider
+        // split the skip/pause paths guard against).
+        status: { notIn: [
+          SubscriptionDeliveryStatus.SKIPPED,
+          SubscriptionDeliveryStatus.CANCELLED,
+          SubscriptionDeliveryStatus.DELIVERED,
+          SubscriptionDeliveryStatus.FAILED,
+          SubscriptionDeliveryStatus.RESCHEDULED,
+        ] },
         ...(dto.slot ? { deliverySlot: dto.slot } : {}),
       },
       include: {

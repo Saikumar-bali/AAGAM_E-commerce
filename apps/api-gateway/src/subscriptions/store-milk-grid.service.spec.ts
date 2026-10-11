@@ -318,6 +318,21 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
         expect.objectContaining({ where: { id: 'del-2' }, data: expect.objectContaining({ status: 'ASSIGNED' }) }),
       );
     });
+
+    it('does not fan a dispatch out to a sibling the rider already completed', async () => {
+      // The picked stop's own DELIVERED exclusion lives in the grid UI; this
+      // fan-out is automatic, so a terminal sibling must be refused here or a
+      // finished day is flipped back to ASSIGNED and its stop resurrected.
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      expect(prisma.subscriptionDelivery.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: ['SKIPPED', 'CANCELLED', 'DELIVERED', 'FAILED', 'RESCHEDULED'] },
+          }),
+        }),
+      );
+    });
   });
 });
 
