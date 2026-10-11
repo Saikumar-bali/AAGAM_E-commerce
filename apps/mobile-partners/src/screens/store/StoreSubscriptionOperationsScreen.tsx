@@ -69,6 +69,16 @@ function errorMessage(error: unknown) {
     : value || candidate?.message || "The operation could not be completed.";
 }
 
+function getRunBagTarget(run: StoreRun) {
+  return resolveRunActions({
+    status: run.status,
+    totalStopCount: run.totalStopCount,
+    expectedBagCount: run.expectedBagCount,
+    packedBagCount: run.packedBagCount,
+    stopCount: run.stops.length,
+  }).bagTarget;
+}
+
 function RunStatus({ value }: { value: string }) {
   const ready = [
     "READY_FOR_PICKUP",
@@ -187,12 +197,7 @@ export const StoreSubscriptionOperationsScreen = ({
       const packed = Number(packedBagCount);
       if (!Number.isInteger(packed) || packed < 1)
         throw new Error("Enter the number of packed bags.");
-      const expected = Number(
-        packingRun.expectedBagCount ||
-          packingRun.totalStopCount ||
-          packingRun.stops.length ||
-          0
-      );
+      const expected = getRunBagTarget(packingRun);
       if (packed !== expected && exceptionNote.trim().length < 5)
         throw new Error("Explain any bag-count difference.");
       return subscriptionOperationsService.confirmRunPacking(packingRun.id, {
@@ -459,13 +464,7 @@ export const StoreSubscriptionOperationsScreen = ({
                   run={run}
                   onPack={() => {
                     setPackingRun(run);
-                    setPackedBagCount(
-                      String(
-                        run.expectedBagCount ||
-                          run.totalStopCount ||
-                          run.stops.length
-                      )
-                    );
+                    setPackedBagCount(String(getRunBagTarget(run)));
                   }}
                   onPickup={() => pickupMutation.mutate(run)}
                   pickupBusy={pickupMutation.isPending}
@@ -675,10 +674,7 @@ export const StoreSubscriptionOperationsScreen = ({
                     Expected customer bags
                   </Text>
                   <Text style={styles.expectedValue}>
-                    {packingRun?.expectedBagCount ||
-                      packingRun?.totalStopCount ||
-                      packingRun?.stops.length ||
-                      0}
+                    {packingRun ? getRunBagTarget(packingRun) : 0}
                   </Text>
                 </View>
               </View>
@@ -833,7 +829,7 @@ function RunCard({
   onPickup: () => void;
   pickupBusy: boolean;
 }) {
-  const { canPack, canHandoff } = resolveRunActions({
+  const { bagTarget, canPack, canHandoff } = resolveRunActions({
     status: run.status,
     totalStopCount: run.totalStopCount,
     expectedBagCount: run.expectedBagCount,
@@ -869,12 +865,7 @@ function RunCard({
           label="Stops"
           value={String(run.addressStopCount ?? (run.totalStopCount || run.stops.length))}
         />
-        <Metric
-          label="Bags"
-          value={String(
-            run.expectedBagCount || run.totalStopCount || run.stops.length
-          )}
-        />
+        <Metric label="Bags" value={String(bagTarget)} />
         <Metric label="Cash due" value={money(run.expectedCashPaise)} />
       </View>
       {productTotals.size ? (
