@@ -276,7 +276,10 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
       expect(prisma.subscriptionDelivery.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            status: { notIn: ['SKIPPED', 'CANCELLED'] },
+            // The dispatch queries also refuse other terminal statuses (DELIVERED,
+            // FAILED); assert containment so adding a terminal status does not
+            // break this intent test.
+            status: { notIn: expect.arrayContaining(['SKIPPED', 'CANCELLED']) },
           }),
         }),
       );
@@ -317,6 +320,41 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
       expect(dispatchTx.subscriptionDelivery.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'del-2' }, data: expect.objectContaining({ status: 'ASSIGNED' }) }),
       );
+    });
+
+    it('excludes terminal deliveries from the dispatch fan-out but still assigns a dispatchable sibling', async () => {
+      // The picked stop's own DELIVERED exclusion lives in the grid UI; this
+      // fan-out is automatic, so a terminal sibling must be refused here or a
+      // finished day is flipped back to ASSIGNED and its stop resurrected. The
+      // dispatchable sibling must still be assigned.
+      const sibling = { ...delivery, id: 'del-2', subscriptionId: 'sub-2' };
+      (prisma.subscriptionDelivery.findMany as jest.Mock)
+        .mockResolvedValueOnce([delivery])            // the requested stop
+        .mockResolvedValueOnce([delivery, sibling]);  // the customer's full day set
+
+      await service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' });
+
+      // Both the selected-delivery query and the sibling query refuse terminal
+      // statuses, so neither a picked nor a fanned-out finished day is reassigned.
+      for (const call of (prisma.subscriptionDelivery.findMany as jest.Mock).mock.calls) {
+        expect(call[0].where.status.notIn).toEqual(
+          expect.arrayContaining(['SKIPPED', 'CANCELLED', 'DELIVERED', 'FAILED']),
+        );
+        // RESCHEDULED is a retry-pending day, not terminal: it must stay eligible
+        // so autoDispatchDefaultRiders can put it back on the rider's route.
+        expect(call[0].where.status.notIn).not.toContain('RESCHEDULED');
+      }
+      expect(dispatchTx.subscriptionDelivery.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'del-2' }, data: expect.objectContaining({ status: 'ASSIGNED' }) }),
+      );
+    });
+
+    it('refuses a dispatch whose selected delivery is already terminal', async () => {
+      (prisma.subscriptionDelivery.findMany as jest.Mock).mockResolvedValueOnce([]);
+
+      await expect(
+        service.dispatchToRider({ id: 'store-user', role: Role.ADMIN }, { deliveryIds: ['del-1'], riderProfileId: 'rider-1' }),
+      ).rejects.toThrow('No matching deliveries found');
     });
   });
 });

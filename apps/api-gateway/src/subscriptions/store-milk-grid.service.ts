@@ -1806,9 +1806,16 @@ export class StoreMilkGridService {
     const deliveries = await prisma.subscriptionDelivery.findMany({
       where: {
         id: { in: dto.deliveryIds },
-        // A skipped or cancelled occurrence is not deliverable; dispatching it
-        // would resurrect the stop the skip/pause teardown just cancelled.
-        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
+        // A skipped/cancelled occurrence is not deliverable, and neither is one
+        // the rider already completed or that failed terminally: dispatching it
+        // would flip it back to ASSIGNED and resurrect a stop whose rider
+        // artifact was already torn down.
+        status: { notIn: [
+          SubscriptionDeliveryStatus.SKIPPED,
+          SubscriptionDeliveryStatus.CANCELLED,
+          SubscriptionDeliveryStatus.DELIVERED,
+          SubscriptionDeliveryStatus.FAILED,
+        ] },
       },
       include: {
         subscription: {
@@ -1841,7 +1848,20 @@ export class StoreMilkGridService {
           customerId: { in: Array.from(new Set(deliveries.map((d) => d.subscription.customerId))) },
           homeStoreId: { in: requestedStoreIds as string[] },
         },
-        status: { notIn: [SubscriptionDeliveryStatus.SKIPPED, SubscriptionDeliveryStatus.CANCELLED] },
+        // Only dispatchable siblings. A picked stop legitimately excludes
+        // SKIPPED/CANCELLED in the grid UI, but this fan-out is automatic, so it
+        // must also refuse a terminal sibling a rider has already completed:
+        // flipping a DELIVERED day back to ASSIGNED resurrects a finished stop,
+        // whose rider artifact was already torn down (the same grid-vs-rider
+        // split the skip/pause paths guard against). RESCHEDULED is a
+        // retry-pending day, not terminal, so it stays eligible — matching
+        // autoDispatchDefaultRiders/setTemporaryRider, which select it.
+        status: { notIn: [
+          SubscriptionDeliveryStatus.SKIPPED,
+          SubscriptionDeliveryStatus.CANCELLED,
+          SubscriptionDeliveryStatus.DELIVERED,
+          SubscriptionDeliveryStatus.FAILED,
+        ] },
         ...(dto.slot ? { deliverySlot: dto.slot } : {}),
       },
       include: {
