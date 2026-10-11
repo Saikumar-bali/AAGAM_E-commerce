@@ -166,6 +166,15 @@ export class CashDepositBatchService {
         },
         orderBy: [{ collectionTimestamp: 'asc' }, { createdAt: 'asc' }],
       });
+      // CodLedger.settlementReference has a database-level unique index
+      // (migration 20260804170000). One store verification settles every
+      // ledger in the batch with the same bank reference, so a multi-ledger
+      // batch must store a per-ledger value or the second ledger update
+      // violates the index. The batch, its entries and the audit trail keep
+      // the human-readable reference.
+      const settlementReference = dto.settlementReference.trim();
+      const ledgerSettlementReference = (ledgerId: string): string =>
+        ledgers.length === 1 ? settlementReference : `${settlementReference}-${ledgerId.slice(0, 8)}`;
       const eligibleTotal = ledgers.reduce((sum, ledger) => sum + ledger.riderHoldingBalancePaise, 0);
       if (eligibleTotal !== batch.expectedAmountPaise) {
         throw new ConflictException('Underlying COD ledger balances changed; recreate the batch');
@@ -194,7 +203,7 @@ export class CashDepositBatchService {
           data: {
             depositedAmountPaise: depositedAfter,
             riderHoldingBalancePaise: holdingAfter,
-            settlementReference: dto.settlementReference.trim(),
+            settlementReference: ledgerSettlementReference(ledger.id),
             variancePaise: ledgerVariance,
             varianceReason: ledgerVariance ? dto.varianceReason?.trim() : null,
             status: ledgerStatus,
