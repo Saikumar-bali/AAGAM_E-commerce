@@ -195,9 +195,18 @@ function injectEnv(html, distRoot, name, publicBase) {
     new RegExp(`(src=")(${publicBase}/[^"]*/bundle\\.js)(")`),
     `$1$2?v=${version}$3`,
   );
+  // Optional dev-only rider session bootstrap: when AAGAM_RIDER_TOKEN is set the
+  // harness seeds the persisted mobile session (the react-native-keychain web
+  // mock reads localStorage) so the bundle boots straight into the rider UI with
+  // no password prompt. The token is never baked into the bundle.
+  const seedToken = process.env.AAGAM_RIDER_TOKEN || process.env.AAGAM_TOKEN || '';
+  const sessionScript = seedToken
+    ? `<script>(function(){try{var user={id:'rider-session',role:'RIDER',roles:['RIDER'],name:'Rider'};var session=JSON.stringify({version:1,user:user,token:${JSON.stringify(seedToken)}});localStorage.setItem('aagam.keychain.com.aagam.mobile.auth',JSON.stringify({username:'aagam-auth',value:session}));}catch(e){}})();</script>\n`
+    : '';
   return busted.replace(
     '</head>',
     `<script>window.__ENV__ = ${JSON.stringify(env)};</script>\n` +
+      sessionScript +
       `<script>(function(){try{var s=new EventSource('/__live');s.onmessage=function(){location.reload();};}catch(e){}})();</script>\n</head>`,
   );
 }

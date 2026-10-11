@@ -911,6 +911,27 @@ export class DeliveryRunOperationsService {
 
     const curSlot = stop.subscriptionDelivery.deliverySlot || 'AM';
     const newSlot = dto.targetSlot || (curSlot === 'AM' ? 'PM' : 'AM');
+    if (newSlot === curSlot) {
+      return { success: true, newSlot };
+    }
+
+    // (subscriptionId, serviceDate, deliverySlot) is unique, so a customer who
+    // already holds a delivery in the target slot that day (e.g. two active
+    // plans) would otherwise trip the constraint as an opaque HTTP 500.
+    const clash = await prisma.subscriptionDelivery.findFirst({
+      where: {
+        subscriptionId: stop.subscriptionDelivery.subscriptionId,
+        serviceDate: stop.subscriptionDelivery.serviceDate,
+        deliverySlot: newSlot,
+        id: { not: stop.subscriptionDeliveryId },
+      },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new BadRequestException(
+        `This customer already has a ${newSlot} delivery that day, so this stop cannot be moved to ${newSlot}.`,
+      );
+    }
 
     await prisma.subscriptionDelivery.update({
       where: { id: stop.subscriptionDeliveryId },
