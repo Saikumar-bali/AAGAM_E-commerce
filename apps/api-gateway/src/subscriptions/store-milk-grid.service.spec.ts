@@ -412,12 +412,16 @@ describe('StoreMilkGridService — merged rows keep each contract\'s partial due
   it('does not let a sibling contract absorb an under-collected day cell', async () => {
     (prisma.customerSubscription.findMany as jest.Mock).mockResolvedValue([
       sub('sub-active', 0, 39900, [cell(10, 20000, 39900)]),
-      sub('sub-sibling', 39900, 0, [cell(10, 39900, 39900)]),
+      sub('sub-sibling', 39900, 0, [cell(11, 39900, 39900)]),
     ]);
 
     const grid = await service.getGrid({ id: 'store-user', role: Role.ADMIN }, 2026, 9);
 
     expect(grid.rows).toHaveLength(1);
+    // Each contract's delivery must stay visible on its own day: the sibling
+    // on day 11 must not overwrite the under-collected day-10 cell.
+    expect(grid.rows[0].days[10]).toMatchObject({ cashCollectedPaise: 20000, cashDuePaise: 39900 });
+    expect(grid.rows[0].days[11]).toMatchObject({ cashCollectedPaise: 39900, cashDuePaise: 39900 });
     // ₹200 collected against ₹399 due on one contract keeps its ₹199 short;
     // the sibling's fully-paid ledger must not erase it.
     expect(grid.rows[0].totalCollectedPaise).toBe(59900);
