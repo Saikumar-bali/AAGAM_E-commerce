@@ -1613,3 +1613,49 @@ area, and treat a recurrence as a **major** finding.
   cause instead. Confirm with
   `grep -c primaryForCustomer apps/api-gateway/dist/src/subscriptions/store-milk-grid.service.js`
   on the host: `0` before deploy.
+
+### BUG-038 — "Stops" counts subscriptions, not doors: a household with several subscriptions is sent the rider several times
+
+- **Found:** 2026-10-11 by openhands (store-owner report: the Runs tab showed
+  "the same run twice")
+- **Severity:** major (rider route and ETA are inflated; a customer is visited
+  once per subscription instead of once per address)
+- **Surface:** store portal `/store/subscriptions` → **Runs** tab, and the run
+  cards on the store app; `GET /store/subscription-operations/runs`
+- **Role:** store | rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Have a customer hold more than one subscription at the **same address**
+     (the live store's `Saikumar Bali` held seven contracts at one QA address).
+  2. Open the store Runs tab for a day those subscriptions deliver.
+  3. Read the **Stops** column.
+- **Observed:** `RUN-AAGA-AM-2026-10-11-f2ce` showed **6 stops** and
+  `RUN-AAGA-PM-…` showed **3 stops**, but all the stops resolved to the same
+  pinned point (`pincode 530001`, one QA street) — i.e. the AM run is really
+  **1 door / 3 with the other customers**, the PM run is **1 door**. A
+  `DeliveryRunStop` is unique on `subscriptionDeliveryId`, so every subscription
+  becomes its own stop row even when the address is identical.
+- **Expected:** the run's "Stops" figure should be the number of **distinct
+  delivery addresses** (doors), while the per-subscription stop rows (each with
+  its own proof/cash/status) stay intact for delivery.
+- **Code path:** `delivery-run-planning.service.ts` `storeRuns()` and
+  `store-milk-grid.service.ts` `dispatchToRider()` group by date+slot only and
+  create one stop per delivery; the store screens read
+  `run.totalStopCount`/`run.stops.length`.
+- **Evidence:** live `aagaam.in` (store login, 2026-10-11): AM run
+  `totalStopCount 6` = 1 repeated door ×4 + 2 others; PM run `totalStopCount 3`
+  = 1 door ×3. Demo `AAGAAM_DATABASE`: `RUN-ANAKAPAL-20261011-01-BD0A4D`
+  `totalStopCount 4` → `addressStopCount 2`.
+- **Fix:** new `delivery-stop-grouping.ts` (`stopAddressKey` /
+  `countAddressStops`, keyed on rounded lat/lng so differing address *text* still
+  collapses); `storeRuns()` now returns `addressStopCount`; the store Runs tab and
+  the store app run cards prefer it. Branch
+  `fix/store-dispatch-one-row-per-customer`.
+- **Notes:** the "same run twice" the owner first reported is a *separate*
+  cosmetic defect — the regional planner restarts `clusterIndex` at 0 on each
+  planning pass, so distinct runs both render as `RUN-<ZONE>-<date>-01-<hash>`.
+  Confused with BUG-037 (that de-duplicated *contracts* in the dispatch list;
+  this is duplicate *stops* for genuinely separate active subscriptions). The
+  rider board is intentionally left per-subscription: the rider completes each
+  subscription separately (per-subscription proof/cash), so `addressStopCount`
+  is a store-read concept, not applied to `GET /rider/delivery-runs/today`.

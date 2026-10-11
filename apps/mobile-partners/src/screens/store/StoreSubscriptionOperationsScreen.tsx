@@ -147,7 +147,8 @@ export const StoreSubscriptionOperationsScreen = ({
   const exceptions = exceptionsQuery.data || [];
   const cashBatches = cashQuery.data || [];
   const stops = runs.reduce(
-    (sum, run) => sum + Number(run.totalStopCount || run.stops.length || 0),
+    (sum, run) =>
+      sum + Number(run.addressStopCount ?? (run.totalStopCount || run.stops.length || 0)),
     0
   );
   const products = demand.reduce(
@@ -849,7 +850,7 @@ function RunCard({
       <View style={styles.runMetrics}>
         <Metric
           label="Stops"
-          value={String(run.totalStopCount || run.stops.length)}
+          value={String(run.addressStopCount ?? (run.totalStopCount || run.stops.length))}
         />
         <Metric
           label="Bags"

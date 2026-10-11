@@ -22,6 +22,7 @@ import { AssignDeliveryRunDto, ConfirmRunPackingDto, ConfirmRunStopReturnDto, Ru
 import { serviceWindow, startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TERMINAL_RUN_STOP_STATUSES } from './run-stop-status';
+import { countAddressStops } from './delivery-stop-grouping';
 
 type Actor = { id: string; role: Role };
 
@@ -423,7 +424,7 @@ export class DeliveryRunPlanningService {
   async storeRuns(actor: Actor, serviceDate?: string) {
     const day = serviceDate ? startOfUtcDay(serviceDate) : startOfUtcDay(new Date());
     const next = new Date(day.getTime() + 86_400_000);
-    return prisma.deliveryRun.findMany({
+    const runs = await prisma.deliveryRun.findMany({
       where: {
         serviceDate: { gte: day, lt: next },
         ...(actor.role === Role.ADMIN ? {} : { store: { ownerId: actor.id } }),
@@ -445,6 +446,21 @@ export class DeliveryRunPlanningService {
         },
       },
     });
+    // A stop row is per subscription-day; the store reads "stops" as doors, and
+    // a household with several subscriptions produces several rows for one
+    // address, so expose the address-level count alongside the raw rows.
+    return runs.map((run) => ({
+      ...run,
+      addressStopCount: countAddressStops(
+        run.stops.map((stop) => ({
+          id: stop.id,
+          deliveryLatitude: stop.deliveryLatitude,
+          deliveryLongitude: stop.deliveryLongitude,
+          deliveryJobId: stop.deliveryJobId,
+          addressSnapshot: stop.subscriptionDelivery?.subscription?.addressSnapshot,
+        })),
+      ),
+    }));
   }
 
   async confirmReturnedStop(

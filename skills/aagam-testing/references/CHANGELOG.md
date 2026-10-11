@@ -730,3 +730,19 @@ human), what changed, why.
     per-contract grid — **42 rows / 33 customers**, the owner's dispatch list
     showing **Saikumar Bali 7×**. The fix was uncommitted, so PR #470 merged the
     cause; shipped here for deploy.
+
+- **2026-10-11 · v1.8.2 · openhands**
+  - Recorded **BUG-038** — store "Stops" counts subscriptions, not doors.
+    `DeliveryRunStop` is unique per `subscriptionDeliveryId`, so a household with
+    several subscriptions at one address becomes several stops; the live store's
+    `RUN-AAGA-AM-2026-10-11-f2ce` showed 6 stops for one repeated address (PM: 3
+    stops, 1 door). Reproduced live on `aagaam.in` (store login) and on the demo
+    `AAGAAM_DATABASE`.
+  - Fixed by adding `delivery-stop-grouping.ts` (address key on rounded lat/lng,
+    so differing address text still collapses) and returning `addressStopCount`
+    from `GET /store/subscription-operations/runs`; the store Runs tab and store
+    app run cards prefer it. Per-subscription stop rows are unchanged, and the
+    rider board is deliberately left per-subscription (separate proof/cash).
+  - Noted the *separate* cosmetic "same run twice": the regional planner restarts
+    `clusterIndex` at 0 each pass, so distinct runs both render as
+    `RUN-<ZONE>-<date>-01-<hash>`. Confused with BUG-037 (contract spam).
