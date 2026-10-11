@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AAGAM Web (Next.js) Role Simulation Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; line-height: 1.5; margin: 0; }
+  h1 { font-size: 26px; margin: 0 0 4px; color: #061B36; }
+  h2 { font-size: 16px; margin: 18px 0 6px; color: #061B36; border-bottom: 2px solid #059669; padding-bottom: 3px; }
+  h3 { font-size: 12.5px; margin: 14px 0 4px; color: #0f172a; }
+  p, li { font-size: 11px; }
+  code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace; font-size: 10px; }
+  .cover { text-align: left; padding: 36px 0 10px; }
+  .cover .sub { color: #475569; font-size: 13px; }
+  .meta { margin-top: 18px; font-size: 10.5px; color: #475569; }
+  .meta td { padding: 2px 10px 2px 0; vertical-align: top; }
+  .callout { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 10px; margin: 8px 0; border-radius: 4px; }
+  .warn { background: #fff7ed; border-left: 4px solid #ea580c; padding: 8px 10px; margin: 8px 0; border-radius: 4px; }
+  table.data { border-collapse: collapse; width: 100%; margin: 6px 0; }
+  table.data th, table.data td { border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; font-size: 10.5px; vertical-align: top; }
+  table.data th { background: #f1f5f9; }
+  img.shot { width: 100%; border: 1px solid #cbd5e1; border-radius: 5px; margin: 6px 0 2px; }
+  .cap { font-size: 9.5px; color: #64748b; margin: 0 0 10px; }
+  .pill { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+  .pill.ok { background: #d1fae5; color: #065f46; }
+  .pill.no { background: #fee2e2; color: #991b1b; }
+  .pagebreak { page-break-before: always; }
+  .rolebadge { display:inline-block; font-weight:700; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px; }
+  .r-admin { background:#7c3aed; } .r-store { background:#0d9488; } .r-rider { background:#2563eb; } .r-customer { background:#ea580c; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>AAGAM Web (Next.js) Role Simulation Guide</h1>
+  <div class="sub">Running the single Next.js web app and walking every role surface — Admin, Store, Rider and Customer — through the browser, end to end.</div>
+  <table class="meta">
+    <tr><td><strong>Repository</strong></td><td>Saikumar-bali/AAGAM_E-commerce</td></tr>
+    <tr><td><strong>App</strong></td><td><code>apps/admin-dashboard</code> (Next.js 15 App Router) — serves Shop, Store, Rider and Admin surfaces from one build</td></tr>
+    <tr><td><strong>Gateway</strong></td><td><code>apps/api-gateway</code> (NestJS) on <code>:3005</code>, proxied at <code>/api/*</code></td></tr>
+    <tr><td><strong>Database</strong></td><td>Supabase Postgres — <code>DATABASE_URL=$AAGAAM_DATABASE</code></td></tr>
+    <tr><td><strong>Method</strong></td><td>Headless Chromium (Playwright) driving the real UI — no direct API calls for the walkthrough</td></tr>
+    <tr><td><strong>Date</strong></td><td>2026-10-11</td></tr>
+  </table>
+</div>
+
+<h2>1. Role logins (all four surfaces)</h2>
+<p>One login page (<code>/login</code>, password mode) routes each account to its own portal by role. These are the accounts seeded into the sandbox database and used for this simulation. The password shown is the sandbox demo password set for this guide.</p>
+<table class="data">
+  <tr><th>Role</th><th>Login (email)</th><th>Password</th><th>Lands on</th><th>Surfaces exercised</th></tr>
+  <tr><td><span class="rolebadge r-admin">ADMIN</span></td><td><code>admin@gmail.com</code></td><td><code>Demo@2026#</code></td><td><code>/admin</code></td><td>Dashboard, Riders, Orders, Subscriptions</td></tr>
+  <tr><td><span class="rolebadge r-store">STORE</span></td><td><code>store@aagam.com</code></td><td><code>Demo@2026#</code></td><td><code>/store</code></td><td>Dashboard, Milk Grid, Deliveries, Orders</td></tr>
+  <tr><td><span class="rolebadge r-rider">RIDER</span></td><td>rider account (role <code>RIDER</code>)</td><td><code>Demo@2026#</code></td><td><code>/rider</code></td><td>Dashboard, Runs, Run Console, History, Pickup</td></tr>
+  <tr><td><span class="rolebadge r-customer">CUSTOMER</span></td><td><code>customer1@gmail.com</code></td><td><code>Demo@2026#</code></td><td><code>/shop</code></td><td>Shop, Addresses, Subscriptions, Orders</td></tr>
+</table>
+<div class="warn">
+  <strong>Credentials are environment-provided.</strong> These accounts and passwords exist only in the local sandbox database; nothing here is a production credential. Store the real logins in <code>AAGAM_*</code> environment variables per the <code>aagam-testing</code> skill — never in the repository.
+</div>
+
+<h2>2. Running the stack locally</h2>
+<pre><code># 1. shared packages (types, utils, database) — the dashboard imports them
+npm run build --workspace=packages/types
+npm run build --workspace=packages/utils
+npm run build --workspace=packages/database   # also runs prisma generate
+
+# 2. api-gateway on :3005 against the sandbox database
+cd apps/api-gateway
+export DATABASE_URL="$AAGAAM_DATABASE" JWT_SECRET=&lt;32+ chars&gt; REDIS_URL=redis://127.0.0.1:6379
+# PLAYWRIGHT_QA=true lifts the /auth/login throttle (3/min) so scripted logins don't 429
+PLAYWRIGHT_QA=true node dist/src/main.js
+
+# 3. dashboard: /api/* must be proxied to the gateway, and the Mapbox token baked in at build
+cd apps/admin-dashboard
+cat &gt; .env.local &lt;&lt;'EOF'
+NEXT_PUBLIC_API_URL=/api
+API_BACKEND_URL=http://127.0.0.1:3005
+NEXT_PUBLIC_MAPBOX_TOKEN=pk.&lt;your public token&gt;
+EOF
+npx next build
+NEXT_PUBLIC_API_URL=/api API_BACKEND_URL=http://127.0.0.1:3005 npx next start -p 12000
+</code></pre>
+<div class="callout">
+  <strong>Two build-time gotchas.</strong> <code>NEXT_PUBLIC_API_URL</code> is baked into the client bundle at <em>build</em> time — it must be the same-origin path <code>/api</code> so the browser calls the dashboard's own proxy, not <code>localhost:3005</code>. And <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> must be present during <code>next build</code>; otherwise the rider run console and live-tracking maps render the "Map unavailable – missing Mapbox token" placeholder.
+</div>
+
+<h2>3. How the four surfaces fit together</h2>
+<p>The single Next.js build serves every browser role by route group; the gateway is the only backend.</p>
+<table class="data">
+  <tr><th>Surface</th><th>Route group</th><th>Entry route</th><th>Gateway prefix</th></tr>
+  <tr><td>Shop (customer)</td><td><code>(shop)/shop</code></td><td><code>/shop</code></td><td><code>/shop/*</code>, <code>/customer/*</code></td></tr>
+  <tr><td>Store portal</td><td><code>(store)/store</code></td><td><code>/store</code></td><td><code>/store/*</code></td></tr>
+  <tr><td>Rider portal</td><td><code>(rider)/rider</code></td><td><code>/rider</code></td><td><code>/rider/*</code>, <code>/riders/*</code></td></tr>
+  <tr><td>Admin dashboard</td><td><code>(admin)/admin</code></td><td><code>/admin</code></td><td><code>/admin/*</code></td></tr>
+  <tr><td>Auth</td><td><code>(auth)</code></td><td><code>/login</code></td><td><code>/auth/*</code></td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>4. Login — the shared entry point</h2>
+<img class="shot" src="img/role-01-login.png" />
+<p class="cap">Figure 1 — <code>/login</code> in password mode. Submitting an email + password routes to <code>/admin</code>, <code>/store</code>, <code>/rider</code> or <code>/shop</code> by the account's role.</p>
+
+<h2>5. <span class="rolebadge r-admin">ADMIN</span> surface</h2>
+<p>Login as <code>admin@gmail.com</code> → lands on <code>/admin</code>. The admin portal is the operations control plane: one store, one rider, live order and subscription counts.</p>
+<img class="shot" src="img/role-admin-dashboard.png" />
+<p class="cap">Figure 2 — <code>/admin</code>: operations overview (active orders, 30-day revenue, active stores, provisioned riders).</p>
+<img class="shot" src="img/role-admin-riders.png" />
+<p class="cap">Figure 3 — <code>/admin/riders</code>: rider management, workload and the Busy/Online release controls.</p>
+<img class="shot" src="img/role-admin-orders.png" />
+<p class="cap">Figure 4 — <code>/admin/orders</code>: order management with queue / delivered tabs and revenue.</p>
+<img class="shot" src="img/role-admin-subscriptions.png" />
+<p class="cap">Figure 5 — <code>/admin/subscriptions</code>: customer subscriptions, runs and cash.</p>
+
+<div class="pagebreak"></div>
+<h2>6. <span class="rolebadge r-store">STORE</span> surface</h2>
+<p>Login as <code>store@aagam.com</code> → lands on <code>/store</code>. The store workspace owns the milk board, subscription hub and delivery runs.</p>
+<img class="shot" src="img/role-store-dashboard.png" />
+<p class="cap">Figure 6 — <code>/store</code>: store workspace (stores, products, live orders, lifetime revenue).</p>
+<img class="shot" src="img/role-store-milk-grid.png" />
+<p class="cap">Figure 7 — <code>/store/subscriptions</code>: the subscription hub. Tabs for Milk Grid, Rider Assignments, Prep list, Demand, Plans, Calendar, Runs, Cash; each customer appears once with plans stacked.</p>
+<img class="shot" src="img/role-store-deliveries.png" />
+<p class="cap">Figure 8 — <code>/store/deliveries</code>: every subscription day for the store, with a date rail (today / tomorrow / week).</p>
+<img class="shot" src="img/role-store-orders.png" />
+<p class="cap">Figure 9 — <code>/store/orders</code>: fulfilment queue — subscription and one-time orders labelled in the same board.</p>
+
+<div class="pagebreak"></div>
+<h2>7. <span class="rolebadge r-rider">RIDER</span> surface (delivery flow)</h2>
+<p>Login as the rider account → lands on <code>/rider</code>. This is the delivery workspace: offers, the active delivery, subscription delivery runs and the stop-by-stop run console.</p>
+<img class="shot" src="img/role-rider-dashboard.png" />
+<p class="cap">Figure 10 — <code>/rider</code>: delivery workspace — pending offers, active delivery and the current delivery card.</p>
+<img class="shot" src="img/role-rider-runs.png" />
+<p class="cap">Figure 11 — <code>/rider/runs</code>: today's subscription delivery run — one route, individually verified stops, cash held.</p>
+<img class="shot" src="img/role-rider-console.png" />
+<p class="cap">Figure 12 — <code>/rider/console</code>: the run console — route progress (3/4 done), per-stop cards (Customer 2 · 0.25 L · ₹399 · Delivered) and the delivery sequence. The map is a live Mapbox canvas when a valid token is baked in.</p>
+<img class="shot" src="img/role-rider-history.png" />
+<p class="cap">Figure 13 — <code>/rider/history</code>: terminal outcomes (completed / failed / cancelled / returned) with timestamps and audit detail.</p>
+<img class="shot" src="img/role-rider-pickup.png" />
+<p class="cap">Figure 14 — <code>/rider/pickup</code>: pickup tasks — verify items and quantities, record parcel handoff or report a store-side problem.</p>
+
+<div class="callout">
+  <strong>Rider delivery flow, end to end.</strong> Pickup (<code>/rider/pickup</code>: verify bag → <em>Start run</em>) → route (<code>/rider/runs</code>: open the run) → stop console (<code>/rider/console</code>: <em>Arrive</em> records GPS, then proof — OTP for security-reception, or photo+GPS for personal handover/trusted drop — then <em>Complete</em>, optionally recording COD cash) → accountability (cash batch) → history (<code>/rider/history</code> shows the terminal outcome). Each completion advances the linked order via the shared delivery workflow, not a raw stop update.
+</div>
+
+<div class="pagebreak"></div>
+<h2>8. <span class="rolebadge r-customer">CUSTOMER</span> surface</h2>
+<p>Login as <code>customer1@gmail.com</code> → lands on <code>/shop</code>. The shop is the customer's own view of the same orders and subscriptions the store and rider act on.</p>
+<img class="shot" src="img/role-shop-home.png" />
+<p class="cap">Figure 15 — <code>/shop</code>: the customer shop with subscribe-and-save entry points.</p>
+<img class="shot" src="img/role-shop-subscriptions.png" />
+<p class="cap">Figure 16 — <code>/shop/subscriptions</code>: the customer's active subscriptions (plan, funding mode, deliveries delivered, next amount) and the plan catalog.</p>
+<img class="shot" src="img/role-shop-orders.png" />
+<p class="cap">Figure 17 — <code>/shop/orders</code>: the customer's orders with rider assignment, pickup, live delivery and delivered proof.</p>
+<img class="shot" src="img/role-shop-addresses.png" />
+<p class="cap">Figure 18 — <code>/shop/addresses</code>: saved delivery addresses used by subscriptions and orders.</p>
+
+<h2>9. Cross-role simulation (one delivery, four views)</h2>
+<p>The value of walking all four roles is seeing the same object from each side. This sequence was driven entirely through the browser.</p>
+<table class="data">
+  <tr><th>#</th><th>Role</th><th>Action in the UI</th><th>Observed</th></tr>
+  <tr><td>1</td><td><span class="rolebadge r-customer">CUSTOMER</span></td><td>Open <code>/shop/subscriptions</code>; read an active subscription</td><td>Plan, funding mode, <em>N of M delivered</em>, next amount</td></tr>
+  <tr><td>2</td><td><span class="rolebadge r-store">STORE</span></td><td>Open <code>/store/subscriptions</code> → Milk Grid; find the same customer</td><td>One row per customer, plans stacked, per-day litres and Paid/Due</td></tr>
+  <tr><td>3</td><td><span class="rolebadge r-rider">RIDER</span></td><td>Open <code>/rider/runs</code> → the run → <code>/rider/console</code></td><td>Same deliveries as verified stops on the route, with cash due</td></tr>
+  <tr><td>4</td><td><span class="rolebadge r-rider">RIDER</span></td><td>Arrive → proof → Complete (record COD if any)</td><td>Stop advances; run progress increments</td></tr>
+  <tr><td>5</td><td><span class="rolebadge r-customer">CUSTOMER</span></td><td>Open <code>/shop/orders</code></td><td>Order shows the updated status / delivered proof</td></tr>
+  <tr><td>6</td><td><span class="rolebadge r-store">STORE</span></td><td>Open <code>/store/deliveries</code> for the date</td><td>The day's cell reflects the completed delivery</td></tr>
+  <tr><td>7</td><td><span class="rolebadge r-admin">ADMIN</span></td><td>Open <code>/admin/subscriptions</code> and <code>/admin/orders</code></td><td>Reconciled subscription balance and order status</td></tr>
+</table>
+
+<h2>10. Verification checklist</h2>
+<table class="data">
+  <tr><th>Check</th><th>How (UI)</th><th>Result</th></tr>
+  <tr><td>App serves</td><td>Load <code>/login</code>, <code>/shop</code>, <code>/store</code>, <code>/rider</code>, <code>/admin</code></td><td><span class="pill ok">200</span></td></tr>
+  <tr><td>Admin login</td><td><code>admin@gmail.com</code> → <code>/admin</code></td><td><span class="pill ok">lands</span></td></tr>
+  <tr><td>Store login</td><td><code>store@aagam.com</code> → <code>/store</code></td><td><span class="pill ok">lands</span></td></tr>
+  <tr><td>Rider login</td><td>rider account → <code>/rider</code></td><td><span class="pill ok">lands</span></td></tr>
+  <tr><td>Customer login</td><td><code>customer1@gmail.com</code> → <code>/shop</code></td><td><span class="pill ok">lands</span></td></tr>
+  <tr><td>Live data</td><td>Read counts/rows on each surface</td><td><span class="pill ok">real DB data</span></td></tr>
+  <tr><td>Rider run console</td><td>Open <code>/rider/console</code></td><td><span class="pill ok">route + stops render</span></td></tr>
+  <tr><td>Console errors</td><td>Collect page + console errors during the session</td><td><span class="pill ok">only the optional Google sign-in 403</span></td></tr>
+</table>
+<div class="warn">
+  <strong>Harmless console noise.</strong> The Google sign-in button logs a <code>403</code> / <code>GSI_LOGGER</code> entry when the page origin is not an allowed OAuth origin — it does not affect email/password login. If no valid <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> was baked in, the Mapbox canvases log an invalid-token warning and show a placeholder; the rest of the run console still renders.
+</div>
+
+<h2>11. Related material</h2>
+<ul>
+  <li><code>docs/qa/web-nextjs-guide/guide.html</code> — the companion UI verification guide (BUG-028 walkthrough).</li>
+  <li><code>skills/aagam-testing/</code> — end-to-end testing skill for the four role surfaces.</li>
+  <li><code>apps/api-gateway/src/auth/auth.service.ts</code> — role resolution and the master-store pass.</li>
+  <li><code>apps/admin-dashboard/src/app/(auth)/login/page.tsx</code> — the shared login and role-based routing.</li>
+</ul>
+
+</body>
+</html>

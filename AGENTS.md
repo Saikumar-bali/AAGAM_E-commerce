@@ -1000,4 +1000,21 @@ Key points:
   (live Supabase `aws-0-ap-south-1` pooler), i.e. the preview writes to the same
   DB as the live site. `psql "$AAGAAM_DATABASE"` reads it directly.
 
+### Web role-simulation run notes
+
+- `apps/api-gateway` throttles `/auth/login` to 3/min unless
+  `PLAYWRIGHT_QA=true`; a scripted multi-role login run needs that env var or it
+  gets `429`.
+- `apps/admin-dashboard` bakes `NEXT_PUBLIC_API_URL` and
+  `NEXT_PUBLIC_MAPBOX_TOKEN` at **build** time. For a local/proxied run set
+  `NEXT_PUBLIC_API_URL=/api` in `apps/admin-dashboard/.env.local` (gitignored)
+  and rebuild, otherwise the client calls `http://127.0.0.1:3005` directly and
+  login fails; without a valid Mapbox token the rider console / live-tracking
+  maps show a placeholder (the rest of the console still renders).
+- The four role surfaces are one Next.js build; `docs/qa/web-nextjs-guide/`
+  holds the generated PDF guides and the headless-Chromium screenshots
+  (`img/role-*.png`) used to walk admin/store/rider/customer. The demo logins are
+  set in the sandbox DB only — keep credentials in `AAGAM_*` env vars, never in
+  the repo.
+
 
