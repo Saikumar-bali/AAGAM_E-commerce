@@ -61,4 +61,23 @@ describe('delivery-stop-grouping', () => {
     const b: StopAddressLike = { id: 'b', addressSnapshot: {}, deliveryJobId: 'job-1' };
     expect(countAddressStops([a, b])).toBe(1);
   });
+
+  it('keys an unidentifiable stop deterministically on its row id', () => {
+    const stop: StopAddressLike = { id: 'row-1', addressSnapshot: {} };
+    expect(stopAddressKey(stop)).toBe('unknown:row-1');
+    expect(stopAddressKey(stop)).toBe(stopAddressKey(stop));
+  });
+
+  it('does not merge two unidentifiable stops that have distinct row ids', () => {
+    const a: StopAddressLike = { id: 'row-1', addressSnapshot: {} };
+    const b: StopAddressLike = { id: 'row-2', addressSnapshot: {} };
+    expect(countAddressStops([a, b])).toBe(2);
+    expect(groupStopsByAddress([a, b])).toHaveLength(2);
+  });
+
+  it('is deterministic when an unidentifiable stop has no row id', () => {
+    const stop: StopAddressLike = { addressSnapshot: {} };
+    expect(stopAddressKey(stop)).toBe('unknown:anonymous');
+    expect(stopAddressKey(stop)).toBe(stopAddressKey(stop));
+  });
 });
