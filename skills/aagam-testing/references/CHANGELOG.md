@@ -841,7 +841,8 @@ human), what changed, why.
   - PR #481 addressed the review findings: `demo-console-run.ts` now refuses to
     run unless `ALLOW_DEMO_SEED=1`; `toggleStopSlot` maps a concurrent P2002 to
     the same 400 clash message; the collision spec cleans up between tests;
-    `RiderRouteMap` includes `id`/`slot` in the memo key; the map popup escapes
+    `RiderRouteMap` includes `id`/`slot`/`label`/`plan`/`address`/`multiSub`
+    in the memo key; the map popup escapes
     customer-entered fields; the Problem (fail) action sends real GPS and the
     Trusted Drop photo is bound to the stop's one-time token.
   - Corrected the `SKILL.md` claim that `demo-console-run.ts` is "safe to re-run
