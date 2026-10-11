@@ -759,93 +759,26 @@ human), what changed, why.
     `pendingPacking` badge count `canPack` runs instead of `PLANNED` runs.
   - This is the mobile counterpart of BUG-032; the web flow was already correct.
 
-- **2026-10-11 · v1.8.4 · OpenHands agent (RNW preview session)**
-  - Documented running the `mobile-web-preview/` harness against a **real
-    backend** (Supabase `AAGAAM_DATABASE`) instead of only the sandbox demo DB:
-    Redis is required before the gateway boots, `apps/api-gateway/.env` supplies
-    `JWT_SECRET`/`REDIS_URL` while only `DATABASE_URL` is overridden, and a rider
-    JWT can be minted directly with that `JWT_SECRET` (no rider password needed).
-  - `server.js` now seeds the browser session from `AAGAM_RIDER_TOKEN` /
-    `AAGAM_TOKEN`: it injects a `<script>` into the served `index.html` that
-    writes the `aagam.keychain.com.aagam.mobile.auth` key in the
-    `{version:1,user,token}` shape, so the bundle boots straight into the rider
-    UI. Documented the leftover-`PORT=3005` -> `EADDRINUSE` footgun.
-  - Added `apps/api-gateway/demo-console-run.ts`, a focused `rcdemo_`-prefixed
-    seeder that creates five spread-out Anakapalle subscribers and dispatches an
-    AM run to the first `RIDER` user with every stop left `READY` - for
-    exercising the rider console without touching shared `demo.` rows.
-  - Documented the new rider **full-screen map console** (`RiderRunConsole`,
-    opened from the run-detail header **Map** button) and the `RiderRouteMap`
-    `stops`/`activeStopId`/`onStopPress` contract, including the marker-tap ->
-    stop-card verification (`NEXT STOP - N OF M`).
-
-- **2026-10-11 · v1.8.5 · OpenHands agent (RNW preview session)**
-  - Made the rider full-screen map console **self-contained**: it now records
-    partial/full cash (preset + custom, CASH/PhonePe, capped at the stop's
-    outstanding), attaches extra milk (qty/repeat-days/slot, idempotency-keyed),
-    toggles AM↔PM, skips with a reason, and captures the delivery proof inline
-    (camera photo for `RIDER_PHOTO_GPS`, six-digit OTP for OTP handover; Trusted
-    Drop defers to the full sheet). Every mutation re-fetches the run; Undo is
-    offered only for settled (`cashDuePaise === 0`) closed stops.
-  - Enriched the rider map HTML: markers are skinned by state (delivered /
-    part-paid / failed / skipped / extra-milk) with compact signal badges
-    (`₹100`, `skip`, `+1L`) and a bottom-right **STOP KEY** legend (2+ stops).
-    `RiderRouteMap`'s memo key now includes cash/extra/status so a payment
-    repaints the badge without a remount.
-  - Fixed **BUG-040**: `toggleSlot` 500'd (`Unique constraint failed on
-    (subscriptionId, serviceDate, deliverySlot)`) when the subscription already
-    held a delivery in the target slot; now a clear 400 and a no-op when the
-    target equals the current slot. Regression:
-    `rider-toggle-slot-collision.e2e.spec.ts` (local DB).
-  - New contract test `RiderMapConsole.contract.spec.ts` (mobile-partners) pins
-    the console ops + map signal skins; mobile suite 52/52, 297 tests green.
-
-- **2026-10-11 · v1.8.6 · OpenHands agent (RNW preview session)**
-  - **Converged the rider run experience to one map-first surface.** The run
-    detail screen now renders `RiderRunConsole` **inline** — the header **Map**
-    button (`accessibilityLabel="Open full-screen map console"`) and the second
-    inline `RiderRouteMap` on the page are both gone. The console is the board.
-  - `RiderRunConsole` gained a **draggable bottom sheet** with two snap points:
-    peek (focused stop + lifecycle + ops + Deliver) and expanded (ordered
-    `StopCard`s + finish + settlement). Drag the grip, tap a rail chip or a map
-    pin to expand/focus; opening an inline op (Cash/Extra/Skip) auto-expands so
-    controls are never clipped. New optional props `renderBoard`, `lifecycle`,
-    `headerChips` let the run screen inject the board/lifecycle instead of
-    navigating away.
-  - Deliver is gated on a started run (`IN_PROGRESS`/`AWAITING_SETTLEMENT`/
-    `COMPLETED`); before that the peek sheet shows the handoff/pickup/start
-    lifecycle action. Removed the now-unused page hero, upcoming rail, and
-    duplicate map.
-  - Extended `RiderMapConsole.contract.spec.ts` with two tests pinning the
-    single-surface invariant (no `rider_open_map_console`, board/lifecycle
-    props) and the draggable-sheet snap point. Mobile suite 52/52, 300 tests
-    green; tsc clean; lint 0 errors.
-
-- **2026-10-11 · v1.8.7 · OpenHands agent (RNW preview session)**
-  - Ran the full RNW preview harness against the Supabase DB that
-    `AAGAAM_DATABASE` points at (gateway `DATABASE_URL` byte-identical to it):
-    rebuilt `mobile-partners`, `mobile-customer` and `rider-map` under both
-    `/preview/<app>/` and `/live/<app>/`, served on :12001. All three boot with
-    live data (customer catalog renders, rider runs board shows 4/9, rider-map
-    shows the live route).
-  - Verified the two reported rider-console fixes in the browser:
-    - **Problem** now opens an inline expander in `RiderRunConsole` (reasons,
-      note, retry toggle, submit) with the URL unchanged — no jump to the
-      stop-detail modal. Removed the unused `onOpenStop` prop and its call site.
-    - **Slot** fires `toggle-slot` and surfaces the server's clash reason
-      ("This customer already has a PM delivery that day…") as a toast while the
-      panel stays open.
-  - Recorded the Problem-button defect as **BUG-041** (FIXED-NOT-DEPLOYED).
-  - Mobile suite 52/52, 300 tests green; tsc clean; lint 0 errors.
-- **2026-10-11 · v1.8.8 · openhands (PR #481 review triage)**
-  - PR #481 addressed the review findings: `demo-console-run.ts` now refuses to
-    run unless `ALLOW_DEMO_SEED=1`; `toggleStopSlot` maps a concurrent P2002 to
-    the same 400 clash message; the collision spec cleans up between tests;
-    `RiderRouteMap` includes `id`/`slot`/`label`/`plan`/`address`/`multiSub`
-    in the memo key; the map popup escapes
-    customer-entered fields; the Problem (fail) action sends real GPS and the
-    Trusted Drop photo is bound to the stop's one-time token.
-  - Corrected the `SKILL.md` claim that `demo-console-run.ts` is "safe to re-run
-    against a shared DB". It re-points the first STORE_OWNER's store and the
-    first RIDER's profile at its `rcdemo_` fixtures, so it is **not** safe — the
-    new `ALLOW_DEMO_SEED=1` guard exists precisely because of that.
+- **2026-10-11 · v1.8.4 · opencode (store-owner Runs-tab session)**
+  - Recorded **BUG-040** — the missed-delivery sweep never rolls the skipped
+    day's `cashDuePaise` forward, so a full-plan/manual subscription whose only
+    due cell is sequence 1 (auto-skipped `MISSED`) shows **Cash Due ₹0** on the
+    store Runs tab and Rider Assignments while the ledger still owes (live
+    revision `f7b194b5`: Rani ₹899.03, Vaddi ₹1,199, Saikumar contracts
+    ₹225 / ₹105). Collection-side root cause of BUG-033.
+  - Recorded **BUG-041** — `addressStopCount` keys doors on rounded coordinates
+    only, so two different addresses sharing one pin (a QA address and another
+    customer's home, both the same lat/lng) collapse into one door:
+    `RUN-AAGA-AM-2026-10-11-f2ce` shows **Stops 2** for 3 distinct
+    customers/addresses (same shape on 10-08).
+  - Recorded **BUG-042** — the same runs payload serialises the full rider row
+    (`bankAccountCiphertext` / `bankIfscCiphertext`) to the store because the
+    rider relation is `include`d; the sibling regional-route services select the
+    whole user row (`user: true`). BUG-006 class.
+  - Method notes for the next agent: verified live with the store-owner login
+    on `aagaam.in` via Playwright driving system Chrome
+    (`chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' })`
+    works when no Playwright-managed browser is installed) plus per-role curl
+    cookie jars. **`GET /store/subscriptions/grid` takes a 0-indexed `month`**
+    (`month=9` = October) — an empty grid from `month=10` is November, not a
+    regression.

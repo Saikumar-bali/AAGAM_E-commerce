@@ -198,4 +198,71 @@ test.describe('Responsive role navigation', () => {
       fullPage: true,
     });
   });
+
+  test('admin desktop sidebar collapses to an icon rail and remembers the choice', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginWithCookieSession(page, 'ADMIN');
+    await page.goto('/admin');
+
+    const sidebar = page.locator('#primary-sidebar');
+    const desktopNavigation = page.getByRole('navigation', { name: 'Admin navigation' });
+    await expect(sidebar).toBeVisible();
+    await expect(desktopNavigation).toBeVisible();
+
+    await page.getByRole('button', { name: 'Collapse navigation' }).click();
+    await expect(page.getByRole('button', { name: 'Expand navigation' })).toBeVisible();
+    await expect(sidebar).toHaveAttribute('data-collapsed', 'true');
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+      .toBeLessThanOrEqual(80);
+
+    // Collapsing hides the labels only — every destination stays reachable.
+    await expect(desktopNavigation.locator('a')).toHaveCount(21);
+    await expect(desktopNavigation.getByText('Navigation', { exact: true })).toBeHidden();
+    await expect(desktopNavigation.locator('a[href="/admin/live-tracking"]')).toBeVisible();
+
+    await page.screenshot({
+      path: path.join(PROOF_DIR, 'admin-desktop-sidebar-collapsed.png'),
+      fullPage: true,
+    });
+
+    // The preference survives a reload.
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Expand navigation' })).toBeVisible();
+    await expect(sidebar).toHaveAttribute('data-collapsed', 'true');
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+      .toBeLessThanOrEqual(80);
+
+    // And it expands back.
+    await page.getByRole('button', { name: 'Expand navigation' }).click();
+    await expect(sidebar).not.toHaveAttribute('data-collapsed');
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+      .toBeGreaterThanOrEqual(240);
+    await expect(desktopNavigation.getByText('Navigation', { exact: true })).toBeVisible();
+  });
+
+  test('store desktop sidebar offers the same collapse, rider keeps the fixed rail', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginWithCookieSession(page, 'STORE_OWNER');
+    await page.goto('/store');
+
+    const storeSidebar = page.locator('#primary-sidebar');
+    await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible();
+    await page.getByRole('button', { name: 'Collapse navigation' }).click();
+    await expect(storeSidebar).toHaveAttribute('data-collapsed', 'true');
+    await expect
+      .poll(async () => (await storeSidebar.boundingBox())?.width ?? 0)
+      .toBeLessThanOrEqual(80);
+
+    await loginWithCookieSession(page, 'RIDER');
+    await page.goto('/rider');
+    await expect(page.getByRole('navigation', { name: 'Rider navigation' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Expand navigation' })).toBeHidden();
+    await expect
+      .poll(async () => (await page.locator('#primary-sidebar').boundingBox())?.width ?? 0)
+      .toBeGreaterThanOrEqual(240);
+  });
 });

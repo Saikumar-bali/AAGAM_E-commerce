@@ -35,6 +35,8 @@ import {
   FileSpreadsheet,
   UserCheck,
   Map as MapIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 import { apiClient } from "@aagam/utils";
@@ -117,6 +119,10 @@ const menuItems: Record<Role, MenuItem[]> = {
 };
 
 const rootRoutes = new Set(["/admin", "/rider", "/shop", "/store"]);
+/** Desktop rail preference for the collapsible (store/admin) roles. */
+const SIDEBAR_COLLAPSE_KEY = "aagam:sidebar-collapsed:v1";
+const COLLAPSED_WIDTH_CLASS = "w-[76px]";
+const EXPANDED_WIDTH_CLASS = "w-[260px]";
 const focusableSelector = [
   "a[href]",
   "button:not([disabled])",
@@ -136,6 +142,36 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   const mobileDrawerRef = React.useRef<HTMLElement>(null);
   const mobileCloseButtonRef = React.useRef<HTMLButtonElement>(null);
   const quickNavigationRef = React.useRef<HTMLElement>(null);
+  // Desk roles (store owner, admin) can fold the sidebar down to an icon rail.
+  // The preference is read after mount so the server-rendered markup (always
+  // expanded) stays valid, then remembered per browser in localStorage.
+  const canCollapse = role === "ADMIN" || role === "STORE_OWNER";
+  const [collapsed, setCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!canCollapse) {
+      setCollapsed(false);
+      return;
+    }
+    try {
+      setCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1");
+    } catch {
+      setCollapsed(false);
+    }
+  }, [canCollapse]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((previous) => {
+      const next = !previous;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        // Storage can be unavailable (private browsing) — keep the in-memory toggle.
+      }
+      return next;
+    });
+  };
+  const isCollapsed = canCollapse && collapsed;
 
   React.useEffect(() => {
     if (typeof window === "undefined" || role !== "CUSTOMER") return;
@@ -291,9 +327,15 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
 
   return (
     <>
-      <aside className="relative z-10 hidden h-screen w-[260px] flex-col bg-slate-950 text-white lg:flex">
+      <aside
+        id="primary-sidebar"
+        data-collapsed={isCollapsed ? "true" : undefined}
+        className={`relative z-10 hidden h-screen flex-col bg-slate-950 text-white transition-[width] duration-200 ease-out lg:flex ${
+          isCollapsed ? COLLAPSED_WIDTH_CLASS : EXPANDED_WIDTH_CLASS
+        }`}
+      >
         <div className="pointer-events-none absolute inset-0 " />
-        <div className="relative px-5 pb-4 pt-6">
+        <div className={`relative pb-4 pt-6 ${isCollapsed ? "px-2" : "px-5"}`}>
           {role === "CUSTOMER" ? (
             <Link href="/shop/account" className="-m-1.5 flex items-center gap-3 rounded-xl p-1.5 transition-colors hover:bg-white/5">
               {profile.avatarUrl ? (
@@ -310,12 +352,31 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
               </div>
             </Link>
           ) : (
-            <AagamLogo inverse label={`${role.toLowerCase()} portal`} />
+            <div className={isCollapsed ? "flex flex-col items-center gap-3" : "flex items-start justify-between gap-2"}>
+              <AagamLogo inverse iconOnly={isCollapsed} label={`${role.toLowerCase()} portal`} />
+              {canCollapse ? (
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-expanded={!isCollapsed}
+                  aria-controls="primary-sidebar"
+                  aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                  title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70 ${
+                    isCollapsed ? "" : "mt-1"
+                  }`}
+                >
+                  {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
 
-        <nav className="relative flex-1 overflow-y-auto px-3" aria-label={`${roleLabel} navigation`}>
-          <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Navigation</p>
+        <nav className={`relative flex-1 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`} aria-label={`${roleLabel} navigation`}>
+          {isCollapsed ? null : (
+            <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Navigation</p>
+          )}
           <div className="space-y-0.5">
             {currentMenu.map((item) => {
               const Icon = item.icon;
@@ -325,7 +386,10 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                   key={item.name}
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all ${
+                  title={isCollapsed ? item.name : undefined}
+                  className={`group flex items-center rounded-xl text-[13px] font-semibold transition-all ${
+                    isCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+                  } ${
                     isActive
                       ? "bg-white text-slate-950 "
                       : "text-slate-400 hover:bg-white/7 hover:text-white"
@@ -336,7 +400,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
                   }`}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  {item.name}
+                  <span className={isCollapsed ? "sr-only" : undefined}>{item.name}</span>
                   {renderRiderBadge(item.href)}
                 </Link>
               );
@@ -344,10 +408,16 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
           </div>
         </nav>
 
-        <div className="relative border-t border-white/5 px-3 py-3">
-          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300">
+        <div className={`relative border-t border-white/5 py-3 ${isCollapsed ? "px-2" : "px-3"}`}>
+          <button
+            onClick={handleLogout}
+            title={isCollapsed ? "Sign out" : undefined}
+            className={`flex w-full items-center rounded-xl text-[13px] font-semibold text-slate-400 transition hover:bg-red-500/10 hover:text-red-300 ${
+              isCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+            }`}
+          >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5"><LogOut className="h-4 w-4" /></span>
-            Sign out
+            <span className={isCollapsed ? "sr-only" : undefined}>Sign out</span>
           </button>
         </div>
       </aside>
