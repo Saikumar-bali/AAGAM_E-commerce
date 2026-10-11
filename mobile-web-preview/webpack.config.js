@@ -4,14 +4,18 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 const APP = process.env.APP || 'mobile-partners';
-if (!['mobile-partners', 'mobile-customer'].includes(APP)) {
-  throw new Error(`Unknown APP "${APP}" (expected mobile-partners or mobile-customer)`);
+if (!['mobile-partners', 'mobile-customer', 'rider-map'].includes(APP)) {
+  throw new Error(`Unknown APP "${APP}" (expected mobile-partners, mobile-customer or rider-map)`);
 }
 
 const ROOT = path.resolve(__dirname, '..');
 const here = (p) => path.resolve(__dirname, p);
-const appDir = path.resolve(ROOT, 'apps', APP);
+// `rider-map` is a small preview entry that mounts the real RiderRouteMap with
+// mock data; it renders the partners app's components.
+const APP_DIR_NAME = APP === 'rider-map' ? 'mobile-partners' : APP;
+const appDir = path.resolve(ROOT, 'apps', APP_DIR_NAME);
 const appModuleDir = path.resolve(appDir, 'node_modules');
+const ENTRY = APP === 'rider-map' ? here('src/rider-map.js') : here('src/index.js');
 
 const API_URL = process.env.API_URL || 'http://127.0.0.1:3005';
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -21,7 +25,7 @@ const BASE = `/preview/${APP}`;
 module.exports = {
   mode: isProduction ? 'production' : 'development',
   target: ['web', 'es2019'],
-  entry: here('src/index.js'),
+  entry: ENTRY,
   devtool: isProduction ? false : 'eval-source-map',
   output: {
     path: path.resolve(__dirname, 'dist', APP),
@@ -102,6 +106,10 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({ template: here('src/static/index.html') }),
+    // Only the rider-map preview swaps Mapbox GL for the token-free SVG mock.
+    ...(APP === 'rider-map'
+      ? [new webpack.NormalModuleReplacementPlugin(/components[\\/]rider[\\/]riderRouteMapHtml(\.\w+)?$/, here('mocks/rider-route-map-html.js'))]
+      : []),
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify(NODE_ENV),
       __DEV__: JSON.stringify(!isProduction),

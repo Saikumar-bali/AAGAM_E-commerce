@@ -118,7 +118,7 @@ app.get('/__live', (req, res) => {
   req.on('close', () => clients.delete(res));
 });
 
-const APPS = ['mobile-partners', 'mobile-customer'];
+const APPS = ['mobile-partners', 'mobile-customer', 'rider-map'];
 
 // Throttle only the disk-reading static preview routes; health/live/proxy stay
 // unthrottled so hot-reload and API traffic are never dropped.
