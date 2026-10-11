@@ -33,7 +33,34 @@ type TransactionOptions = {
   isolationLevel?: Prisma.TransactionIsolationLevel
 }
 
-const prismaClient = new PrismaClient()
+/**
+ * Prisma's default pool size (2 x cpus + 1) is too small for the production
+ * host: riders' location ingestion, notification sweeps and store actions all
+ * hold connections at the same time, and the API surfaced
+ * `Timed out fetching a new connection from the connection pool
+ * (connection limit: 3)` (Sentry NODE-NESTJS-T/S/X/W/1G). Raise the defaults
+ * unless the URL already declares them, or points at a PgBouncer /
+ * transaction pooler where a low limit is required.
+ *
+ * Exported for the connection-pool contract test.
+ */
+export function withConnectionPoolDefaults(rawUrl: string | undefined): string | undefined {
+  if (!rawUrl) return rawUrl
+  try {
+    const url = new URL(rawUrl)
+    const pgbouncer = url.searchParams.get('pgbouncer')
+    if (pgbouncer && pgbouncer !== 'false') return rawUrl
+    if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '10')
+    if (!url.searchParams.has('pool_timeout')) url.searchParams.set('pool_timeout', '20')
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
+const prismaClient = new PrismaClient({
+  datasourceUrl: withConnectionPoolDefaults(process.env.DATABASE_URL),
+})
 const baseTransaction = prismaClient.$transaction.bind(prismaClient) as unknown as (
   input: unknown,
   options?: TransactionOptions,
