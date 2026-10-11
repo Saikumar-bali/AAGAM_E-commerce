@@ -571,3 +571,16 @@ human), what changed, why.
     while /rider/console shows 3/4 for the same run. 4 of 6 runs drift.
   - Run notes: PLAYWRIGHT_QA=true lifts the 3/min /auth/login throttle; the
     dashboard needs NEXT_PUBLIC_API_URL=/api baked at build time.
+
+- **2026-10-11 · v1.6.3 · openhands (BUG-030 fix + regression)**
+  - Fixed BUG-030: `permanentDeleteCustomer` deleted a purged customer's
+    `DeliveryRunStop` rows without re-deriving the parent run's stop counters,
+    so `totalStopCount`/`completedStopCount` drifted from the rows the run had
+    (rider board `4/4` vs console `3/4`). Added `deleteRunStopsAndRecompute`,
+    which reads the affected runs before deleting and calls
+    `recomputeRunCounters` on each; both delete sites in the anonymize branch use
+    it. The hard-delete branch cannot carry run stops (a stop needs a job; a job
+    needs an order; any order takes the anonymize branch).
+  - Regression: `offline-customer-purge-run-counters.e2e.spec.ts` (purge with a
+    run stop -> run counters equal the surviving rows; verified it fails on the
+    pre-fix code and passes after).

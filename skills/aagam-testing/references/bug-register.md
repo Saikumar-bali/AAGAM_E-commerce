@@ -1268,7 +1268,7 @@ area, and treat a recurrence as a **major** finding.
 - **Severity:** major
 - **Surface:** `GET /rider/delivery-runs/today`, `GET /rider/delivery-runs/:runId`; web `/rider/runs` vs `/rider/console`
 - **Role:** rider (admin/store run reads too)
-- **Status:** OPEN
+- **Status:** FIXED-NOT-DEPLOYED
 - **Repro:**
   1. Have a rider run whose deliveries were created by the store demo flow
      (these include `RIDER_PHOTO_GPS` occurrences), then permanently delete one
@@ -1306,5 +1306,18 @@ area, and treat a recurrence as a **major** finding.
   drift: `cmv2ofooq03k9x03jmkubsgyy` (4 vs 3), `cmv2eehzl000d33gypxr3jyyy`
   (28 vs 16), `cmv2nyks802cpx03jqb9evf2f` (8 vs 7),
   `cmv2fh2iz00l2zhsikl3pp3c3` (4 vs 3) — 4 of 6 runs.
-- **Fix:** —
+- **Fix:** `permanentDeleteCustomer` now routes every stop deletion through a new
+  `deleteRunStopsAndRecompute(tx, where)` helper: it reads the affected
+  `deliveryRunId`s first, deletes the rows, then calls
+  `SubscriptionLifecycleService.recomputeRunCounters` for each so
+  `totalStopCount`/`completedStopCount` are re-derived from the surviving rows.
+  Applied to both delete sites in the anonymize branch (the hard-delete branch
+  cannot carry run stops — a stop needs a job and a job needs an order, so any
+  customer with a stop takes the anonymize branch). A `SubscriptionLifecycleService`
+  instance is created locally, matching the existing pattern in
+  `subscription-admin-reporting.service.ts`.
+- **Regression test:** `offline-customer-purge-run-counters.e2e.spec.ts` —
+  purges an offline customer whose subscription has a run stop and asserts the
+  run's `totalStopCount`/`completedStopCount` equal the surviving rows (0). Fails
+  on the pre-fix code (counter stayed 1), passes after.
 
