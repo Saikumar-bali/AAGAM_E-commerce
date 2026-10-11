@@ -2,20 +2,12 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, Role, prisma } from '@aagam/database';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { reconcileSubscriptionBalance } from './subscription-balances';
-import { SubscriptionLifecycleService } from './subscription-lifecycle.service';
+import { recomputeRunCounters } from './run-counters';
 
 export type OfflineCustomerActor = { id: string; role: Role };
 
 @Injectable()
 export class OfflineCustomerService {
-  /**
-   * Shared run-counter recompute. Used by {@link permanentDeleteCustomer}:
-   * deleting a customer's `DeliveryRunStop` rows drops stops from the parent
-   * run, so its `totalStopCount`/`completedStopCount` must be re-derived or
-   * they drift from the rows the run actually has.
-   */
-  private readonly lifecycle = new SubscriptionLifecycleService();
-
   /**
    * Authoritative marker identifying an offline-created customer. Kept as a
    * single predicate so every read and mutation applies the same rule; it must
@@ -794,7 +786,7 @@ export class OfflineCustomerService {
     await tx.deliveryRunStop.deleteMany({ where });
     const runIds = new Set(stops.map((stop) => stop.deliveryRunId));
     for (const deliveryRunId of runIds) {
-      await this.lifecycle.recomputeRunCounters(tx, deliveryRunId);
+      await recomputeRunCounters(tx, deliveryRunId);
     }
   }
 
