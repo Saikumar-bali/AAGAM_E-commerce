@@ -80,6 +80,13 @@ async function cleanup() {
 }
 
 async function main() {
+  // This seeder mutates the first RIDER and STORE_OWNER it finds (approval
+  // status, store ownership), so refuse to run against a shared database unless
+  // the caller explicitly opts in.
+  if (process.env.ALLOW_DEMO_SEED !== '1') {
+    throw new Error('Refusing to run: set ALLOW_DEMO_SEED=1 to allow demo seeding (mutates real rider/store-owner rows).');
+  }
+
   await cleanup();
 
   const ownerUser = await prisma.user.findFirstOrThrow({ where: { role: Role.STORE_OWNER } });

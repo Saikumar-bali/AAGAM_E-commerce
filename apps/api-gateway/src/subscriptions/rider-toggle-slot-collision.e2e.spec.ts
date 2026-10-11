@@ -125,6 +125,9 @@ describe('rider toggle-slot — target slot already occupied', () => {
   );
 
   beforeAll(cleanup);
+  // Each test re-seeds users with the same unique emails, so clean up between
+  // tests as well; otherwise the second seed trips the User.email constraint.
+  afterEach(cleanup);
   afterAll(cleanup);
 
   test('rejects a move into an occupied slot with a 400, not a Prisma 500', async () => {

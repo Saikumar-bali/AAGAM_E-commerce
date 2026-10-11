@@ -42,7 +42,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   const [ready, setReady] = useState(false);
   const [navigationMode, setNavigationMode] = useState(false);
   const hasProgress = Number.isFinite(progressDone) && Number.isFinite(progressTotal) && (progressTotal as number) > 0;
-  const stopsKey = (stops || []).map((stop) => `${stop.sequence}:${stop.latitude}:${stop.longitude}:${stop.state}:${stop.status}:${stop.cashDuePaise}:${stop.cashPaidPaise}:${stop.extraCount}:${stop.skipped ? 1 : 0}`).join('|');
+  const stopsKey = (stops || []).map((stop) => `${stop.id}:${stop.sequence}:${stop.slot}:${stop.latitude}:${stop.longitude}:${stop.state}:${stop.status}:${stop.cashDuePaise}:${stop.cashPaidPaise}:${stop.extraCount}:${stop.skipped ? 1 : 0}`).join('|');
   const html = useMemo(
     () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN, { stops }) : null,
     [destination?.latitude, destination?.longitude, destinationLabel, stopsKey],

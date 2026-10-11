@@ -204,11 +204,20 @@ function postToRN(message) {
   } catch (e) {}
 }
 
+// Customer-controlled fields (name, address, plan) are rendered as HTML in the
+// popup via setHTML, so escape them first: an unescaped tag or attribute in a
+// name would otherwise run script inside the rider WebView.
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
 function stopPopupHtml(stop) {
   var bits = [];
-  if (stop.label) bits.push('<b>' + stop.label + '</b>');
-  if (stop.plan) bits.push(stop.plan);
-  if (stop.address) bits.push(stop.address);
+  if (stop.label) bits.push('<b>' + esc(stop.label) + '</b>');
+  if (stop.plan) bits.push(esc(stop.plan));
+  if (stop.address) bits.push(esc(stop.address));
   if (stop.multiSub) bits.push('2 subscriptions');
   var paid = Number(stop.cashPaidPaise) || 0;
   var due = Number(stop.cashDuePaise) || 0;

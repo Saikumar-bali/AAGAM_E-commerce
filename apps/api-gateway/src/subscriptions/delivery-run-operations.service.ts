@@ -933,10 +933,23 @@ export class DeliveryRunOperationsService {
       );
     }
 
-    await prisma.subscriptionDelivery.update({
-      where: { id: stop.subscriptionDeliveryId },
-      data: { deliverySlot: newSlot },
-    });
+    try {
+      await prisma.subscriptionDelivery.update({
+        where: { id: stop.subscriptionDeliveryId },
+        data: { deliverySlot: newSlot },
+      });
+    } catch (error) {
+      // The pre-check above is not atomic with the write: a concurrent move can
+      // occupy the target slot between them. Surface that race as the same 400
+      // contract instead of an opaque Prisma unique-constraint 500. Rethrow
+      // everything else unchanged.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException(
+          `This customer already has a ${newSlot} delivery that day, so this stop cannot be moved to ${newSlot}.`,
+        );
+      }
+      throw error;
+    }
 
     return { success: true, newSlot };
   }

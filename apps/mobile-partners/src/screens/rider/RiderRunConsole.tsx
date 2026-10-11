@@ -386,14 +386,16 @@ export const RiderRunConsole = ({
   };
 
   const reportProblem = (stop: DeliveryRunStop) => {
-    void runAction('fail', () => subscriptionOperationsService.failStop(run.id, stop.id, {
-      version: stop.version,
-      latitude: 0,
-      longitude: 0,
-      reason: failureReason,
-      note: failureNote.trim() || undefined,
-      retryRequested,
-    }), {
+    void runAction('fail', async () => {
+      const coordinates = await resolveLocation();
+      return subscriptionOperationsService.failStop(run.id, stop.id, {
+        ...coordinates,
+        version: stop.version,
+        reason: failureReason,
+        note: failureNote.trim() || undefined,
+        retryRequested,
+      });
+    }, {
       title: retryRequested ? 'Retry recorded' : 'Failure recorded',
       body: retryRequested ? 'The stop stays unresolved and must be retried.' : 'The exception is visible to the store and admin.',
     });
@@ -441,8 +443,20 @@ export const RiderRunConsole = ({
       const picked = await PartnerDocumentPicker.captureImage();
       if (!picked.type.startsWith('image/')) throw new Error('Delivery proof must be a camera image.');
       if (picked.size > 6 * 1024 * 1024) throw new Error('Delivery proof photo must be 6 MB or smaller.');
-      const uploaded = await riderService.uploadEvidence({ uri: picked.uri, name: picked.name, type: picked.type, size: picked.size });
-      setCapture((current) => (current ? { ...current, photoId: uploaded.storageKey, photoName: picked.name } : current));
+      if (capture.mode === 'TRUSTED_DROP') {
+        if (!capture.token?.trim()) throw new Error('Scan the customer QR before taking the drop photo.');
+        // Trusted Drop evidence must be bound to the stop's one-time token;
+        // the generic upload returns a bare storage key the server cannot
+        // verify against the stop's proof mode.
+        const evidence = await subscriptionOperationsService.uploadTrustedDropEvidence(run.id, capture.stop.id, {
+          trustedDropToken: capture.token.trim(),
+          file: { uri: picked.uri, name: picked.name, type: picked.type },
+        });
+        setCapture((current) => (current ? { ...current, photoId: evidence.id, photoName: picked.name } : current));
+      } else {
+        const uploaded = await riderService.uploadEvidence({ uri: picked.uri, name: picked.name, type: picked.type, size: picked.size });
+        setCapture((current) => (current ? { ...current, photoId: uploaded.storageKey, photoName: picked.name } : current));
+      }
       Toast.show({ type: 'success', text1: 'Delivery photo secured', text2: 'Now complete the stop.' });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Photo upload failed', text2: errorMessage(error) });
