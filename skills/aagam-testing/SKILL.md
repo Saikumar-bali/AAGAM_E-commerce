@@ -2,7 +2,7 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.8.3"
+  version: "1.8.8"
   last-verified: "2026-10-11"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."
@@ -28,6 +28,101 @@ with `./run.sh` (`APP=… `, `PORT`, `API_ORIGIN`, `STRIP_API_PREFIX`,
 `localStorage` (`aagam.keychain.com.aagam.mobile.auth`, written by
 `mocks/keychain.js`), so a rider/customer session can be seeded for the browser
 by writing that key with the keychain JSON shape and reloading.
+
+### Running the harness against a real backend (Supabase / local gateway)
+
+The harness can serve **any** gateway, not just the sandbox demo DB. To run
+against the Supabase database that `AAGAAM_DATABASE` points at:
+
+1. `sudo apt-get install -y redis-server && redis-server --daemonize yes --port 6379`
+   — the gateway refuses to boot without Redis (BullMQ subscription worker).
+2. Build the shared packages, then start the gateway with the Supabase URL:
+   ```bash
+   cd apps/api-gateway && set -a && source .env && set +a
+   export DATABASE_URL="$AAGAAM_DATABASE" PORT=3005
+   node dist/src/main.js &        # dist is the prebuilt bundle; `nest start` is unavailable
+   ```
+   `main.ts` imports `dotenv/config`, so `apps/api-gateway/.env` supplies
+   `JWT_SECRET`/`REDIS_URL`; only `DATABASE_URL` needs overriding.
+3. Mint a rider JWT **with the gateway's own `JWT_SECRET`** (the `access_token`
+   cookie is not in the login body). Signing it directly avoids needing the
+   rider's password:
+   ```bash
+   DATABASE_URL="$AAGAAM_DATABASE" node -e "const fs=require('fs'),jwt=require('jsonwebtoken'),{PrismaClient}=require('@prisma/client');const p=new PrismaClient();const s=(fs.readFileSync('apps/api-gateway/.env','utf8').match(/^JWT_SECRET=(.*)$/m)||[])[1].trim();(async()=>{const u=await p.user.findFirst({where:{role:'RIDER'},select:{id:true,email:true,phone:true,role:true}});process.stdout.write(jwt.sign({sub:u.id,email:u.email,phone:u.phone||null,role:u.role,roles:[u.role]},s,{expiresIn:'7d'}));await p.\$disconnect();})();" > /tmp/rider.jwt
+   ```
+4. `server.js` seeds that token into the browser session when
+   `AAGAM_RIDER_TOKEN` (or `AAGAM_TOKEN`) is set — it injects a small
+   `<script>` into the served `index.html` that writes the keychain key with the
+   `{version:1,user,token}` shape, so the bundle boots straight into the rider
+   UI. Start with:
+   ```bash
+   cd mobile-web-preview && export AAGAM_RIDER_TOKEN="$(cat /tmp/rider.jwt)" \
+     PORT=12001 API_ORIGIN=http://127.0.0.1:3005 STRIP_API_PREFIX=1 node server.js
+   ```
+   Watch the `PORT` variable — a shell left over from the gateway step carries
+   `PORT=3005` and the preview then dies with `EADDRINUSE` on 3005. `unset PORT`
+   (or `env -u PORT`) before starting.
+
+`apps/api-gateway/demo-console-run.ts` is a focused seeder for the rider
+full-screen console: it creates a `rcdemo_`-prefixed store, five spread-out
+subscribers around Anakapalle, dispatches an AM run to the first `RIDER` user,
+and leaves every stop `READY`. It re-points the first STORE_OWNER's store and the
+first RIDER's profile at its `rcdemo_` fixtures, so it refuses to run unless
+`ALLOW_DEMO_SEED=1` is set — run it only against a disposable local DB. Run it
+from `apps/api-gateway` with `DATABASE_URL` set and `ALLOW_DEMO_SEED=1`.
+
+### Rider run board — map-first console (`RiderRunConsole`)
+
+The **run detail screen *is* the map console**: `RiderRunDetailScreen` renders
+`RiderRunConsole` directly — there is no header **Map** button and no second
+inline map. The Mapbox `RiderRouteMap` owns the screen edge-to-edge with
+numbered stop markers; a single **draggable sheet** overlays it with two snap
+points:
+
+- **peek** (bottom ~half) — the focused stop card, the run lifecycle block
+  (handoff notice / `Confirm N bags received` / `Start delivery run`), the
+  signal chips, the ops row (Cash/Extra/Slot/Skip/Problem) and
+  Navigate/Call/Deliver.
+- **expanded** (drag the grip up, or tap a rail chip / map pin) — the full route
+  board: the ordered `StopCard`s, `Finish route after all stops`, and the
+  `AWAITING_SETTLEMENT` "Return cash to store" card.
+
+Drag the grip (`Drag up for the route board`) to expand; tapping a rail chip or a
+map pin focuses that stop **and** expands the sheet, and opening an inline op
+(Cash/Extra/Skip) auto-expands so its controls are never clipped in peek.
+`RiderRouteMap` accepts `stops` (`RiderMapStop[]` = `{id,label,latitude,
+longitude,status,cashDuePaise,cashPaidPaise,extraCount,skipped,slot,multiSub,
+...}`), `activeStopId` and `onStopPress`; the map HTML posts the tapped stop id
+back through `postMessage`. Verify with a rider token: Runs tab → the run card →
+the console is already open; click a `.stop-marker[data-seq="N"]` inside the map
+and confirm the sheet reads `NEXT STOP · N OF M` with that stop's address and
+snaps to the expanded board.
+
+The console is **self-contained**: it records partial/full cash (preset + custom
+amount, CASH/PhonePe, capped at the stop's outstanding), attaches extra milk
+(quantity/repeat-days/slot, idempotency-keyed), toggles the AM↔PM slot, skips
+with a reason, and captures the delivery proof inline — a camera photo for
+`RIDER_PHOTO_GPS`, a six-digit OTP for OTP handover (Trusted Drop defers to the
+full sheet because it needs a QR scan). Every mutation re-fetches the run.
+Undo is offered **only** for a settled (`cashDuePaise === 0`) closed stop,
+because the server refuses to undo COD-funded stops.
+
+The map HTML now skins each marker by state (delivered / part-paid / failed /
+skipped / extra-milk) and draws compact signal badges under the pin (e.g.
+`₹100`, `skip`, `+1L`), with a bottom-right **STOP KEY** legend shown when the
+route has 2+ stops. The map `useMemo` key in `RiderRouteMap.tsx` includes the
+cash/extra/status fields, so a recorded payment repaints the badge without a
+remount.
+
+`SubscriptionOperationsService.toggleStopSlot(runId, stopId, {targetSlot,
+version})` backs the Slot button; the gateway rejects a move into a slot the
+subscription already occupies that day with a clear 400 (`SubscriptionDelivery`
+is unique on `(subscriptionId, serviceDate, deliverySlot)`) — see BUG in the
+register. Verify with a rider token: focus a stop → **Cash** → `+₹100` →
+**Record** and confirm the card flips to `₹100 part-paid` and the marker badge
+appears; **Extra** on another stop; **Skip** then reopen to confirm the skip
+reason renders.
+
 
 ### Two backends from one origin (`/preview` local, `/live` aagaam.in)
 

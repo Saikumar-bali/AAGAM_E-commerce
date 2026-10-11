@@ -1693,3 +1693,51 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** this is the mobile half of BUG-032 (rider stuck at pickup because
   packing was never confirmed) — the web could always confirm packing; the app
   simply never showed the button once dispatch stamped the handoff.
+
+### BUG-040 — Rider slot toggle 500s when the subscription already has a delivery in the target slot
+
+- **Surface:** rider app → run detail → full-screen map console → **Slot**
+  (`RiderRunConsole.tsx`); API `POST /rider/delivery-runs/:runId/stops/:stopId/toggle-slot`
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Pick a subscription that already holds **both** an AM and a PM delivery on
+     the same `serviceDate` (e.g. two active plans, or a plan already generated
+     in both slots).
+  2. As the assigned rider, focus that stop in the map console and tap **Slot**
+     (or `POST …/toggle-slot {"targetSlot":"PM"}`).
+- **Observed:** `500` — `Invalid prisma.subscriptionDelivery.update() invocation
+  … Unique constraint failed on the fields: (subscriptionId, serviceDate,
+  deliverySlot)`. The slot never changed.
+- **Expected:** a clear `400` explaining the target slot is already taken, with
+  the stop left on its original slot (no partial write).
+- **Code path:** `delivery-run-operations.service.ts` `toggleSlot` did a bare
+  `prisma.subscriptionDelivery.update({data:{deliverySlot:newSlot}})`; the
+  `SubscriptionDelivery` unique key is `(subscriptionId, serviceDate,
+  deliverySlot)`.
+- **Evidence:** live `POST …/stops/<id>/toggle-slot` returned the Prisma 500
+  above; the console surfaced it only as a generic "Action failed" toast.
+- **Fix:** guard `newSlot === curSlot` (no-op) and pre-check
+  `subscriptionDelivery.findFirst({subscriptionId, serviceDate, deliverySlot:
+  newSlot, id:{not:this}})` → `BadRequestException` naming the slot. Console also
+  now offers **Undo** only for settled (`cashDuePaise === 0`) closed stops, since
+  the server refuses to undo COD-funded stops. Regression:
+  `rider-toggle-slot-collision.e2e.spec.ts` (local DB).
+- **Notes:** same class as the COD-ledger 500s already recorded — an unguarded
+  write against a DB constraint surfaces as an opaque HTTP 500.
+
+### BUG-041 — Rider console **Problem** button jumped to the legacy stop-detail screen instead of reporting inline
+
+- **Surface:** rider app → run detail → map console (`RiderRunConsole`) → ops row **Problem**
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Open an active run so the map console's peek sheet shows the ops row (Cash / Extra / Slot / Skip / Problem).
+  2. Tap **Problem**.
+- **Observed:** the app navigated away from the console to the legacy stop-detail `Modal` in `RiderRunDetailScreen` (`openStop`), which then opened its own failure-report form — the "Problem button jumps to another screen" report. The inline console had no failure-report path at all.
+- **Expected:** **Problem** opens an inline expander in the console (one expander open at a time) with the failure reasons, a note field, a "keep for retry" toggle, and a **Record and keep for retry** submit that stays on the console.
+- **Code path:** `RiderRunConsole` ops row `onPress` → `RiderRunDetailScreen` `onOpenStop={(stop) => openStop(stop)}` → stop-detail `Modal`.
+- **Evidence:** before the fix, tapping **Problem** in the live preview navigated to the stop-detail modal. After: the console renders `Report a delivery problem` with reasons *Customer unreachable / Customer refused / Address not found / Wrong address / Cash not available / Safety concern / Other issue*, a note textbox, `Keep this stop for retry`, and `Record and keep for retry` — all inline, URL unchanged.
+- **Fix:** added `FAILURE_REASONS`, `reportProblem()`, an `expander` state and an inline Problem block to `RiderRunConsole.tsx`; removed the now-unused `onOpenStop` prop from the console and its call site in `RiderRunDetailScreen.tsx` so **Problem** can never route to the modal again.
+- **Notes:** same class as BUG-040 — a console op silently delegating to a legacy screen. The map console is the single delivery surface; every op must resolve in place. Mobile suite 52/52, 300 tests green; tsc clean.
+

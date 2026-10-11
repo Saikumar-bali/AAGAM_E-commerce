@@ -363,6 +363,18 @@ export const subscriptionOperationsService = {
     return response.data;
   },
 
+  // Flip a stop between the AM and PM delivery window. The server updates the
+  // underlying delivery row's slot; no cash or entitlement effect, so it is safe
+  // from the map console.
+  toggleStopSlot: async (runId: string, stopId: string, input: { targetSlot?: 'AM' | 'PM'; version?: number }) => {
+    const response = await apiClient.post(
+      `/rider/delivery-runs/${encodeURIComponent(runId)}/stops/${encodeURIComponent(stopId)}/toggle-slot`,
+      { targetSlot: input.targetSlot },
+      input.version ? requestHeaders(mutationKey('toggle-slot', stopId, input.version)) : undefined,
+    );
+    return response.data as { success: boolean; newSlot: 'AM' | 'PM' };
+  },
+
   // Reverse a mistaken completion or skip. The server restores the stop to
   // ARRIVED (undo deliver) or PLANNED (undo skip) and unwinds the counters.
   undoStop: async (runId: string, stopId: string, input: { version: number; reason?: string }) => {
