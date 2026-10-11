@@ -758,3 +758,27 @@ human), what changed, why.
     app screen (Pack until bags are packed, then Handoff) and by making the
     `pendingPacking` badge count `canPack` runs instead of `PLANNED` runs.
   - This is the mobile counterpart of BUG-032; the web flow was already correct.
+
+- **2026-10-11 · v1.8.4 · opencode (store-owner Runs-tab session)**
+  - Recorded **BUG-040** — the missed-delivery sweep never rolls the skipped
+    day's `cashDuePaise` forward, so a full-plan/manual subscription whose only
+    due cell is sequence 1 (auto-skipped `MISSED`) shows **Cash Due ₹0** on the
+    store Runs tab and Rider Assignments while the ledger still owes (live
+    revision `f7b194b5`: Rani ₹899.03, Vaddi ₹1,199, Saikumar contracts
+    ₹225 / ₹105). Collection-side root cause of BUG-033.
+  - Recorded **BUG-041** — `addressStopCount` keys doors on rounded coordinates
+    only, so two different addresses sharing one pin (a QA address and another
+    customer's home, both the same lat/lng) collapse into one door:
+    `RUN-AAGA-AM-2026-10-11-f2ce` shows **Stops 2** for 3 distinct
+    customers/addresses (same shape on 10-08).
+  - Recorded **BUG-042** — the same runs payload serialises the full rider row
+    (`bankAccountCiphertext` / `bankIfscCiphertext`) to the store because the
+    rider relation is `include`d; the sibling regional-route services select the
+    whole user row (`user: true`). BUG-006 class.
+  - Method notes for the next agent: verified live with the store-owner login
+    on `aagaam.in` via Playwright driving system Chrome
+    (`chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' })`
+    works when no Playwright-managed browser is installed) plus per-role curl
+    cookie jars. **`GET /store/subscriptions/grid` takes a 0-indexed `month`**
+    (`month=9` = October) — an empty grid from `month=10` is November, not a
+    regression.

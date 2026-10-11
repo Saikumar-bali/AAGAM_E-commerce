@@ -1693,3 +1693,114 @@ area, and treat a recurrence as a **major** finding.
 - **Notes:** this is the mobile half of BUG-032 (rider stuck at pickup because
   packing was never confirmed) — the web could always confirm packing; the app
   simply never showed the button once dispatch stamped the handoff.
+
+### BUG-040 — Auto-missed skip strands the only cash-due cell: Runs tab "Cash Due" / rider "due" read ₹0 while the ledger still owes
+
+- **Found:** 2026-10-11 by opencode (store-owner report: "the due was also wrong"
+  on the store Runs tab)
+- **Severity:** major (money the rider and store can never collect through a
+  delivery; the ledger due stays outstanding forever)
+- **Surface:** `/store/subscriptions` → **Runs** tab (Cash Due column) and the
+  **Rider Assignments** dialog (₹0 due / Cash to collect ₹0);
+  `GET /store/subscription-operations/runs`; same root cause as BUG-033
+- **Role:** store | rider | admin
+- **Status:** OPEN
+- **Repro:**
+  1. Take a full-plan (web) or admin-manual subscription whose only cash-due
+     cell is delivery sequence 1 (`cashDueForSequence` stamps seq 1 only).
+  2. Let the missed-delivery sweep auto-skip that day (never delivered inside
+     the grace window → `SKIPPED` / `MISSED`).
+  3. Open the store Runs tab / Rider Assignments on a later day and read the due.
+- **Observed:** live `aagaam.in` (revision `f7b194b5`, 2026-10-11): both runs
+  show **Cash Due ₹0** / rider "₹0 due" while the day's customers owe Rani
+  ₹899.03 (`cmu4xc86r0…`), Vaddi ₹1,199 (`cmu5liuui0…`), Saikumar's contracts
+  ₹225 (`cmuzgw6le0…`) and ₹105 (`cmutd3pcm0…`). Each contract's history shows
+  the whole due sitting on a **SKIPPED / `MISSED`** sequence-1 row
+  (`cashDuePaise` = full plan amount, `cashCollectedPaise` 0) and every later
+  cell `cashDuePaise: 0`.
+- **Expected:** when the missed sweep skips a day that carried cash, the amount
+  must move to the next live delivery — exactly what the customer-skip path and
+  the failure path already do — or no rider stop can ever collect the balance.
+- **Code path:** `subscription-preparation.service.ts` `resolveMissedDeliveries()`
+  (~330-385) flips the row to SKIPPED/`MISSED` and tears down the rider
+  artifacts but never rolls `cashDuePaise` forward; contrast
+  `customer-subscription.service.ts:440-446` (customer skip) and
+  `subscription-cash-funding.service.ts:398-403` (failure), which both move it
+  to the next SCHEDULED delivery. Run cash is Σ `DeliveryRunStop.cashDuePaise`
+  (`delivery-run-planning.service.ts:178,187-199`; `run-counters.ts:33`), so
+  ₹0 cells ⇒ ₹0 run cash.
+- **Evidence:** `GET /store/subscriptions/subscribers/<id>/history` per contract
+  (seq-1 SKIPPED/MISSED rows carrying the due; all later cells 0);
+  `GET /store/subscription-operations/runs` `expectedCashPaise: 0`; store
+  Runs-tab screenshot showing Cash Due ₹0.
+- **Fix:** —
+- **Notes:** the collection-side root cause of BUG-033 generalised to the store
+  surfaces. The day-1 stamping itself is by design
+  (`customer-subscription.service.ts:139-143`,
+  `subscription-admin-reporting.service.ts:940`). Unlike customer skip, the
+  missed sweep also does not extend the plan or update `nextCashCollectionDate`,
+  so a MISSED day is simply lost — separate decision to make.
+
+### BUG-041 — "Stops" (addressStopCount) merges two different addresses that share one map pin
+
+- **Found:** 2026-10-11 by opencode (store-owner report: "showing 2, but the
+  user is one and also the address is one")
+- **Severity:** minor (read-only door count, but it disagrees with the stop
+  rows and under-reports the route)
+- **Surface:** `/store/subscriptions` → Runs tab **Stops** column;
+  `GET /store/subscription-operations/runs`
+- **Role:** store
+- **Status:** OPEN
+- **Repro:**
+  1. Have two customers whose `addressSnapshot` rows carry identical lat/lng
+     (here the QA-created address shares the pinned point of another customer's
+     home address) deliver in the same run.
+  2. Open the store Runs tab and read the **Stops** column.
+- **Observed:** `RUN-AAGA-AM-2026-10-11-f2ce` shows **Stops 2** for 6 stop rows
+  belonging to **3 customers at 3 distinct address rows**; the two addresses
+  carry the same pinned coordinates (identical to five decimal places), so
+  `stopAddressKey` returns one `point:` key for both households and the count
+  drops to 2. Same shape on `RUN-AAGA-AM-2026-10-08-f2ce`: 3 customers / 3
+  addresses → 2.
+- **Expected:** 3 — one per distinct door. The two addresses have different
+  `addressSnapshot.id` values, but the key never consults them.
+- **Code path:** `delivery-stop-grouping.ts` `stopAddressKey()` (63-79) prefers
+  rounded coordinates and ignores `addressSnapshot.id`;
+  `delivery-run-planning.service.ts` `storeRuns()` (452-463) feeds it.
+- **Evidence:** the stop rows' `deliveryLatitude/Longitude` and the subscription
+  snapshots resolve to the same pinned point (identical to five decimal places)
+  for the two households; live payload `addressStopCount: 2`; Runs-tab
+  screenshot.
+- **Fix:** —
+- **Notes:** BUG-038's door count assumes a pin uniquely identifies a door; on
+  this live data two households share a pin, so the count collapses in the
+  opposite direction. The address row id is available in the same payload and
+  would distinguish them.
+
+### BUG-042 — `GET /store/subscription-operations/runs` serialises the full rider row (bank ciphertext) to the store
+
+- **Found:** 2026-10-11 by opencode (while reading the store Runs-tab payload)
+- **Severity:** minor–major (sensitive fields exposed to a store-scoped reader;
+  ciphertext, not plaintext, but the platform rule is "display fields only")
+- **Surface:** `GET /store/subscription-operations/runs`
+- **Role:** store | admin
+- **Status:** OPEN
+- **Repro:** log in as the store owner and call
+  `GET /store/subscription-operations/runs`.
+- **Observed:** each run's `rider` object carries the whole `Rider` row —
+  `bankAccountCiphertext`, `bankIfscCiphertext`, `bankAccountLast4`, review ids —
+  because the query uses `include` on the rider relation. The user sub-select is
+  scoped, but the parent rider include is not.
+- **Expected:** `select` only the display fields the Runs tab renders
+  (`user.name`, `user.phone`, vehicle/status) — the BUG-006 class.
+- **Code path:** `delivery-run-planning.service.ts:435`
+  (`rider: { include: { user: { select: … } } }`). Sibling pattern exists in
+  `regional-route-operations.service.ts:50,141,448,514,569` and
+  `regional-route-planning.service.ts:779` / `subscription-admin-reporting.service.ts:511`,
+  where `user: true` selects the full user row (password hash, `fcmToken`) —
+  check their controller role gates before filing separately.
+- **Evidence:** live `aagaam.in` revision `f7b194b5`: run payloads contain
+  `rider.bankAccountCiphertext` / `bankIfscCiphertext`.
+- **Fix:** —
+- **Notes:** same class as BUG-006 (delivery-operations queue). Never paste the
+  ciphertext anywhere; assert field names only.
