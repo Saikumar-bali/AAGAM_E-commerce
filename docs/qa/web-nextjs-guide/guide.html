@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AAGAM Web (Next.js) UI Verification Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; line-height: 1.5; margin: 0; }
+  h1 { font-size: 26px; margin: 0 0 4px; color: #061B36; }
+  h2 { font-size: 16px; margin: 22px 0 6px; color: #061B36; border-bottom: 2px solid #059669; padding-bottom: 3px; }
+  h3 { font-size: 12.5px; margin: 14px 0 4px; color: #0f172a; }
+  p, li { font-size: 11px; }
+  code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace; font-size: 10px; }
+  .cover { text-align: left; padding: 40px 0 10px; }
+  .cover .sub { color: #475569; font-size: 13px; }
+  .meta { margin-top: 18px; font-size: 10.5px; color: #475569; }
+  .meta td { padding: 2px 10px 2px 0; vertical-align: top; }
+  .callout { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 10px; margin: 8px 0; border-radius: 4px; }
+  .warn { background: #fff7ed; border-left: 4px solid #ea580c; padding: 8px 10px; margin: 8px 0; border-radius: 4px; }
+  .bad { background: #fef2f2; border-left: 4px solid #dc2626; padding: 8px 10px; margin: 8px 0; border-radius: 4px; }
+  table.data { border-collapse: collapse; width: 100%; margin: 6px 0; }
+  table.data th, table.data td { border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; font-size: 10.5px; }
+  table.data th { background: #f1f5f9; }
+  img.shot { width: 100%; border: 1px solid #cbd5e1; border-radius: 5px; margin: 6px 0 2px; }
+  .cap { font-size: 9.5px; color: #64748b; margin: 0 0 10px; }
+  .two { display: flex; gap: 10px; }
+  .two > div { flex: 1; }
+  .pill { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+  .pill.ok { background: #d1fae5; color: #065f46; }
+  .pill.no { background: #fee2e2; color: #991b1b; }
+  .avoid { page-break-inside: avoid; }
+  .pagebreak { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>AAGAM Web (Next.js) UI Verification Guide</h1>
+  <div class="sub">How to run the Next.js web app and verify its role surfaces through the browser — with a worked, UI-driven reproduction of BUG-028 (merged milk-grid partial due).</div>
+  <table class="meta">
+    <tr><td><strong>Repository</strong></td><td>Saikumar-bali/AAGAM_E-commerce</td></tr>
+    <tr><td><strong>App</strong></td><td><code>apps/admin-dashboard</code> (Next.js 15 App Router) — serves Shop, Store, Rider and Admin surfaces</td></tr>
+    <tr><td><strong>Date</strong></td><td>2026-10-11</td></tr>
+    <tr><td><strong>Database</strong></td><td>Sandbox Postgres, <code>DATABASE_URL=$AAGAAM_DATABASE</code></td></tr>
+    <tr><td><strong>Method</strong></td><td>Headless Chromium (Playwright) driving the real UI — no direct API calls</td></tr>
+  </table>
+</div>
+
+<h2>1. What runs where</h2>
+<p>The web app is one Next.js build (<code>apps/admin-dashboard</code>) that serves every browser role by route group. The API gateway is a separate NestJS service; the dashboard proxies <code>/api/*</code> to it, so the browser stays same-origin.</p>
+<table class="data">
+  <tr><th>Surface</th><th>Route group</th><th>Example route</th></tr>
+  <tr><td>Shop (customer)</td><td><code>(shop)/shop</code></td><td><code>/shop/subscriptions</code></td></tr>
+  <tr><td>Store portal</td><td><code>(store)/store</code></td><td><code>/store/subscriptions</code></td></tr>
+  <tr><td>Rider portal</td><td><code>(rider)/rider</code></td><td><code>/rider/runs</code></td></tr>
+  <tr><td>Admin dashboard</td><td><code>(admin)/admin</code></td><td><code>/admin/riders</code></td></tr>
+  <tr><td>Auth</td><td><code>(auth)</code></td><td><code>/login</code></td></tr>
+</table>
+
+<h2>2. Running it locally</h2>
+<p>Build the shared packages first, then start the gateway and the dashboard:</p>
+<pre><code># 1. shared packages (types, utils, database) — the dashboard imports them
+npm run build --workspace=packages/types
+npm run build --workspace=packages/utils
+npm run build --workspace=packages/database   # also runs prisma generate
+
+# 2. api-gateway on :3005 against the sandbox database
+cd apps/api-gateway
+set -a &amp;&amp; source .env &amp;&amp; set +a
+export DATABASE_URL="$AAGAAM_DATABASE"
+node dist/src/main.js            # after `npm run build --workspace=apps/api-gateway`
+
+# 3. Next.js dashboard on :12000
+cd apps/admin-dashboard
+npm run build &amp;&amp; npx next start -p 12000
+</code></pre>
+<div class="callout">
+  <strong>Proxy:</strong> <code>next.config.js</code> rewrites <code>/api/:path*</code> →
+  <code>API_BACKEND_URL</code> (default <code>http://127.0.0.1:3005</code>). Keep the gateway on
+  :3005 or set <code>API_BACKEND_URL</code> to match.
+</div>
+
+<h2>3. Verifying through the UI</h2>
+<p>Every check below was performed by loading the real pages in a browser and reading the rendered DOM — never by calling the API directly. The work-host URLs used were:</p>
+<table class="data">
+  <tr><th>Link</th><th>Purpose</th></tr>
+  <tr><td><code>https://work-1-lkhufuuxeteqzqdl.prod-runtime.all-hands.dev/</code> (port 12000)</td><td>Next.js web app — Shop, Store, Rider, Admin</td></tr>
+  <tr><td><code>https://work-2-lkhufuuxeteqzqdl.prod-runtime.all-hands.dev/</code> (port 12001)</td><td>Mobile react-native-web previews (partners + customer) and the same-origin API proxy</td></tr>
+</table>
+
+<h3>3.1 Login</h3>
+<p>Open <code>/login</code>. The form takes a phone or email and a password (password mode is the default; phone OTP is disabled in this build). A store owner lands on <code>/store</code>.</p>
+<img class="shot" src="img/01-login.png" />
+<p class="cap">Figure 1 — <code>/login</code>: single “Phone or email” field plus password, then <em>Continue</em>.</p>
+
+<h3>3.2 Store dashboard</h3>
+<p>After signing in the store workspace loads with live counters (Subscribers, Active plans, Routes today, Cash to count).</p>
+<img class="shot" src="img/02-store-dashboard.png" />
+<p class="cap">Figure 2 — <code>/store</code>: store workspace summary.</p>
+
+<div class="pagebreak"></div>
+<h3>3.3 Subscriptions → Milk Grid (Sheet View)</h3>
+<p><code>/store/subscriptions</code> opens on the <strong>Milk Grid</strong> tab: one row per customer, one cell per day of the month, with <strong>Total L</strong>, <strong>Paid</strong>, <strong>Due</strong> and a <strong>Bill</strong> action. The search box filters by customer, phone or locality.</p>
+<img class="shot" src="img/03-milk-grid.png" />
+<p class="cap">Figure 3 — Milk Grid (Sheet View) with day cells and the Paid / Due / Bill columns on the right.</p>
+
+<h3>3.4 Opening the customer statement</h3>
+<p>Clicking <strong>Bill</strong> on a row opens the <em>Monthly Bill Statement</em> modal — the same reconciled money the row shows, plus the WhatsApp message text.</p>
+<img class="shot" src="img/05-statement.png" />
+<p class="cap">Figure 4 — Monthly Bill Statement modal for the selected customer.</p>
+
+<div class="pagebreak"></div>
+<h2>4. Worked example — BUG-028, reproduced through the UI</h2>
+<p>A customer can hold more than one subscription (a different plan, or the same plan in another slot). The grid <strong>merges</strong> those contracts into a single row, summing litres and money. The bug: when one contract had a delivered day cell that collected only <em>part</em> of its due, the merged row reported <strong>Due ₹0.00</strong>.</p>
+
+<h3>4.1 Repro steps (UI only)</h3>
+<ol>
+  <li>Give a customer two overlapping subscriptions that merge into one grid row.</li>
+  <li>On one of them, leave a delivered day cell under-collected — e.g. a <code>₹399</code> day showing <code>₹200</code>.</li>
+  <li>Open Store → Subscriptions → Milk Grid and search the customer.</li>
+</ol>
+
+<div class="bad">
+  <strong>Before the fix.</strong> The day-10 cell renders <code>₹200</code>, but the row reads
+  <strong>Paid ₹1,796.00 / Due ₹0.00</strong>. The ₹199 the customer still owes for that day is invisible,
+  so the store stops chasing the balance.
+</div>
+<img class="shot" src="img/04-grid-customer1.png" />
+<p class="cap">Figure 5 — The day-10 cell shows ₹200 while the row's Due column shows ₹0.00 (pre-fix).</p>
+
+<div class="callout">
+  <strong>After the fix.</strong> The same row now reads <strong>Paid ₹1,796.00 / Due ₹9,781.00</strong> —
+  the under-collected day cell's ₹199 shortfall is surfaced.
+</div>
+
+<h3>4.2 Root cause</h3>
+<p><code>StoreMilkGridService.getGrid()</code> reconciled the <em>active</em> contract's ledger against <em>every</em> merged contract's deliveries:</p>
+<pre><code>reconcileSubscriptionBalance(activeSub, custSubs.flatMap((sub) =&gt; sub.deliveries))</code></pre>
+<p>A sibling contract whose ledger was already fully paid pushed <code>deliveryCash</code> above the active ledger, so the helper's <code>Math.max(0, storedDue - drift)</code> clamped the under-collected contract's residual to zero.</p>
+
+<h3>4.3 Fix</h3>
+<p>Reconcile each contract against its own deliveries and sum:</p>
+<pre><code>custSubs.reduce((totals, sub) =&gt; {
+  const balance = reconcileSubscriptionBalance(sub, sub.deliveries);
+  totals.amountCollectedPaise += balance.amountCollectedPaise;
+  totals.amountDuePaise      += balance.amountDuePaise;
+  return totals;
+}, { amountCollectedPaise: 0, amountDuePaise: 0, ... });</code></pre>
+<p>Each contract keeps its own under-collected cell, while the original ledger-drift absorption still works because it only fires when a ledger is genuinely short of its <em>own</em> deliveries.</p>
+
+<h3>4.4 Regression test</h3>
+<p><code>store-milk-grid.service.spec.ts</code> → “merged rows keep each contract's partial due” builds two overlapping contracts (one fully paid, one ₹200-of-₹399) and asserts the row's <code>totalDuePaise</code> is <strong>19900</strong>, not 0.</p>
+
+<div class="pagebreak"></div>
+<h2>5. Verification checklist</h2>
+<table class="data">
+  <tr><th>Check</th><th>How (UI)</th><th>Result</th></tr>
+  <tr><td>Web app serves</td><td>Load <code>/</code>, <code>/login</code>, <code>/store/subscriptions</code>, <code>/admin</code></td><td><span class="pill ok">200</span></td></tr>
+  <tr><td>Store login</td><td>Submit <code>store@aagam.com</code> on <code>/login</code></td><td><span class="pill ok">lands on /store</span></td></tr>
+  <tr><td>Milk grid loads</td><td>Read rendered day cells + Paid/Due columns</td><td><span class="pill ok">live data</span></td></tr>
+  <tr><td>Statement modal</td><td>Click <strong>Bill</strong> on a row</td><td><span class="pill ok">opens</span></td></tr>
+  <tr><td>Console errors</td><td>Collect page + console errors during the session</td><td><span class="pill ok">none</span> (only the optional Google sign-in 403)</td></tr>
+  <tr><td>BUG-028</td><td>Compare row Due before/after fix</td><td><span class="pill ok">₹0.00 → ₹9,781.00</span></td></tr>
+</table>
+<div class="warn">
+  <strong>Note.</strong> The Google sign-in button logs a harmless <code>403</code> /
+  <code>GSI_LOGGER</code> console entry when the page origin is not an allowed OAuth origin;
+  it does not affect email/password login.
+</div>
+
+<h2>6. Related material</h2>
+<ul>
+  <li><strong>PR #465</strong> — fix(store): keep each merged contract's partial due in the milk grid.</li>
+  <li><code>skills/aagam-testing/references/bug-register.md</code> — BUG-028 entry.</li>
+  <li><code>apps/api-gateway/src/subscriptions/subscription-balances.ts</code> — the reconciliation helper.</li>
+</ul>
+
+</body>
+</html>
