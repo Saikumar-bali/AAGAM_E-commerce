@@ -51,6 +51,8 @@ export type DeliveryRunSummary = {
   slotEnd: string;
   status: DeliveryRunStatus;
   totalStopCount: number;
+  /** Distinct delivery addresses; `totalStopCount` is one row per subscription. */
+  addressStopCount?: number;
   completedStopCount: number;
   failedStopCount: number;
   retryPendingStopCount: number;

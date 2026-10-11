@@ -83,6 +83,8 @@ type Run = {
   status: RunStatus;
   version: number;
   totalStopCount: number;
+  /** Distinct delivery addresses; `totalStopCount` is one row per subscription. */
+  addressStopCount?: number;
   expectedBagCount?: number;
   packedBagCount?: number;
   packedAt?: string | null;
@@ -1160,7 +1162,7 @@ export default function StoreSubscriptionOperationsPage() {
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{run.deliveryZone?.name || "—"}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{run.rider?.user?.name || "Unassigned"}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.totalStopCount || run.stops.length}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.addressStopCount ?? (run.totalStopCount || run.stops.length)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.expectedBagCount || run.totalStopCount || run.stops.length}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-amber-700">{money(run.expectedCashPaise)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5">
