@@ -55,12 +55,12 @@ function RunCard({ run, onPress }: { run: DeliveryRunSummary; onPress: () => voi
       <View style={styles.cardTopRow}>
         <View style={styles.routeBadge}><Route size={21} color="#0F766E" /></View>
         <View style={styles.cardTitleCopy}>
-          <Text style={styles.routeCode}>{run.routeCode}</Text>
+          <Text style={styles.routeCode} numberOfLines={1}>{run.routeCode}</Text>
           <Text style={styles.zoneName} numberOfLines={1}>{run.deliveryZone?.name || 'Assigned region'}</Text>
           <Text style={styles.storeName} numberOfLines={1}>{run.store?.name || 'Assigned store'}</Text>
         </View>
         <View style={[styles.statusChip, { backgroundColor: tone.bg }]}>
-          <Text style={[styles.statusChipText, { color: tone.text }]}>{statusLabel(run.status)}</Text>
+          <Text style={[styles.statusChipText, { color: tone.text }]} numberOfLines={2}>{statusLabel(run.status)}</Text>
         </View>
       </View>
       <View style={styles.windowRow}>
@@ -100,7 +100,7 @@ export const RiderRunsScreen = ({ navigation }: { navigation: NavigationProp<Rid
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 110 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={runsQuery.isRefetching} onRefresh={() => void runsQuery.refetch()} tintColor="#FFFFFF" />}
       >
         <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 14) + 10 }]}>
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   routeCode: { color: '#17211D', fontSize: 16, fontWeight: '600' },
   zoneName: { color: '#0F766E', fontSize: 11, fontWeight: '600', marginTop: 2 },
   storeName: { color: '#64748B', fontSize: 12, marginTop: 2 },
-  statusChip: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6, maxWidth: 115 },
+  statusChip: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6, maxWidth: 115, flexShrink: 1 },
   statusChipText: { fontSize: 9, fontWeight: '600', textAlign: 'center' },
   windowRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 },
   windowText: { color: '#475569', fontSize: 12, fontWeight: '500' },
