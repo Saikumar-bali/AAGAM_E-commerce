@@ -70,7 +70,12 @@ export function stopAddressKey(stop: StopAddressLike): string {
   const line = text(snapshot.line1 ?? snapshot.formattedAddress);
   if (pincode || line) return `addr:${pincode}|${line}`;
   if (stop.deliveryJobId) return `job:${stop.deliveryJobId}`;
-  return `unknown:${stop.id ?? Math.random().toString(36).slice(2)}`;
+  // No address, no point, no job: fall back to the row id (unique per stop) so
+  // two unidentifiable stops are never merged. `Math.random()` here would make
+  // the same stop key differently between calls, which would break
+  // `groupStopsByAddress` (it calls this once per stop) and any caller that
+  // caches keys.
+  return `unknown:${stop.id ?? 'anonymous'}`;
 }
 
 /** Collapse a run's stops into distinct physical delivery points. */
