@@ -276,7 +276,10 @@ describe('StoreMilkGridService — TOGGLE_DELIVERED routes through funding entit
       expect(prisma.subscriptionDelivery.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            status: { notIn: ['SKIPPED', 'CANCELLED'] },
+            // The dispatch queries also refuse other terminal statuses (DELIVERED,
+            // FAILED); assert containment so adding a terminal status does not
+            // break this intent test.
+            status: { notIn: expect.arrayContaining(['SKIPPED', 'CANCELLED']) },
           }),
         }),
       );
