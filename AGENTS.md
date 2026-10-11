@@ -401,6 +401,31 @@ survives a timeout, and treat 20 minutes as their own deadline.
   dedupes live contracts to one row per customer, and excludes cancelled rows
   from the live list (queryable via `?status=cancelled`).
 
+## Observability (Sentry)
+
+Sentry is wired into every runtime; each reports to the shared AAGAM project
+with a `service` tag:
+
+- `apps/api-gateway` — `instrument.ts` → `common/sentry-config.ts`,
+  `SentryExceptionFilter` for 5xx and `captureBackgroundError` for schedulers.
+- `apps/admin-dashboard` — `instrumentation.ts` (server/edge, using Next's
+  `onRequestError` hook) and `instrumentation-client.ts` (browser); DSN comes
+  from `apps/admin-dashboard/sentry-config.ts`.
+- `apps/worker-service` — inits `@sentry/node` at the top of `src/index.ts` and
+  reports redis/startup failures through `captureWorkerError`.
+- `apps/mobile-customer`, `apps/mobile-partners` — `src/lib/sentry.ts` init plus
+  `Sentry.wrap(App)` in `index.js`; `__DEV__` selects the environment.
+
+Rules:
+
+- Every app falls back to the same public project DSN when `SENTRY_DSN` /
+  `NEXT_PUBLIC_SENTRY_DSN` is unset; an explicitly empty variable opts out and
+  `SENTRY_ENABLED=false` disables reporting. The dashboard build hashes those
+  variables via `apps/admin-dashboard/turbo.json`, so never remove them from
+  that env list.
+- Source maps are not uploaded yet (no `SENTRY_AUTH_TOKEN`); release stack
+  traces are minified. Add `withSentryConfig` plus the token when needed.
+
 ## Rider returns and freeing BUSY riders
 
 - Failed-delivery return: the parcel is physically with the rider, so the rider

@@ -1,6 +1,32 @@
 import 'dotenv/config';
 import { prisma } from '@aagam/database';
 import IORedis from 'ioredis';
+import * as Sentry from '@sentry/node';
+
+// Error tracking for the worker. Mirrors the API's fallback-DSN behaviour: an
+// unset SENTRY_DSN uses the shared AAGAM project, an explicitly empty value
+// opts out, and SENTRY_ENABLED=false disables reporting.
+const SENTRY_FALLBACK_DSN =
+  'https://c90214d1a7d8b5c729e9e4f9b62e0620@o4512080888266752.ingest.de.sentry.io/4512080909959248';
+const sentryDsn = process.env.SENTRY_DSN === undefined ? SENTRY_FALLBACK_DSN : process.env.SENTRY_DSN;
+const sentryEnabled = sentryDsn.length > 0 && process.env.SENTRY_ENABLED !== 'false';
+
+if (sentryEnabled) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.05),
+    initialScope: { tags: { service: 'worker-service' } },
+  });
+}
+
+function captureWorkerError(context: string, error: unknown): void {
+  if (!sentryEnabled) return;
+  Sentry.withScope((scope) => {
+    scope.setTag('background_job', context);
+    Sentry.captureException(error);
+  });
+}
 
 async function main() {
   console.log('🚀 Worker Service starting...');
@@ -33,6 +59,7 @@ async function main() {
       console.error('❌ Redis connection degraded:', error.message);
       lastRedisErrorAt = now;
       lastRedisErrorMessage = error.message;
+      captureWorkerError('redis', error);
     }
   });
 
@@ -54,5 +81,6 @@ main().catch((error) => {
     '❌ Worker startup failed:',
     error instanceof Error ? error.message : error,
   );
+  captureWorkerError('startup', error);
   process.exit(1);
 });

@@ -1,5 +1,6 @@
 import { AppRegistry, I18nManager } from 'react-native';
 import { setupBackgroundMessageHandler } from '@aagam/mobile-shared';
+import { initSentry, Sentry } from './src/lib/sentry';
 import App from './App';
 import { name as appName } from './app.json';
 
@@ -12,5 +13,6 @@ if (I18nManager.allowRTL) {
 }
 I18nManager.forceRTL(false);
 
+initSentry();
 setupBackgroundMessageHandler();
-AppRegistry.registerComponent(appName, () => App);
+AppRegistry.registerComponent(appName, () => Sentry.wrap(App));
