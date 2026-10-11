@@ -902,7 +902,7 @@ function RunCard({
           <Text style={styles.runPrimaryText}>Verify and confirm packing</Text>
         </TouchableOpacity>
       ) : null}
-      {canHandoff ? (
+      {canHandoff && !run.storeHandoffConfirmedAt ? (
         <TouchableOpacity
           style={styles.runPrimary}
           disabled={pickupBusy}
@@ -914,7 +914,9 @@ function RunCard({
           </Text>
         </TouchableOpacity>
       ) : null}
-      {run.status === "READY_FOR_PICKUP" && run.storeHandoffConfirmedAt ? (
+      {run.status === "READY_FOR_PICKUP" &&
+      run.storeHandoffConfirmedAt &&
+      !canPack ? (
         <View style={styles.productSummary}>
           <Text style={styles.productSummaryText}>
             Store handoff recorded · waiting for rider bag receipt
