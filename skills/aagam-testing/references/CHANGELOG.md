@@ -837,3 +837,14 @@ human), what changed, why.
       panel stays open.
   - Recorded the Problem-button defect as **BUG-041** (FIXED-NOT-DEPLOYED).
   - Mobile suite 52/52, 300 tests green; tsc clean; lint 0 errors.
+- **2026-10-11 · v1.8.8 · openhands (PR #481 review triage)**
+  - PR #481 addressed the review findings: `demo-console-run.ts` now refuses to
+    run unless `ALLOW_DEMO_SEED=1`; `toggleStopSlot` maps a concurrent P2002 to
+    the same 400 clash message; the collision spec cleans up between tests;
+    `RiderRouteMap` includes `id`/`slot` in the memo key; the map popup escapes
+    customer-entered fields; the Problem (fail) action sends real GPS and the
+    Trusted Drop photo is bound to the stop's one-time token.
+  - Corrected the `SKILL.md` claim that `demo-console-run.ts` is "safe to re-run
+    against a shared DB". It re-points the first STORE_OWNER's store and the
+    first RIDER's profile at its `rcdemo_` fixtures, so it is **not** safe — the
+    new `ALLOW_DEMO_SEED=1` guard exists precisely because of that.

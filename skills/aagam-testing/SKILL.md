@@ -2,7 +2,7 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.8.7"
+  version: "1.8.8"
   last-verified: "2026-10-11"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."
@@ -66,9 +66,10 @@ against the Supabase database that `AAGAAM_DATABASE` points at:
 `apps/api-gateway/demo-console-run.ts` is a focused seeder for the rider
 full-screen console: it creates a `rcdemo_`-prefixed store, five spread-out
 subscribers around Anakapalle, dispatches an AM run to the first `RIDER` user,
-and leaves every stop `READY`. It cleans up only its own prefixed rows, so it is
-safe to re-run against a shared DB (unlike `demo-seed.flow.ts`, which uses fixed
-`demo.` names). Run it from `apps/api-gateway` with `DATABASE_URL` set.
+and leaves every stop `READY`. It re-points the first STORE_OWNER's store and the
+first RIDER's profile at its `rcdemo_` fixtures, so it refuses to run unless
+`ALLOW_DEMO_SEED=1` is set — run it only against a disposable local DB. Run it
+from `apps/api-gateway` with `DATABASE_URL` set and `ALLOW_DEMO_SEED=1`.
 
 ### Rider run board — map-first console (`RiderRunConsole`)
 
