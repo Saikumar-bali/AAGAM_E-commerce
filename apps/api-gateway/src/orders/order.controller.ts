@@ -1,4 +1,4 @@
-import { Body, Controller, Get, GoneException, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, GoneException, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@aagam/database';
 import { OrderService } from './order.service';
 import { DispatchService } from './dispatch.service';
@@ -8,13 +8,25 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ForceCancelOrderDto } from './dto/force-cancel-order.dto';
 import { ReassignRiderDto } from './dto/reassign-rider.dto';
+import { OrderListQueryDto } from './dto/order-list-query.dto';
+import { StaleOrderAutocancelService } from './stale-order-autocancel.service';
 
 @Controller('orders')
 export class OrderController {
   constructor(
     private readonly orderService: OrderService,
     private readonly dispatchService: DispatchService,
+    private readonly staleOrderAutocancel: StaleOrderAutocancelService,
   ) {}
+
+  /** Runs the stale-order sweep on demand (same job the hourly timer runs). */
+  @Post('admin/auto-cancel-stale')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async autoCancelStale() {
+    const cancelled = await this.staleOrderAutocancel.sweep();
+    return { cancelled };
+  }
 
   @Patch('assign')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,15 +40,15 @@ export class OrderController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  async findAll() {
-    return this.orderService.findAll();
+  async findAll(@Query() query: OrderListQueryDto) {
+    return this.orderService.findAllPaginated(query);
   }
 
   @Get('store')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.STORE_OWNER)
-  async findStoreOrders(@Req() req: any) {
-    return this.orderService.findStoreOrders(req.user.id);
+  async findStoreOrders(@Req() req: any, @Query() query: OrderListQueryDto) {
+    return this.orderService.findStoreOrdersPaginated(req.user.id, query);
   }
 
   @Get('my')

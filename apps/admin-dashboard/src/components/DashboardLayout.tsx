@@ -147,18 +147,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, allowedRole
   const openNotifications = () => router.push(notificationHrefByRole[allowedRole]);
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-slate-50 text-[13px] text-slate-950 xl:text-sm">
+    <div className="dashboard-shell relative flex h-screen overflow-hidden bg-slate-50 text-[13px] text-slate-950 xl:text-sm">
       <div className="pointer-events-none absolute inset-0 enterprise-subtle-grid opacity-40" />
       <Sidebar role={userRole as any} />
-      <main className="relative flex-1 overflow-y-auto py-3 pl-3 pr-1 pb-24 md:py-4 md:pl-4 md:pr-2 lg:pb-6">
-        <div className="mx-auto max-w-[1500px]">
+      <main className="relative flex-1 overflow-y-auto py-2 pl-2 pr-1 pb-24 md:py-2.5 md:pl-3 md:pr-2 lg:pb-4">
+        <div className="mx-auto max-w-[1680px]">
           {showOperationsHeader ? (
-            <header className="mb-4 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+            <header className="mb-2.5 rounded-xl border border-slate-200 bg-white p-2.5 sm:p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 lg:hidden"><AagamLogo href={homeForRole(allowedRole)} compact label={allowedRole === 'ADMIN' ? 'Commerce operations' : 'Partner operations'} /></div>
                 <div className="hidden min-w-0 lg:block">
                   <p className="enterprise-kicker">Aagaam Commerce</p>
-                  <p className="mt-1 text-lg font-semibold tracking-[-0.02em] text-slate-950">{titleByRole[allowedRole as Exclude<DashboardLayoutProps['allowedRole'], 'CUSTOMER'>]}</p>
+                  <p className="mt-0.5 text-base font-semibold tracking-[-0.02em] text-slate-950">{titleByRole[allowedRole as Exclude<DashboardLayoutProps['allowedRole'], 'CUSTOMER'>]}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button onClick={() => setSearchOpen(true)} aria-label="Open global search" className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-teal-300 hover:text-teal-700 sm:h-10 sm:w-10 md:hidden"><Search className="h-4 w-4" /></button>

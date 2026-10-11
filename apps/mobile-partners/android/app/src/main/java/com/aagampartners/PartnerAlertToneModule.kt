@@ -1,7 +1,7 @@
 package com.aagampartners
 
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
 import com.facebook.react.bridge.ReactApplicationContext
@@ -11,28 +11,25 @@ import com.facebook.react.bridge.ReactMethod
 class PartnerAlertToneModule(
   reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext) {
-  private var activeTone: ToneGenerator? = null
+  private var player: MediaPlayer? = null
   private val handler = Handler(Looper.getMainLooper())
-  private val scheduled = mutableListOf<Runnable>()
 
   override fun getName(): String = "PartnerAlertTone"
 
-  private fun schedule(delayMs: Long, action: () -> Unit) {
-    lateinit var runnable: Runnable
-    runnable = Runnable {
-      scheduled.remove(runnable)
-      action()
-    }
-    scheduled.add(runnable)
-    handler.postDelayed(runnable, delayMs)
-  }
-
   private fun stopInternal() {
-    scheduled.toList().forEach { runnable -> handler.removeCallbacks(runnable) }
-    scheduled.clear()
-    activeTone?.stopTone()
-    activeTone?.release()
-    activeTone = null
+    player?.let { media ->
+      try {
+        if (media.isPlaying) media.stop()
+      } catch (_error: Throwable) {
+        // Already stopped or released — nothing to do.
+      }
+      try {
+        media.release()
+      } catch (_error: Throwable) {
+        // Release is best-effort.
+      }
+    }
+    player = null
   }
 
   @ReactMethod
@@ -40,28 +37,26 @@ class PartnerAlertToneModule(
     handler.post {
       try {
         stopInternal()
-        // Use the notification stream rather than the phone's alarm source.
-        // Three short, high-volume pulses are intentionally easier to notice in
-        // a busy store or on the road without sounding like an alarm clock.
-        val generator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-        activeTone = generator
-        generator.startTone(ToneGenerator.TONE_PROP_BEEP2, 320)
-        schedule(430) {
-          if (activeTone === generator) {
-            generator.startTone(ToneGenerator.TONE_PROP_ACK, 420)
+        val context = reactApplicationContext
+        val resId = context.resources.getIdentifier(ALERT_RESOURCE, "raw", context.packageName)
+        if (resId == 0) return@post
+        val created = MediaPlayer.create(context, resId) ?: return@post
+        created.setAudioAttributes(
+          AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build(),
+        )
+        created.setOnCompletionListener { media ->
+          try {
+            media.release()
+          } catch (_error: Throwable) {
+            // Release is best-effort.
           }
+          if (player === media) player = null
         }
-        schedule(980) {
-          if (activeTone === generator) {
-            generator.startTone(ToneGenerator.TONE_PROP_BEEP2, 560)
-          }
-        }
-        schedule(1_700) {
-          if (activeTone === generator) {
-            generator.release()
-            activeTone = null
-          }
-        }
+        player = created
+        created.start()
       } catch (_error: Throwable) {
         // Notification delivery must never fail because a device cannot play audio.
         stopInternal()
@@ -72,5 +67,9 @@ class PartnerAlertToneModule(
   @ReactMethod
   fun stop() {
     handler.post { stopInternal() }
+  }
+
+  companion object {
+    private const val ALERT_RESOURCE = "rider_alert"
   }
 }

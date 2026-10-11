@@ -24,6 +24,42 @@ Then open:
 Both are also reachable through the work host proxy
 (`https://work-2-<...>.prod-runtime.all-hands.dev/preview/<app>/`).
 
+## Live backend (`aagaam.in`) from the same server
+
+To preview the same apps against the **live** `https://aagaam.in` API, set
+`AAGAAM_LIVE_ORIGIN` and build again; each app is built a second time under
+`dist-live/` and served at `/live/<app>/`, with its `/live/api/*` calls proxied
+to `https://aagaam.in/api` (same-origin, so no CORS and no cross-origin call):
+
+```bash
+cd mobile-web-preview
+AAGAAM_LIVE_ORIGIN=https://aagaam.in ./run.sh        # builds /preview + /live
+```
+
+- live partners: `http://127.0.0.1:12001/live/mobile-partners/`
+- live customer: `http://127.0.0.1:12001/live/mobile-customer/`
+- live rider map: `http://127.0.0.1:12001/live/rider-map/`
+
+(`run.sh build` builds `PUBLIC_BASE=/preview OUT_DIR=dist API_URL=/api` then
+`PUBLIC_BASE=/live OUT_DIR=dist-live API_URL=/live/api`.)
+
+### Maps (real Mapbox token)
+
+The deployed VPS env carries a valid public Mapbox token; put it in a
+**gitignored** `mobile-web-preview/.env` (auto-loaded by `run.sh` and
+`server.js`):
+
+```
+MAPBOX_TOKEN=pk.…
+EXPO_PUBLIC_MAPBOX_TOKEN=pk.…
+GOOGLE_MAPS_API_KEY=AIza…
+```
+
+These are public client keys (they ship in the browser bundle), not server
+secrets — never commit them. With a token the real Mapbox GL page renders
+(verified: tile requests 200, live `<canvas>`). Without one, the build swaps in a
+token-free SVG mock so the map still renders in offline/CI builds.
+
 | env | default | meaning |
 | --- | --- | --- |
 | `PORT` | `12001` | listen port |

@@ -42,7 +42,17 @@ GET /api/orders/delivery-operations/queue   -> [{ id, orderId, status, currentRi
 |---|---|---|
 | Customer | `/login` → `/shop` | Shop, My Orders, Subscriptions, Notifications, All menu |
 | Store owner | `/login` → `/store` | Dashboard, Notifications, Orders, Deliveries, Pickup Proof, Subscription Runs, Inventory, My Stores, Settings |
-| Rider | `/login` → `/rider` | Home, Job Offers, Current Delivery, Pickup Tasks, Notifications, History, Earnings, Route Map, Morning Runs, COD & Settlements, Performance, Availability, Profile, Support |
+| Rider | `/login` → `/rider` | Home (assigned deliveries only), Route, Runs, Notifications (hidden tab, opened from Profile), Earnings, Profile (holds the Online/Offline switch + tracking diagnostics) |
+
+> **Rider Home scope (fixed 2026-10-11):** Home is *assigned deliveries only*.
+> It no longer renders Job Offers or an availability toggle; the Online/Offline
+> switch and "Tracking and GPS diagnostics" now live on **Profile**. `GET
+> /riders/portal/home` `activeJobs` excludes any delivery whose linked
+> `subscriptionDelivery` is terminal (`DELIVERED|SKIPPED|CANCELLED|FAILED|RESCHEDULED`),
+> so closed days no longer resurface (BUG-035). `pendingOffers` on Home is
+> expected `0`: subscription work is **store-first** — a rider is only offered a
+> job after the store assigns/dispatches it, never by a background auto-dispatch
+> sweep (see BUG-036).
 | Admin | `/login` → `/admin` | Dashboard, Partner Applications, Analytics, Notifications, Support, Dispatch, Delivery Exceptions, Stores, Customers, Products, Delivery Zones, Localities, Delivery Fee Rules, Promotions, Subscriptions, Store Delivery, Route Planning, Riders, Orders, Excel Report, Live Tracking |
 
 ---

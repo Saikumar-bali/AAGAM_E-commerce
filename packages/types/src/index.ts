@@ -18,6 +18,31 @@ export const ORDER_STATUS_VALUES = [
   "DELIVERED",
   "CANCELLED",
 ] as const;
+
+/**
+ * Order statuses whose lifecycle is over: the order was delivered, cancelled or
+ * its payment definitively failed. Everything else is "open" (still expected to
+ * progress) and is a candidate for the stale-order auto-cancel sweep. Prefer
+ * this over re-deriving the set at each call site.
+ */
+export const TERMINAL_ORDER_STATUS_VALUES = [
+  "DELIVERED",
+  "CANCELLED",
+  "PAYMENT_FAILED",
+] as const;
+
+/**
+ * Standard offset-pagination envelope. Use for any list endpoint that could
+ * return many rows, so clients have one shape to consume:
+ * `{ items, page, pageSize, total, totalPages }`.
+ */
+export interface PaginatedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
 export const DELIVERY_JOB_STATUS_VALUES = [
   "WAITING_FOR_DISPATCH",
   "STORE_DELIVERING",

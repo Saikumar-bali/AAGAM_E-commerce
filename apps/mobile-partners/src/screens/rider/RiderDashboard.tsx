@@ -1,33 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GradientSurface } from '../../components/GradientSurface';
 import { useAuthStore } from '@aagam/mobile-shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Bike,
-  BriefcaseBusiness,
   CheckCircle2,
-  Clock,
-  HeartPulse,
+  ChevronRight,
   MapPin,
   Package,
   RefreshCw,
-  Route,
-  Settings,
+  Route as RouteIcon,
   Store,
-  UserRound,
-  Wifi,
-  WifiOff,
   XCircle,
 } from 'lucide-react-native';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -35,24 +27,12 @@ import {
 import Geolocation from 'react-native-geolocation-service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { notificationService } from '../../api/notificationService';
 import { riderService, RIDER_WORKSPACE_QUERY_KEY } from '../../api/riderService';
 import { PartnerTabBrand } from '../../components/PartnerTabBrand';
-import {
-  RiderAssignmentOffer,
-  deliveryStatusLabel,
-  isOfferActionable,
-  isTrackableDeliveryStatus,
-  offerSecondsRemaining,
-} from '../../domain/riderWorkspace';
-import {
-  ensureRiderOnlineService,
-  performRiderOfflineTransition,
-  performRiderOnlineTransition,
-} from '../../services/RiderAvailabilityController';
+import { deliveryStatusLabel, isTrackableDeliveryStatus } from '../../domain/riderWorkspace';
+import { ensureRiderOnlineService } from '../../services/RiderAvailabilityController';
 import { RiderOnlineService } from '../../services/RiderOnlineService';
 import { RiderTrackingManager } from '../../services/RiderTrackingManager';
-import { PARTNER_NOTIFICATION_QUERY_KEY } from '../PartnerNotificationsScreen';
 
 function errorMessage(error: any) {
   const value = error?.response?.data?.message;
@@ -67,12 +47,6 @@ function shortId(value?: string | null) {
 export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
-  const queryClient = useQueryClient();
-  const [statusBusy, setStatusBusy] = useState(false);
-  const statusBusyRef = useRef(false);
-  const [permissionMissing, setPermissionMissing] = useState(false);
-  const [offerBusy, setOfferBusy] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
   const trackingManagerRef = useRef<RiderTrackingManager | null>(null);
 
   if (!trackingManagerRef.current) {
@@ -87,33 +61,20 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   }
   const trackingManager = trackingManagerRef.current;
 
+  // Home is deliberately only the rider's assigned delivery work. Availability
+  // (online/offline) lives on the Profile tab and offers are no longer shown
+  // here: store-assigned subscription work is the only thing on this surface.
   const workspaceQuery = useQuery({
     queryKey: RIDER_WORKSPACE_QUERY_KEY,
     queryFn: riderService.getWorkspace,
     refetchInterval: 8_000,
     retry: 1,
   });
-  const inboxQuery = useQuery({
-    queryKey: PARTNER_NOTIFICATION_QUERY_KEY,
-    queryFn: () => notificationService.getInbox(1),
-    staleTime: 10_000,
-    retry: 1,
-  });
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, []);
 
   const workspace = workspaceQuery.data;
   const activeJobs = workspace?.activeJobs || [];
   const activeJob = activeJobs[0] || workspace?.activeJob || null;
   const riderStatus = workspace?.rider?.status || 'OFFLINE';
-  const isOnline = riderStatus !== 'OFFLINE';
-  const pendingOffers = useMemo(
-    () => (workspace?.pendingOffers || []).filter((offer) => isOfferActionable(offer, now)),
-    [now, workspace?.pendingOffers],
-  );
 
   useEffect(() => {
     if (!activeJob || !isTrackableDeliveryStatus(activeJob.status)) {
@@ -133,77 +94,17 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
 
   useEffect(() => {
     if (riderStatus === 'OFFLINE') {
-      setPermissionMissing(false);
       void RiderOnlineService.stop().catch(() => undefined);
       return;
     }
     let cancelled = false;
-    void ensureRiderOnlineService(user?.name || 'Rider')
-      .then((ready) => {
-        if (!cancelled) setPermissionMissing(!ready);
-      })
-      .catch(() => {
-        if (!cancelled) setPermissionMissing(true);
-      });
+    void ensureRiderOnlineService(user?.name || 'Rider').catch(() => undefined);
     return () => { cancelled = true; };
   }, [riderStatus, user?.name]);
 
   const refresh = async () => {
-    await Promise.all([workspaceQuery.refetch(), inboxQuery.refetch()]);
+    await workspaceQuery.refetch();
   };
-
-  const changeAvailability = async (online: boolean) => {
-    if (statusBusyRef.current) return;
-    if (!online && activeJob) {
-      Toast.show({ type: 'error', text1: 'Active delivery', text2: 'Complete or return the current delivery before going offline.' });
-      return;
-    }
-    statusBusyRef.current = true;
-    setStatusBusy(true);
-    try {
-      if (online) {
-        await performRiderOnlineTransition(user?.name || 'Rider');
-        setPermissionMissing(false);
-      } else {
-        await trackingManager.stop('RIDER_OFFLINE');
-        await performRiderOfflineTransition();
-        setPermissionMissing(false);
-      }
-      await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
-      Toast.show({
-        type: 'success',
-        text1: online ? 'You are online' : 'You are offline',
-        text2: online ? 'Dispatch can now send delivery offers.' : 'Offers and location heartbeats are paused.',
-      });
-    } catch (error: any) {
-      const message = errorMessage(error);
-      if (/background location|required.*location permission|location permission.*required/i.test(message)) {
-        setPermissionMissing(true);
-      }
-      Toast.show({ type: 'error', text1: 'Availability update failed', text2: message });
-    } finally {
-      statusBusyRef.current = false;
-      setStatusBusy(false);
-    }
-  };
-
-  const acceptMutation = useMutation({
-    mutationFn: (assignmentId: string) => riderService.acceptOffer(assignmentId),
-    onMutate: (assignmentId) => setOfferBusy(assignmentId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY });
-      Toast.show({ type: 'success', text1: 'Offer accepted', text2: 'Open Jobs to begin the delivery.' });
-    },
-    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not accept offer', text2: errorMessage(error) }),
-    onSettled: () => setOfferBusy(null),
-  });
-  const rejectMutation = useMutation({
-    mutationFn: (assignmentId: string) => riderService.rejectOffer(assignmentId, 'RIDER_DECLINED'),
-    onMutate: (assignmentId) => setOfferBusy(assignmentId),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: RIDER_WORKSPACE_QUERY_KEY }),
-    onError: (error: any) => Toast.show({ type: 'error', text1: 'Could not reject offer', text2: errorMessage(error) }),
-    onSettled: () => setOfferBusy(null),
-  });
 
   const openActive = (job = activeJob) => {
     if (!job) return;
@@ -223,7 +124,7 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
       <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching || inboxQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}
+        refreshControl={<RefreshControl refreshing={workspaceQuery.isRefetching} onRefresh={() => void refresh()} tintColor="#FFFFFF" />}
       >
         <GradientSurface preset="teal" style={[styles.hero, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
           <View style={styles.brandRow}>
@@ -231,52 +132,25 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
           </View>
           <View style={styles.heroTop}>
             <View style={styles.flex}>
-              <Text style={styles.eyebrow}>RIDER WORKSPACE</Text>
+              <Text style={styles.eyebrow}>ASSIGNED DELIVERY</Text>
               <Text style={styles.title}>Hello, {user?.name?.split(' ')[0] || 'Partner'}</Text>
-              <Text style={styles.subtitle}>Availability, offers and live delivery health in one place.</Text>
+              <Text style={styles.subtitle}>Your store-assigned deliveries appear here.</Text>
             </View>
-          </View>
-          <View style={styles.availabilityCard}>
-            <View style={[styles.statusIcon, isOnline ? styles.onlineIcon : styles.offlineIcon]}>
-              {isOnline ? <Wifi size={22} color="#166534" /> : <WifiOff size={22} color="#991B1B" />}
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.availabilityTitle}>{isOnline ? riderStatus === 'BUSY' ? 'Busy on a job' : 'Online for offers' : 'Offline'}</Text>
-              <Text style={styles.availabilityText}>{permissionMissing ? 'Background location needs attention.' : isOnline ? 'Dispatch heartbeat is active.' : 'Turn online when ready.'}</Text>
-            </View>
-            {statusBusy ? <ActivityIndicator color="#0F766E" /> : (
-              <Switch
-                testID="rider_availability_switch"
-                value={isOnline}
-                disabled={riderStatus === 'BUSY'}
-                onValueChange={(value) => void changeAvailability(value)}
-                trackColor={{ false: '#CBD5E1', true: '#86EFAC' }}
-                thumbColor={isOnline ? '#0F766E' : '#FFFFFF'}
-              />
-            )}
           </View>
         </GradientSurface>
 
-        <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('Runs')}><Route size={19} color="#0F766E" /><Text style={styles.quickText}>Delivery runs</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} testID="rider_dashboard_jobs" onPress={() => navigation?.navigate?.('Operations', { screen: 'RiderJobs' })}><BriefcaseBusiness size={19} color="#0F766E" /><Text style={styles.quickText}>Jobs</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation?.navigate?.('TrackingDiagnostics')}><HeartPulse size={19} color="#0F766E" /><Text style={styles.quickText}>Tracking</Text></TouchableOpacity>
-        </View>
-
         {workspaceQuery.isLoading ? (
-          <View style={styles.loading}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.muted}>Loading Rider Portal…</Text></View>
+          <View style={styles.loading}><ActivityIndicator size="large" color="#0F766E" /><Text style={styles.muted}>Loading your assignments…</Text></View>
         ) : workspaceQuery.isError ? (
-          <View style={styles.errorCard}><XCircle size={28} color="#B91C1C" /><View style={styles.flex}><Text style={styles.errorTitle}>Workspace unavailable</Text><Text style={styles.errorText}>{errorMessage(workspaceQuery.error)}</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={21} color="#B91C1C" /></TouchableOpacity></View>
-        ) : (
-          <>
-            {activeJobs.length ? (
-              <View>
-                <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Active deliveries</Text><Text style={styles.sectionText}>{activeJobs.length} from your current pickup store</Text></View></View>
-                {activeJobs.map((job) => (
+          <View style={styles.errorCard}><XCircle size={28} color="#B91C1C" /><View style={styles.flex}><Text style={styles.errorTitle}>Assignments unavailable</Text><Text style={styles.errorText}>{errorMessage(workspaceQuery.error)}</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={21} color="#B91C1C" /></TouchableOpacity></View>
+        ) : activeJobs.length ? (
+          <View>
+            <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Your assigned deliveries</Text><Text style={styles.sectionText}>{activeJobs.length} waiting for you</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={20} color="#0F766E" /></TouchableOpacity></View>
+            {activeJobs.map((job) => (
               <TouchableOpacity key={job.id} testID="rider_active_job_card" style={styles.activeCard} onPress={() => openActive(job)}>
                 <View style={styles.cardHeader}>
                   <View style={styles.activeIcon}><Bike size={24} color="#FFFFFF" /></View>
-                  <View style={styles.flex}><Text style={styles.cardEyebrow}>ACTIVE DELIVERY</Text><Text style={styles.cardTitle}>{deliveryStatusLabel(job.status)}</Text><Text style={styles.cardText}>Order #{shortId(job.order.id)}</Text></View>
+                  <View style={styles.flex}><Text style={styles.cardEyebrow}>ASSIGNED DELIVERY</Text><Text style={styles.cardTitle}>{deliveryStatusLabel(job.status)}</Text><Text style={styles.cardText}>Order #{shortId(job.order.id)}</Text></View>
                   <CheckCircle2 size={24} color="#0F766E" />
                 </View>
                 <View style={styles.routeRow}>
@@ -285,28 +159,19 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
                 </View>
                 <View style={styles.openButton}><Text style={styles.openButtonText}>Open this delivery</Text><Package size={19} color="#FFFFFF" /></View>
               </TouchableOpacity>
-                ))}
-              </View>
-            ) : null}
-
-            <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Delivery offers</Text><Text style={styles.sectionText}>{isOnline ? `${pendingOffers.length} waiting` : 'Go online to receive offers'}</Text></View><TouchableOpacity onPress={() => void refresh()}><RefreshCw size={20} color="#0F766E" /></TouchableOpacity></View>
-            {pendingOffers.length === 0 ? (
-              <View style={styles.emptyCard}><Clock size={38} color="#94A3B8" /><Text style={styles.emptyTitle}>{isOnline ? 'Waiting for the next offer' : 'You are offline'}</Text><Text style={styles.muted}>{isOnline ? 'New assignments appear automatically.' : 'Use the availability switch when ready.'}</Text></View>
-            ) : pendingOffers.map((offer) => (
-              <OfferCard
-                key={offer.id}
-                offer={offer}
-                now={now}
-                busy={offerBusy === offer.id}
-                onOpen={() => navigation?.navigate?.('Operations', { screen: 'RiderOfferDetail', params: { assignmentId: offer.id } })}
-                onAccept={() => acceptMutation.mutate(offer.id)}
-                onReject={() => Alert.alert('Reject this offer?', 'The offer will be returned to dispatch.', [
-                  { text: 'Keep offer', style: 'cancel' },
-                  { text: 'Reject', style: 'destructive', onPress: () => rejectMutation.mutate(offer.id) },
-                ])}
-              />
             ))}
-          </>
+          </View>
+        ) : (
+          <View style={styles.emptyCard}>
+            <Package size={38} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No assigned deliveries yet</Text>
+            <Text style={styles.muted}>Your store assigns deliveries to you. They appear here the moment they are assigned.</Text>
+            <TouchableOpacity style={styles.routeCta} testID="rider_route_cta" onPress={() => navigation?.navigate?.('Route')}>
+              <RouteIcon size={18} color="#FFFFFF" />
+              <Text style={styles.routeCtaText}>Open live route</Text>
+              <ChevronRight size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         )}
         <View style={{ height: 110 }} />
       </ScrollView>
@@ -314,27 +179,17 @@ export const RiderDashboard = ({ navigation }: { navigation?: any }) => {
   );
 };
 
-function OfferCard({ offer, now, busy, onOpen, onAccept, onReject }: { offer: RiderAssignmentOffer; now: number; busy: boolean; onOpen: () => void; onAccept: () => void; onReject: () => void }) {
-  const seconds = offerSecondsRemaining(offer.expiresAt, now);
-  const job = offer.deliveryJob;
-  return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.offerCard} onPress={onOpen}>
-      <View style={styles.cardHeader}><View style={styles.offerIcon}><Package size={23} color="#0F766E" /></View><View style={styles.flex}><Text style={styles.cardEyebrow}>NEW OFFER · #{shortId(job.order.id)}</Text><Text style={styles.cardTitle}>{job.order.store?.name || 'Aagaam store'}</Text><Text style={styles.cardText}>{job.order.addressSnapshot?.city || 'Customer delivery'}{seconds !== null ? ` · ${seconds}s` : ''}</Text></View></View>
-      <View style={styles.offerActions}><TouchableOpacity disabled={busy} style={styles.rejectButton} onPress={onReject}><Text style={styles.rejectText}>Reject</Text></TouchableOpacity><TouchableOpacity disabled={busy} style={styles.acceptButton} onPress={onAccept}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.acceptText}>Accept offer</Text>}</TouchableOpacity></View>
-    </TouchableOpacity>
-  );
-}
+
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8FAFC' }, content: { paddingBottom: 20 }, flex: { flex: 1 },
-  hero: { paddingHorizontal: 18, paddingBottom: 22, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  hero: { paddingHorizontal: 18, paddingBottom: 18, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   brandRow: { marginBottom: 16 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 }, eyebrow: { color: '#A7F3D0', fontSize: 9, fontWeight: '600', letterSpacing: 1.3 }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '600', marginTop: 4 }, subtitle: { color: '#D1FAE5', fontSize: 11, marginTop: 4 },
   iconButton: { width: 43, height: 43, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }, badge: { position: 'absolute', right: -3, top: -3, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#EF1D25', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, badgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '600' },
-  availabilityCard: { marginTop: 20, borderRadius: 20, backgroundColor: '#FFFFFF', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, statusIcon: { width: 45, height: 45, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, onlineIcon: { backgroundColor: '#DCFCE7' }, offlineIcon: { backgroundColor: '#FEE2E2' }, availabilityTitle: { color: '#0F172A', fontSize: 15, fontWeight: '600' }, availabilityText: { color: '#64748B', fontSize: 10, marginTop: 4 },
-  quickRow: { flexDirection: 'row', gap: 10, marginHorizontal: 18, marginTop: 14 }, quickAction: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B7E4D7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, quickText: { color: '#0F766E', fontSize: 11, fontWeight: '600' },
   loading: { minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 10 }, muted: { color: '#64748B', fontSize: 11, textAlign: 'center', marginTop: 4 }, errorCard: { margin: 18, borderRadius: 18, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, errorTitle: { color: '#991B1B', fontWeight: '600' }, errorText: { color: '#B91C1C', fontSize: 10, marginTop: 4 },
   activeCard: { margin: 18, marginBottom: 4, borderRadius: 23, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#99F6E4', padding: 16 }, cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 }, activeIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, offerIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#CCFBF1', alignItems: 'center', justifyContent: 'center' }, cardEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '600', letterSpacing: 0.8 }, cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '600', marginTop: 4 }, cardText: { color: '#64748B', fontSize: 10, marginTop: 4 }, routeRow: { marginTop: 14, gap: 8 }, routeItem: { flexDirection: 'row', alignItems: 'center', gap: 8 }, routeText: { color: '#334155', fontSize: 11, fontWeight: '500' }, openButton: { minHeight: 48, borderRadius: 15, backgroundColor: '#0F766E', marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, openButtonText: { color: '#FFFFFF', fontWeight: '600' },
   sectionHeader: { marginHorizontal: 18, marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, sectionTitle: { color: '#0F172A', fontSize: 18, fontWeight: '600' }, sectionText: { color: '#64748B', fontSize: 10, marginTop: 4 }, emptyCard: { margin: 18, minHeight: 170, borderRadius: 22, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', padding: 20 }, emptyTitle: { color: '#0F172A', fontSize: 16, fontWeight: '600', marginTop: 10 },
-  offerCard: { marginHorizontal: 18, marginTop: 11, borderRadius: 22, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }, offerActions: { flexDirection: 'row', gap: 8, marginTop: 12 }, rejectButton: { flex: 1, minHeight: 45, borderRadius: 14, borderWidth: 1, borderColor: '#FCA5A5', alignItems: 'center', justifyContent: 'center' }, rejectText: { color: '#B91C1C', fontWeight: '600' }, acceptButton: { flex: 2, minHeight: 45, borderRadius: 14, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, acceptText: { color: '#FFFFFF', fontWeight: '600' },
+  routeCta: { minHeight: 48, borderRadius: 15, backgroundColor: '#0F766E', marginTop: 16, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  routeCtaText: { color: '#FFFFFF', fontWeight: '600' },
 });

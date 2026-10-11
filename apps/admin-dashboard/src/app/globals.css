@@ -95,19 +95,19 @@ body {
   }
 
   .enterprise-button {
-    @apply inline-flex items-center justify-center rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98] active:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-slate-950 min-h-[44px];
+    @apply inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98] active:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-slate-950 md:min-h-[38px] min-h-[44px];
   }
 
   .enterprise-input {
-    @apply w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-base font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 sm:text-sm;
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-base font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 sm:text-sm;
   }
 
   .enterprise-kicker {
-    @apply inline-flex items-center rounded-md border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-teal-800;
+    @apply inline-flex items-center rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-teal-800;
   }
 
   .enterprise-heading {
-    @apply text-2xl font-semibold tracking-[-0.02em] text-slate-950 md:text-3xl;
+    @apply text-xl font-semibold tracking-[-0.02em] text-slate-950 md:text-2xl;
   }
 
   .enterprise-subtle-grid {
@@ -193,3 +193,29 @@ body {
     min-height: 44px;
   }
 }
+
+/*
+ * Desktop density pass for the store/admin shell.
+ *
+ * The operations surfaces were tuned for touch (44px rows, 24px padding) and
+ * carry that weight onto large pointer screens, so a table showed only a few
+ * rows per viewport. These overrides hide nothing: rows are tighter and the
+ * default vertical rhythm is shortened so more fits on screen. Scoped to
+ * `.dashboard-shell` and a fine pointer (a mouse/trackpad), so touch screens
+ * keep the tap-target sizing above.
+ */
+@media (min-width: 1024px) and (pointer: fine) {
+  .dashboard-shell table th,
+  .dashboard-shell table td {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .dashboard-shell .p-6 { padding: 1rem; }
+  .dashboard-shell .px-6 { padding-left: 1rem; padding-right: 1rem; }
+  .dashboard-shell .py-6 { padding-top: 1rem; padding-bottom: 1rem; }
+  .dashboard-shell .mb-6 { margin-bottom: 1rem; }
+  .dashboard-shell .mt-6 { margin-top: 1rem; }
+  .dashboard-shell .gap-6 { gap: 1rem; }
+  .dashboard-shell .gap-8 { gap: 1.25rem; }
+}
+

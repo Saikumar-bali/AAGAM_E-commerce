@@ -2,7 +2,7 @@
 name: aagam-testing
 description: Test the AAGAM commerce platform end to end across its four role surfaces — customer shop, store portal, rider portal and admin dashboard — covering subscription request, store rider-assignment, parcel handoff, delivery with OTP/COD, and the store milk grid's packed/sold/left litre totals. Use when asked to verify an AAGAM flow, reproduce a bug reported on aagaam.in, regression-test a role, or record a newly found defect in the repository bug register.
 metadata:
-  version: "1.6.3"
+  version: "1.8.0"
   last-verified: "2026-10-11"
   repository: "Saikumar-bali/AAGAM_E-commerce"
   owner: "AAGAM Retail Pvt. Ltd."
@@ -28,6 +28,57 @@ with `./run.sh` (`APP=… `, `PORT`, `API_ORIGIN`, `STRIP_API_PREFIX`,
 `localStorage` (`aagam.keychain.com.aagam.mobile.auth`, written by
 `mocks/keychain.js`), so a rider/customer session can be seeded for the browser
 by writing that key with the keychain JSON shape and reloading.
+
+### Two backends from one origin (`/preview` local, `/live` aagaam.in)
+
+`server.js` can serve a **second, live copy** of every app from the same port.
+Set `AAGAAM_LIVE_ORIGIN=https://aagaam.in` and `run.sh all` builds each app
+twice: `dist/<app>/` under `/preview/<app>/` (bundle calls `/api`, proxied to
+`API_ORIGIN`, the local gateway) and `dist-live/<app>/` under `/live/<app>/`
+(bundle calls `/live/api`, proxied to `https://aagaam.in/api`). The live app and
+the live API are the same origin, so the browser makes no cross-origin call and
+the production CORS allow-list is irrelevant. Reach the live copies at
+`/live/mobile-partners/`, `/live/mobile-customer/`, `/live/rider-map/`.
+`run.sh` builds the live copy with `OUT_DIR=dist-live PUBLIC_BASE=/live
+API_URL=/live/api`; `webpack.config.js` honours those. `proxyHttp` picks
+`https`/`http` from the origin scheme, and socket.io upgrades for `/live/*` are
+proxied to the live origin too.
+
+### Maps use the real deployed Mapbox token
+
+The deployed VPS env (`/opt/aagam/.env` on the AAGAM host) carries a **valid**
+public Mapbox token in `EXPO_PUBLIC_MAPBOX_TOKEN` / `NEXT_PUBLIC_MAPBOX_TOKEN`
+(verified: `GET https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12?access_token=…`
+→ 200), plus `GOOGLE_MAPS_API_KEY` / `GOOGLE_WEB_CLIENT_ID`. These are public
+client keys (they ship in the browser/app), not server secrets. Put them in a
+**gitignored** `mobile-web-preview/.env` (loaded automatically by `run.sh` and
+`server.js`); never commit them. An earlier note in this skill claimed "no valid
+token exists anywhere" — that was wrong, the value is single-quoted in `.env` and
+was missed by an unquoted grep.
+
+The token must reach the bundle two ways, or the map silently renders blank:
+
+1. `webpack.config.js` bakes `process.env.EXPO_PUBLIC_MAPBOX_TOKEN` (and the
+   `NEXT_PUBLIC_*` / Google equivalents) via `DefinePlugin`. Webpack does **not**
+   populate `process.env`, and `getMapboxToken` reads it, so without this even a
+   real `MAPBOX_TOKEN=` build falls through to the dummy `pk.test-dummy…` token.
+2. `server.js` injects `window.__ENV__` from `MAPBOX_TOKEN` for any client key
+   read from the DOM at runtime.
+
+With a valid token the real Mapbox GL page renders (verified: 33–37 tile
+requests, all 200, one `<canvas>`). The token-free SVG mock
+(`mocks/rider-route-map-html.js`) is now swapped in **only** when no valid token
+is supplied (`USE_MAP_MOCK`), so offline/CI builds still render a map.
+
+Two gotchas when changing the mock swap (`NormalModuleReplacementPlugin`):
+
+- The apps import it relatively (`./riderRouteMapHtml`), so the regex must match
+  the bare trailing name (`/riderRouteMapHtml(\.\w+)?$/`) — **not** a
+  `components/rider/` prefix or a leading-slash requirement (a `.` precedes it).
+  The original `components[\\/]rider[\\/]…` pattern never matched, so the mock was
+  never applied even when intended.
+- A production build strips comments, so a comment string ("token-free SVG") is
+  not a usable build marker — check for a code identifier or build in dev mode.
 
 Two mock bugs found and fixed on 2026-10-10 (`mocks/navigation.js`):
 

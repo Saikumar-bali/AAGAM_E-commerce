@@ -35,6 +35,7 @@ export type AutoDispatchOutcome = {
     | 'DISABLED'
     | 'JOB_NOT_FOUND'
     | 'NOT_WAITING'
+    | 'STORE_ASSIGNED_DELIVERY'
     | 'MISSING_STORE_COORDINATES'
     | 'ACTIVE_ASSIGNMENT'
     | 'NO_FRESH_AVAILABLE_RIDER'
@@ -111,6 +112,12 @@ export class AutoDispatchService {
     const baseWhere: Prisma.DeliveryJobWhereInput = {
       status: DeliveryJobStatus.WAITING_FOR_DISPATCH,
       currentRiderId: null,
+      // Subscription deliveries are store-first: they reach a rider only when
+      // the store assigns one (dispatchToRider sets currentRiderId directly), so
+      // they must not be swept up by the nearest-rider offer loop. Excluding
+      // subscription orders here keeps a generated-but-unassigned subscription
+      // day off every rider's offer list.
+      order: { is: { subscriptionDeliveryId: null } },
       assignments: {
         none: {
           status: {
@@ -209,6 +216,13 @@ export class AutoDispatchService {
     if (!job) return { deliveryJobId, offered: false, reason: 'JOB_NOT_FOUND' };
     if (job.status !== DeliveryJobStatus.WAITING_FOR_DISPATCH || job.currentRiderId) {
       return { deliveryJobId, offered: false, reason: 'NOT_WAITING' };
+    }
+    // Store-first: a subscription delivery is assigned by the store, never by
+    // the generic nearest-rider dispatcher. This is the hard guard behind the
+    // `subscriptionDeliveryId: null` filter in dispatchWaitingJobs, and it also
+    // protects a direct call.
+    if (job.order.subscriptionDeliveryId) {
+      return { deliveryJobId, offered: false, reason: 'STORE_ASSIGNED_DELIVERY' };
     }
     if (
       !Number.isFinite(job.order.store.latitude) ||

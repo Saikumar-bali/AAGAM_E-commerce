@@ -1321,3 +1321,227 @@ area, and treat a recurrence as a **major** finding.
   run's `totalStopCount`/`completedStopCount` equal the surviving rows (0). Fails
   on the pre-fix code (counter stayed 1), passes after.
 
+
+### BUG-031 — In-app Mapbox route maps render blank (token never reached the bundle)
+
+- **Found:** 2026-10-11 by openhands (mobile-web-preview harness session)
+- **Severity:** major (visual — the route map is blank in every preview build)
+- **Surface:** `mobile-web-preview/` render of `RiderRunDetailScreen`'s
+  `RiderRouteMap`; the same `buildRiderMapHtml` / `getMapboxToken` path the
+  native apps use
+- **Role:** rider | customer | store (any screen embedding a map)
+- **Status:** FIXED-NOT-DEPLOYED (harness-side; no app/resolver change)
+- **Repro:**
+  1. Build the harness for a real app (`APP=mobile-partners`) and open a rider
+     run detail that shows the route map in the `/preview` or `/live` build.
+  2. Observe: the WebView/iframe renders the Mapbox GL page with the dummy
+     `pk.test-dummy-token-for-jest`, so no `load` fires and the frame stays blank.
+- **Observed:** `getMapboxToken` reads `process.env.EXPO_PUBLIC_MAPBOX_TOKEN`,
+  but webpack never defined `process.env`, so it always fell through to the dummy
+  token even when a real `MAPBOX_TOKEN` was exported at build time.
+  `GET .../satellite-streets-v12?access_token=pk.test-dummy-token-for-jest` → 401.
+- **Expected:** the route map renders real tiles (stops/route/rider dot).
+- **Code path:** `apps/mobile-partners/src/components/rider/riderRouteMapHtml.ts:13`
+  (`getMapboxToken`), `packages/mobile-shared/src/utils/mapbox.ts:3`; consumed by
+  `.../rider/RiderRouteMap.tsx` and
+  `packages/mobile-shared/src/components/{LeafletMap,TrackingMap}.tsx`.
+- **Evidence:** a **valid** token does exist in the deployed VPS env
+  (`/opt/aagam/.env`, `EXPO_PUBLIC_MAPBOX_TOKEN` / `NEXT_PUBLIC_MAPBOX_TOKEN`);
+  `GET .../satellite-streets-v12?access_token=<deployed>` → **200**. After baking
+  it in, the map makes 33–37 tile requests, all 200, with a live `<canvas>`.
+- **Fix:** harness-only — `webpack.config.js` `DefinePlugin` now bakes
+  `process.env.EXPO_PUBLIC_MAPBOX_TOKEN` (+ `NEXT_PUBLIC_MAPBOX_TOKEN` and the
+  Google keys) from a gitignored `mobile-web-preview/.env`; `run.sh`/`server.js`
+  auto-load that file. The token-free SVG mock (`mocks/rider-route-map-html.js`)
+  is swapped in only when no valid token is supplied (`USE_MAP_MOCK`).
+- **Notes:** an earlier revision of this entry claimed "no valid token exists
+  anywhere" — that was a false negative: the value is single-quoted in the
+  deployed `.env`, so an unquoted grep missed it. Recorded so the next harness
+  agent loads the real token instead of accepting a blank map.
+
+### BUG-032 — Rider run is stuck at pickup: store handoff recorded but packing never confirmed
+
+- **Found:** 2026-10-11 by openhands (live rider completion session)
+- **Severity:** blocker (the rider cannot start or complete any stop on the route)
+- **Surface:** live rider run `RUN-AAGA-AM-2026-10-11-f2ce` (2 stops, both
+  `RIDER_PHOTO_GPS`, `cashDuePaise = 0`); rider `saikumarbali`
+- **Role:** rider (blocked) | store (can clear it)
+- **Status:** OPEN
+- **Repro:**
+  1. Log in on live as the rider, `GET /api/rider/delivery-runs/route-board`
+     → one run, `status=READY_FOR_PICKUP`, `stopCount=2`, `completed=0`.
+  2. `POST /api/rider/delivery-runs/:runId/pickup` with
+     `{version:2, expectedBagCount:2}` → **400 `Verify exactly 2 route bags
+     before pickup`**.
+  3. Every stop therefore also fails: `POST .../stops/:id/arrive` → **400
+     `Delivery run is not in progress`**.
+- **Observed (live DB, `DeliveryRun` row):**
+  `status=READY_FOR_PICKUP`, `expectedBagCount=2`, `packedBagCount=0`,
+  `packingConfirmedAt=NULL`, `storeHandoffConfirmedAt=2026-10-08 12:13:37`,
+  `pickupConfirmedAt=NULL`.
+- **Expected:** a run the rider can pick up has `packingConfirmedAt` set and
+  `packedBagCount = expectedBagCount`, and `storeHandoffConfirmedAt` is stamped
+  only after packing (store handoff itself rejects an unpacked run).
+- **Code path:** `delivery-run-operations.service.ts:131` (rider receipt gates on
+  `packedBagCount`), `delivery-run-planning.service.ts:255` (`confirmPacking`
+  sets `packedBagCount`; store/admin only) and `confirmStoreHandoff` (just below)
+  rejects `packedBagCount !== expectedBagCount`. `storeHandoffConfirmedAt` was
+  set by an earlier run-generation path, so the two gates disagree: the run looks
+  "handed off" yet was never packed, and nothing re-packs it.
+- **Impact:** the rider has no rider-facing way out. `confirmPacking` and
+  `confirmStoreHandoff` are `STORE_OWNER|ADMIN`; `POST
+  /store/subscriptions/deliveries/:id/quick-action` is `STORE_OWNER|ADMIN`;
+  `POST /riders/portal/pickup/:deliveryJobId/verify` only writes a
+  `RiderPickupTask` checklist and never advances the run. The store (or admin)
+  must re-run packing + handoff before the route can be worked.
+- **Notes:** the store owner on this environment is `balajichavitini@gmail.com`;
+  the platform's `AAGAM_STORE_*` / `AAGAM_ADMIN_*` demo logins
+  (`store@aagam.com` / `admin@aagam.com`) and the VPS `STORE_*` / `ADMIN_*`
+  values are **401 on live** — they belong to the separate demo database, not
+  the live one. Never attempt to force-clear this by writing delivery/run rows
+  directly; it needs a legitimate store packing confirmation.
+
+### BUG-033 — Rider portal shows ₹0 due on a stop whose subscription still owes money
+
+- **Found:** 2026-10-11 by openhands (live rider completion session)
+- **Severity:** major (the rider cannot collect a balance the subscription owes)
+- **Surface:** live rider route-board stop for subscription
+  `cmu4xc86r073bt9m0i6a5zn56` (customer Rani, plan "Buffalo Milk 1/2L - 30 Days",
+  rider saikumarbali)
+- **Role:** rider
+- **Status:** OPEN
+- **Repro:**
+  1. `GET /api/rider/delivery-runs/route-board` for the day's run.
+  2. The Rani stop returns `cashDuePaise: 0` (both stops in the run are 0), so
+     the rider complete form has nothing to collect.
+  3. The same customer's subscription has `amountDuePaise = 109903` before any
+     payment (`amountCollectedPaise = 9997` on a ₹1199 30-day plan).
+- **Observed:** the per-delivery `SubscriptionDelivery.cashDuePaise` is 0 for
+  every cell while the subscription ledger still carries a large outstanding due.
+- **Expected:** a partially funded subscription should stamp the remaining due
+  onto its delivery cells (or the rider stop should surface the subscription-level
+  due), otherwise the rider can never collect it.
+- **Code path:** the route board reads the stop's per-delivery `cashDuePaise`
+  rather than `reconcileSubscriptionBalance`, and the rider mobile app can only
+  complete a stop for its full `cashDuePaise` — it does **not** call
+  `record-payment`. Only the store milk grid and the admin `RiderRunConsole` can
+  record a partial CASH/PhonePe payment.
+- **Evidence / workaround used:** the ₹200 was recorded store-side via
+  `POST /api/store/subscriptions/subscribers/:id/record-payment`
+  `{amountPaise:20000,paymentMode:'CASH'}` → collected 9997→29997, due
+  109903→89903. The rider has no equivalent action for a ₹0 stop.
+- **Notes:** this is the "due was wrong in the rider portal" the operator
+  reported — the rider-facing face of the ledger-vs-day-cell split the skill
+  already documents (`store-grid.md`). Reading the per-delivery cell instead of
+  the reconciled subscription balance hides money the rider must collect.
+
+
+### BUG-034 — Trusted-Drop stops cannot be completed: stale `deliveryMethod` overrides the authoritative `proofMode`
+
+- **Found:** 2026-10-11 by openhands (live rider completion session)
+- **Severity:** major (blocker: the stop can never be completed from the rider app)
+- **Surface:** live rider stop 1 (customer Rani, plan "Buffalo Milk 1/2L - 30 Days")
+  on run `RUN-AAGA-AM-2026-10-11-f2ce`; also the admin rider console and the
+  `(rider)/rider/runs` page.
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED (client fix on the working branch; not on `main`/live)
+- **Repro:**
+  1. Open the rider stop sheet for a stop whose `proofMode === 'RIDER_PHOTO_GPS'`.
+  2. The UI renders the photo-only branch ("Delivery Photo Proof" → "Take
+     delivery photo"); no QR control is shown.
+  3. Capture the photo (evidence upload returns 200) and tap "Verify and complete
+     this stop".
+- **Observed:** toast "Delivery not completed — Scan the current Trusted Drop QR
+  and upload a fresh photo."; no `POST .../complete` request fires. The stop row
+  stays `ARRIVED` / `deliveryJob RIDER_AT_CUSTOMER`.
+- **Expected:** the stop completes with the captured photo (Rider Photo & GPS proof).
+- **Root cause:** the completion guard derived trusted-drop from the (stale)
+  `stop.subscriptionDelivery.subscription.deliveryMethod` instead of the
+  authoritative `stop.proofMode`. Here `proofMode = RIDER_PHOTO_GPS` but
+  `deliveryMethod = TRUSTED_DROP` (a later method change did not re-stamp
+  `proofMode` on the existing delivery row), so `trusted = true` while the render
+  branch — which keys on `proofMode` — showed the photo path. The server
+  `complete()` keys strictly on `proofMode`, so it never required a QR.
+- **Code path:**
+  - `apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx` —
+    `completeMutation` guard, `proofDescriptor`, and the render branch.
+  - `apps/admin-dashboard/src/components/rider/RiderRunConsole.tsx` and
+    `apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx` — same stale check.
+- **Fix:** one `isTrustedDropStop(stop)` helper per file that trusts `proofMode`
+  first (`proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO'`), falls back to
+  `deliveryMethod` only when `proofMode` is absent, and always requires
+  `cashDuePaise === 0`. The guard, the descriptor and both admin render branches
+  now use it.
+- **Evidence after fix:** `POST /api/rider/delivery-runs/cmuzhzr5w…/stops/cmuzhzr67…/complete`
+  → 201; stop `DELIVERED`, `deliveryJob DELIVERED`, linked `order DELIVERED`;
+  run `COMPLETED` (2/2). Proof `rider-photo:evidence/<user>/….png`.
+- **Notes:** same class as the store-grid-vs-rider split the skill documents — a
+  customer-visible field (`deliveryMethod`) is not the field the server acts on
+  (`proofMode`). Prefer `proofMode` for any stop-level proof decision.
+
+### BUG-035 — Stale subscription days resurface on the rider board (Home shows 18 "active" jobs)
+
+- **Found:** 2026-10-11 by openhands (rider Home trimmed to assigned orders; local stack on `AAGAAM_DATABASE`)
+- **Severity:** major (the rider board and rider Home display deliveries whose day is already closed)
+- **Surface:** `GET /riders/portal/home` → `activeJobs` for the demo rider; `RiderDashboard` Home; also drives `/portal/deliveries` and `/portal/delivery`.
+- **Role:** rider
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Log in as the rider and open Home (`RiderDashboard.tsx`).
+  2. Before the fix `activeJobs` returned 18 jobs, of which 10 linked a
+     `subscriptionDelivery` whose cell was already terminal — 5 `DELIVERED` and
+     5 `FAILED` — while the `DeliveryJob` was still `RIDER_AT_STORE` /
+     `RETURNING_TO_STORE` and the `Order` still `RIDER_ASSIGNED` /
+     `OUT_FOR_DELIVERY`.
+- **Observed:** the rider saw (and could act on) stops for deliveries that were
+  already delivered, failed, skipped, cancelled or rescheduled.
+- **Expected:** only deliveries whose day cell is still live appear on the rider board.
+- **Root cause:** `RiderPortalService.activeJobs()` / `activeJob()` filtered the
+  `DeliveryJob` status and the `Order.status`, but never the linked
+  `subscriptionDelivery.status`. Skip/cancel/pause/complete flip the delivery
+  row, and the order/job can lag at `RIDER_ASSIGNED` / `OUT_FOR_DELIVERY`, so a
+  closed day stayed "active".
+- **Code path:**
+  - `apps/api-gateway/src/riders/rider-portal.service.ts` — `activeJobs()`, `activeJob()`.
+  - `apps/api-gateway/src/subscriptions/subscription-preparation.service.ts` — `resolveMissedDeliveries()` (background sweep for missed days).
+- **Fix:** both readers now additionally require
+  `order.subscriptionDelivery` to be absent *or* non-terminal
+  (`CLOSED_SUBSCRIPTION_DELIVERY_STATUSES = DELIVERED | SKIPPED | CANCELLED | FAILED | RESCHEDULED`).
+  `resolveMissedDeliveries()` was wired into the preparation `flush()` so a day
+  past its grace window is marked `SKIPPED (MISSED)` and its rider artifacts torn
+  down, stopping the leak at the source. Verified on `AAGAAM_DATABASE`: the
+  background sweep moved 21 past-day `SCHEDULED` cells to `SKIPPED` (skipped
+  35→56, scheduled 39→18), and the rider `activeJobs` count fell 18→16.
+- **Notes:** the remaining 16 are today's still-live run (grace-window by
+  design: a late-evening run may finish after midnight UTC). `DELIVERED`/`FAILED`
+  deliveries were the stale ones; both are now excluded.
+
+### BUG-036 — Subscription deliveries are auto-offered to riders before the store assigns (not store-first)
+
+- **Found:** 2026-10-11 by openhands (rider Home / store-first request)
+- **Severity:** major (violates the store-first assignment rule; a rider can be offered a subscription stop the store never dispatched)
+- **Surface:** background sweeps — regional route planner + generic `AutoDispatchService`; observed on the rider board/Home `pendingOffers`.
+- **Role:** rider / store owner
+- **Status:** FIXED-NOT-DEPLOYED
+- **Repro:**
+  1. Generate a day's subscription deliveries (nightly generation creates
+     `Order` + `DeliveryJob(WAITING_FOR_DISPATCH)` + `DeliveryRunStop`).
+  2. Wait for / trigger the auto-dispatch sweep without the store dispatching.
+  3. A rider is offered a job, though the store never assigned one.
+- **Observed:** jobs were offered/assigned by two independent background paths
+  (a regional route-planner final-assignment step and a generic nearest-rider
+  sweep) with no store action.
+- **Expected:** store-first — only when the store dispatches/assigns should the
+  rider receive (or be offered) the job.
+- **Root cause:** the generic sweep selected any waiting job (subscription
+  included) and the planner's final-assignment step auto-picked a rider.
+- **Code path:**
+  - `apps/api-gateway/src/orders/auto-dispatch.service.ts` — candidate query + `AutoDispatchOutcome.reason`.
+  - `apps/api-gateway/src/subscriptions/subscription-preparation.service.ts` — planner final assignment.
+- **Fix:** the generic nearest-rider sweep now skips subscription orders
+  (`order: { is: { subscriptionDeliveryId: null } }`) and reports
+  `STORE_ASSIGNED_DELIVERY`; the planner's final-assignment step is gated behind
+  `SUBSCRIPTION_AUTO_FINAL_ASSIGN` (off by default, `autoFinalAssignEnabled()`),
+  so a planned run stays rider-less until the store hands off. Locks in
+  `auto-dispatch-recovery.contract.spec.ts`.
+- **Notes:** one-time (non-subscription) orders keep the existing auto-dispatch.

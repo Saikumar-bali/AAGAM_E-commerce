@@ -165,6 +165,13 @@ function money(paise?: number | null) {
   return `₹${(Number(paise || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
+/** proofMode is the server-enforced proof; subscription.deliveryMethod can lag. */
+function isTrustedDropStop(stop: RunStop): boolean {
+  if (stop.cashDuePaise !== 0) return false;
+  if (stop.proofMode) return stop.proofMode === 'TRUSTED_DROP_GEOFENCE_TOKEN_PHOTO';
+  return stop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP';
+}
+
 /** Volume in litres for a quantity label, or null. Mirrors the backend parser. */
 function parseQuantityLiters(label?: string | null): number | null {
   if (!label) return null;
@@ -791,7 +798,7 @@ export default function RiderRunConsole() {
       `complete-${stop.id}`,
       async () => {
         const isPhotoGps = stop.proofMode === 'RIDER_PHOTO_GPS';
-        const trusted = stop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && stop.cashDuePaise === 0;
+        const trusted = isTrustedDropStop(stop);
         if (isPhotoGps && !evidenceStorageKey)
           throw new Error('Capture or upload delivery photo proof before completing.');
         if (!isPhotoGps && trusted && (!dropToken.trim() || !proofReference.trim()))
@@ -1051,7 +1058,7 @@ export default function RiderRunConsole() {
   const completionForm = (() => {
     if (!activeStop || activeStop.status !== 'ARRIVED') return null;
     const isPhotoGps = activeStop.proofMode === 'RIDER_PHOTO_GPS';
-    const trusted = activeStop.subscriptionDelivery.subscription.deliveryMethod === 'TRUSTED_DROP' && activeStop.cashDuePaise === 0;
+    const trusted = isTrustedDropStop(activeStop);
     return (
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Completion proof</p>

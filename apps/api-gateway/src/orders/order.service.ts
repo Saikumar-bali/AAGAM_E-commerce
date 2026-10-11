@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CouponRedemptionStatus, OrderStatus, PaymentStatus, Role, prisma } from '@aagam/database';
+import { CouponRedemptionStatus, OrderStatus, PaymentStatus, Prisma, Role, prisma } from '@aagam/database';
 import { calculateDistance } from '@aagam/utils';
 import { TrackingGateway } from '../tracking.gateway';
 import { RefundsService } from '../payments/refunds.service';
@@ -369,6 +369,11 @@ export class OrderService {
     return 'STOPPED';
   }
 
+  /**
+   * Unpaginated admin list. Kept for internal callers that genuinely need every
+   * row; the HTTP route uses `findAllPaginated` so the endpoint never loads the
+   * whole order table.
+   */
   async findAll() {
     return prisma.order.findMany({
       include: {
@@ -409,6 +414,124 @@ export class OrderService {
       }
     });
   }
+
+  private orderListInclude = {
+    customer: {
+      select: { name: true, email: true, phone: true }
+    },
+    store: {
+      select: { name: true, address: true, latitude: true, longitude: true }
+    },
+    items: {
+      include: {
+        product: {
+          select: { name: true }
+        }
+      }
+    },
+    rider: {
+      include: {
+        user: {
+          select: { name: true }
+        }
+      }
+    },
+    payment: { select: { method: true, status: true, amountPaise: true } },
+    codLedger: {
+      select: {
+        expectedAmountPaise: true,
+        collectedAmountPaise: true,
+        riderHoldingBalancePaise: true,
+        depositedAmountPaise: true,
+        status: true,
+      },
+    },
+    deliveryJob: { select: { id: true, status: true } },
+  } as const;
+
+  /** Filters the admin order list. `search` matches id, customer/store name/phone. */
+  private orderListWhere(query: { status?: string; search?: string }): Prisma.OrderWhereInput {
+    const where: Prisma.OrderWhereInput = {};
+    if (query.status && query.status !== 'All') where.status = query.status as OrderStatus;
+    const search = query.search?.trim();
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: 'insensitive' } },
+        { customer: { is: { name: { contains: search, mode: 'insensitive' } } } },
+        { customer: { is: { phone: { contains: search } } } },
+        { store: { is: { name: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+    return where;
+  }
+
+  async findAllPaginated(query: { page?: number; pageSize?: number; status?: string; search?: string }) {
+    const result = await this.paginateOrderList(this.orderListWhere(query), query);
+    // Cheap aggregate over the whole table so the KPI cards stay accurate even
+    // though the list itself is only one page.
+    const [byStatus, revenue] = await Promise.all([
+      prisma.order.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.order.aggregate({ where: { status: OrderStatus.DELIVERED }, _sum: { totalAmount: true } }),
+    ]);
+    const countFor = (status: OrderStatus) =>
+      byStatus.find((row) => row.status === status)?._count._all ?? 0;
+    const summary = {
+      totalOrders: byStatus.reduce((sum, row) => sum + row._count._all, 0),
+      pending: countFor(OrderStatus.PENDING),
+      delivered: countFor(OrderStatus.DELIVERED),
+      deliveredRevenue: revenue._sum.totalAmount ?? 0,
+    };
+    return { ...result, summary };
+  }
+
+  async findStoreOrdersPaginated(
+    ownerId: string,
+    query: { page?: number; pageSize?: number; status?: string; search?: string },
+  ) {
+    const stores = await prisma.store.findMany({ where: { ownerId }, select: { id: true } });
+    const storeIds = stores.map((s) => s.id);
+    if (storeIds.length === 0) {
+      const pageSize = this.clampPageSize(query.pageSize);
+      return { items: [], page: 1, pageSize, total: 0, totalPages: 1 };
+    }
+    const where: Prisma.OrderWhereInput = {
+      ...this.orderListWhere(query),
+      storeId: { in: storeIds },
+    };
+    return this.paginateOrderList(where, query, {
+      customer: { select: { name: true, email: true, phone: true } },
+      payment: true,
+      items: { include: { product: { select: { name: true, image: true } } } },
+      rider: { include: { user: { select: { name: true } } } },
+      subscription: { select: { id: true, planVersion: { select: { pricePaise: true } } } },
+      statusHistory: { orderBy: { createdAt: 'desc' }, take: 5 },
+    });
+  }
+
+  private clampPageSize(pageSize?: number) {
+    return Math.max(1, Math.min(100, Number(pageSize) || 25));
+  }
+
+  private async paginateOrderList(
+    where: Prisma.OrderWhereInput,
+    query: { page?: number; pageSize?: number },
+    include: Prisma.OrderInclude = { ...this.orderListInclude },
+  ) {
+    const pageSize = this.clampPageSize(query.pageSize);
+    const page = Math.max(1, Number(query.page) || 1);
+    const [items, total] = await prisma.$transaction([
+      prisma.order.findMany({
+        where,
+        include,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.order.count({ where }),
+    ]);
+    return { items, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
 
   async findOne(id: string, actor?: { id: string; role: Role }) {
     const order = await prisma.order.findUnique({

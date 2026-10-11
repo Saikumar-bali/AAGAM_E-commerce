@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.graphics.Color
 import android.media.AudioAttributes
-import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -38,11 +38,11 @@ class MainApplication : Application(), ReactApplication {
   private fun createOperationsNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 
-    // Android freezes a channel's sound after first creation. v3 intentionally
-    // moves existing Rider/Store installs away from the old alarm-sound profile.
-    // Background/killed-state pushes use the device's notification stream, while
-    // foreground alerts use our short multi-tone PartnerAlertTone pattern.
-    val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    // Android freezes a channel's sound after first creation, so the id is
+    // versioned: v4 moves existing installs to the bundled rider alert sound.
+    // Background/killed-state pushes use this channel's sound; foreground
+    // alerts play the same `res/raw/rider_alert.wav` asset via PartnerAlertTone.
+    val soundUri = Uri.parse("android.resource://$packageName/${R.raw.rider_alert}")
     val audioAttributes = AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -67,6 +67,6 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
-    const val OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v3"
+    const val OPERATIONS_CHANNEL_ID = "aagam_priority_operations_v4"
   }
 }

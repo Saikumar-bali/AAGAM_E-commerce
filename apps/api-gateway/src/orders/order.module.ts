@@ -21,6 +21,7 @@ import { EligibleDispatchAssignmentService } from './eligible-dispatch-assignmen
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { OrderCreationService } from './order-creation.service';
+import { StaleOrderAutocancelService } from './stale-order-autocancel.service';
 import { PickupReadinessController } from './pickup-readiness.controller';
 import { PostDeliveryController } from './post-delivery.controller';
 import { PostDeliveryService } from './post-delivery.service';
@@ -58,6 +59,7 @@ import { ExcelSyncController } from './excel-sync.controller';
     CodSettlementFacadeService,
     PostDeliveryService,
     AutoDispatchService,
+    StaleOrderAutocancelService,
     RiderArrivalEvidenceInterceptor,
     {
       provide: APP_INTERCEPTOR,
