@@ -130,18 +130,18 @@ function collectedPaise(stop: DeliveryRunStop) {
   return Math.max(0, Number(stop.subscriptionDelivery?.cashCollectedPaise || 0));
 }
 
-// The server stamps add-on milk into the delivery's deferredReason marker
-// (e.g. "[EXTRA: 1L|2]" when extra was attached). Parse it so the console can
-// surface "+NL" without another endpoint.
+// The server stamps add-on milk into the delivery's deferredReason marker:
+// "[EXTRA: <qty>|<paise>]" or "[ADD-ON: <qty>|<paise>|<slot>]". Parse it so the
+// console can surface "+NL" without another endpoint. Group 3 is the add-on
+// price in paise, never a repeat count, so only the quantity literal is read.
 function extraCountFor(stop: DeliveryRunStop): number {
   const reason = String((stop.subscriptionDelivery as any)?.deferredReason || '');
   const match = reason.match(/\[(EXTRA|ADD-ON):\s*([^\]|]+)(?:\|(\d+))?(?:\|([A-Z]{2}))?\]/);
   if (!match) return 0;
   const qty = match[2] || '';
   const litres = Number((qty.match(/(\d+(?:\.\d+)?)/) || [])[1]);
-  const repeat = Number(match[3] || 1);
   const base = Number.isFinite(litres) && litres > 0 ? litres : 1;
-  return Math.max(1, Math.round(base * (Number.isFinite(repeat) && repeat > 0 ? repeat : 1)));
+  return Math.max(1, Math.round(base));
 }
 
 export type RiderRunConsoleProps = {

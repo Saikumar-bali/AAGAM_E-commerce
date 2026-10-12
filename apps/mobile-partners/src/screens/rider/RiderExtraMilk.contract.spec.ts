@@ -52,10 +52,12 @@ describe('rider extra-milk / add-on dialog', () => {
     expect(service).toContain("headers: { 'idempotency-key': idempotencyKey }");
   });
 
-  it('surfaces an existing recurring add-on, not only a one-day extra', () => {
-    // extraCountFor multiplies litres by the repeat count, so a 3-day
-    // add-on shows the summed litres rather than looking like a single extra.
-    expect(screen).toMatch(/const repeat = Number\(match\[3\] \|\| 1\)/);
-    expect(screen).toContain('base * (Number.isFinite(repeat) && repeat > 0 ? repeat : 1)');
+  it('surfaces an existing add-on without reading its price as a repeat count', () => {
+    // Group 3 of the marker is the add-on price in paise on the single-day
+    // `[EXTRA: 1L|<paise>]` form, or the AM/PM slot on the recurring
+    // `[ADD-ON: 1L|<paise>|AM]` form - never a repeat count. Only the quantity
+    // literal is read, so `[ADD-ON: 1L|3000|AM]` surfaces "+1L", not "+3000L".
+    expect(screen).toContain('function extraCountFor(stop: DeliveryRunStop)');
+    expect(screen).not.toContain('match[3]');
   });
 });
