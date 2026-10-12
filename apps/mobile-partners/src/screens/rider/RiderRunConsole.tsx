@@ -726,6 +726,16 @@ export const RiderRunConsole = ({
               <View style={styles.failureRow}><CircleAlert size={14} color="#B42318" /><Text style={styles.failureText} numberOfLines={2}>{focusedStop.failureReason}</Text></View>
             ) : null}
 
+            {/* Truthful ₹0 instruction: the old stop sheet said this in its
+                funded banner; a funded stop must never read as collectable,
+                even when the rider only skims the chips above. */}
+            {focusActionable && focusOutstanding <= 0 ? (
+              <View style={styles.fundedBanner}>
+                <Banknote size={16} color="#0F766E" />
+                <Text style={styles.fundedBannerText}>Subscription already funded. Do not collect cash.</Text>
+              </View>
+            ) : null}
+
             {/* Quick ops: one glass button per operation. Enabled when it applies. */}
             <View style={styles.opsRow}>
               <TouchableOpacity
@@ -1201,8 +1211,10 @@ const styles = StyleSheet.create({
   signalExtraText: { color: '#1D4ED8', fontSize: 10.5, fontWeight: '700' },
   signalMeta: { backgroundColor: '#EEF4F2' },
   signalMetaText: { color: '#334155', fontSize: 10.5, fontWeight: '600' },
-  failureRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#FFF3F2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
-  failureText: { flex: 1, color: '#B42318', fontSize: 11.5, fontWeight: '600' },
+    failureRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#FFF3F2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+    failureText: { flex: 1, color: '#B42318', fontSize: 11.5, fontWeight: '600' },
+    fundedBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#E5F7EE', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+    fundedBannerText: { flex: 1, color: '#065F46', fontSize: 11.5, fontWeight: '600' },
   opsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   op: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 8, borderRadius: 13, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' },
   opActive: { backgroundColor: '#0B1B3A', borderColor: '#0B1B3A' },
