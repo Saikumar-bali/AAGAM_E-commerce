@@ -474,14 +474,35 @@ export class DeliveryRunPlanningService {
       cellsBySubscription.set(cell.subscriptionId, list);
     }
 
+    // A subscription can own two deliveries on one service date (a manual "BOTH"
+    // AM+PM plan, which can land in both the AM and PM run) and the reconciled
+    // due is a subscription-level figure. Reconcile it once per subscription and
+    // carry it on that subscription's first stop only, so neither a single run
+    // nor the runs added together count the same debt twice.
+    const dueBySubscription = new Map<string, number>();
+    const dueAttributed = new Set<string>();
+    for (const run of runs) {
+      for (const stop of run.stops) {
+        const subscription = stop.subscriptionDelivery?.subscription;
+        if (subscription && !dueBySubscription.has(subscription.id)) {
+          dueBySubscription.set(
+            subscription.id,
+            reconcileSubscriptionBalance(subscription, cellsBySubscription.get(subscription.id) ?? []).amountDuePaise,
+          );
+        }
+      }
+    }
+
     // A stop row is per subscription-day; the store reads "stops" as doors, and
     // a household with several subscriptions produces several rows for one
     // address, so expose the address-level count alongside the raw rows.
     return runs.map((run) => {
       const stops = run.stops.map((stop) => {
         const subscription = stop.subscriptionDelivery?.subscription;
-        const outstandingDuePaise = subscription
-          ? reconcileSubscriptionBalance(subscription, cellsBySubscription.get(subscription.id) ?? []).amountDuePaise
+        const firstStopOfSubscription = subscription ? !dueAttributed.has(subscription.id) : false;
+        if (subscription) dueAttributed.add(subscription.id);
+        const outstandingDuePaise = subscription && firstStopOfSubscription
+          ? dueBySubscription.get(subscription.id) ?? 0
           : 0;
         return { ...stop, outstandingDuePaise };
       });

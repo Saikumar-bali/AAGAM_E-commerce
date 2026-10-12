@@ -216,7 +216,7 @@ export const StoreRiderAssignmentsScreen = ({ navigation }: { navigation: any })
                       <Text style={styles.stopName} numberOfLines={1}>{stop.customer?.name || 'Customer'}</Text>
                       <Text style={styles.riderMeta}>{stop.address} · {stop.slot} · {stop.product}</Text>
                     </View>
-                    <Text style={styles.stopCash}>{money(stop.cashDuePaise)}</Text>
+                    <Text style={styles.stopCash}>{money(stop.outstandingDuePaise ?? stop.cashDuePaise)}</Text>
                   </TouchableOpacity>
                 );
               })}

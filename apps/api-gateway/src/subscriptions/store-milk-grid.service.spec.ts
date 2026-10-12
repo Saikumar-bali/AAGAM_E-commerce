@@ -770,5 +770,23 @@ describe('StoreMilkGridService — getRiderAssignments reconciles the due it sho
     expect(board.riders[0].runs[0].cashToCollectPaise).toBe(5000);
     expect(board.totals.cashToCollectPaise).toBe(5000);
   });
+
+  it('counts a two-slot (AM+PM) subscription due once, not once per stop', async () => {
+    (prisma.subscriptionDelivery.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        stoppedDelivery({ id: 'del-am', deliverySlot: 'AM' }),
+        stoppedDelivery({ id: 'del-pm', deliverySlot: 'PM' }),
+      ])
+      .mockResolvedValueOnce([{ subscriptionId: 'sub-1', cashCollectedPaise: 0 }]);
+
+    const board = await service.getRiderAssignments({ id: 'store-user', role: Role.ADMIN }, '2026-10-12');
+
+    expect(board.unassigned).toHaveLength(2);
+    // The reconciled due is a subscription-level figure: it rides on the first
+    // stop only, so the board does not double the ₹899.03 the customer owes.
+    expect(board.unassigned[0].outstandingDuePaise).toBe(89903);
+    expect(board.unassigned[1].outstandingDuePaise).toBe(0);
+    expect(board.totals.cashToCollectPaise).toBe(89903);
+  });
 });
 
