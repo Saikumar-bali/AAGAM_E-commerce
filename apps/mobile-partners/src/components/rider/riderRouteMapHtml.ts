@@ -105,15 +105,18 @@ html,body,#map{height:100%;margin:0;background:#e8f3ef}
 .dest-pin::after{content:'';position:absolute;top:7.5px;left:7.5px;width:8px;height:8px;border-radius:50%;background:#fff}
 .stop-marker{position:relative;width:26px;height:26px;border-radius:50%;background:#0f766e;border:3px solid #fff;box-shadow:0 2px 6px rgba(2,6,23,.45);display:flex;align-items:center;justify-content:center;color:#fff;font:700 11px/1 system-ui,-apple-system,sans-serif}
 .stop-marker.done{background:#94a3b8}
-.stop-marker.current{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.28),0 2px 6px rgba(2,6,23,.45)}
-.stop-label{position:absolute;top:30px;left:50%;transform:translateX(-50%);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:9px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.12);color:#0f172a;font:600 10px/1.3 system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(15,23,42,.18)}
-.stop-marker.current .stop-label{background:#dc2626;border-color:#dc2626;color:#fff}
-.stop-marker.active{box-shadow:0 0 0 5px rgba(37,99,235,.55),0 2px 6px rgba(2,6,23,.45);z-index:3;transform:scale(1.12)}
 /* Status skins layered onto the circular marker so a stop reads without a tap. */
 .stop-marker.delivered{background:#0f9d63}
 .stop-marker.partial{background:#f59e0b}
 .stop-marker.failed{background:#dc2626}
 .stop-marker.no-pin{background:#0f766e}
+/* The focused stop must always read red, so the .current skin is declared
+   after every skin it could collide with (equal-specificity rules later in the
+   sheet win), and the combined selectors below beat them on specificity. */
+.stop-marker.current,.stop-marker.current.delivered,.stop-marker.current.partial,.stop-marker.current.failed,.stop-marker.current.no-pin,.stop-marker.current.skip{background:#dc2626;box-shadow:0 0 0 4px rgba(220,38,38,.28),0 2px 6px rgba(2,6,23,.45)}
+.stop-label{position:absolute;top:30px;left:50%;transform:translateX(-50%);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:9px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.12);color:#0f172a;font:600 10px/1.3 system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(15,23,42,.18)}
+.stop-marker.current .stop-label{background:#dc2626;border-color:#dc2626;color:#fff}
+.stop-marker.active{box-shadow:0 0 0 5px rgba(37,99,235,.55),0 2px 6px rgba(2,6,23,.45);z-index:3;transform:scale(1.12)}
 .stop-marker.extra-milk{box-shadow:0 0 0 3.5px rgba(59,130,246,.9),0 2px 6px rgba(2,6,23,.45)}
 .stop-badges{position:absolute;top:29px;left:50%;transform:translateX(-50%);display:flex;gap:3px;align-items:center;white-space:nowrap}
 .stop-badge{display:flex;align-items:center;gap:2px;padding:1px 5px;border-radius:8px;font:700 9px/1.5 system-ui,-apple-system,sans-serif;border:1px solid transparent;box-shadow:0 1px 3px rgba(15,23,42,.18)}
@@ -158,6 +161,12 @@ var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], cent
 var ROUTE_SOURCE = 'rider-route';
 var ROUTE_CASING = 'rider-route-casing';
 var ROUTE_LINE = 'rider-route-line';
+// Faint blue "route ahead" line: rider -> upcoming stops in sequence. It draws
+// immediately (no directions call) so there is always a visible blue line
+// towards the customers, even before the road-following route arrives or when
+// GPS/directions are unavailable.
+var PREVIEW_SOURCE = 'rider-stops-preview';
+var PREVIEW_LINE = 'rider-stops-preview-line';
 var NAV_ZOOM = 16.5;
 var NAV_PITCH = 58;
 
@@ -171,6 +180,7 @@ var ARROWS = {
 var riderMarker = null;
 var mapLoaded = false;
 var routeSourceAdded = false;
+var previewSourceAdded = false;
 var pendingPoint = null;
 var pendingNav = false;
 var lastRiderPoint = null;
@@ -429,6 +439,43 @@ function renderRouteProgress() {
   updateBanner(split);
 }
 
+// Upcoming stops in route order (done/skipped ones drop out), prefixed with the
+// rider when a fix exists. Identical consecutive points are collapsed so an
+// arrived-at stop does not produce a zero-length segment.
+function previewCoords() {
+  var upcoming = [];
+  for (var i = 0; i < routeStops.length; i++) {
+    var s = routeStops[i];
+    if (s.skipped) continue;
+    if (s.status === 'DELIVERED' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'FAILED' || s.status === 'RETURNED') continue;
+    upcoming.push(s);
+  }
+  upcoming.sort(function (a, b) { return (a.sequence || 0) - (b.sequence || 0); });
+  var coords = [];
+  if (lastRiderPoint) coords.push(lastRiderPoint);
+  for (var k = 0; k < upcoming.length; k++) {
+    var p = [upcoming[k].longitude, upcoming[k].latitude];
+    var last = coords[coords.length - 1];
+    if (!last || Math.abs(last[0] - p[0]) > 1e-7 || Math.abs(last[1] - p[1]) > 1e-7) coords.push(p);
+  }
+  return coords;
+}
+
+function renderPreviewLine() {
+  if (!mapLoaded || !map.isStyleLoaded()) return;
+  var coords = previewCoords();
+  if (coords.length < 2) { coords = []; }
+  if (!previewSourceAdded) {
+    try {
+      map.addSource(PREVIEW_SOURCE, { type: 'geojson', data: routeGeoJSON(coords, false) });
+      map.addLayer({ id: PREVIEW_LINE, type: 'line', source: PREVIEW_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.55, 'line-dasharray': [1.4, 1.4] } });
+      previewSourceAdded = true;
+    } catch (e) { return; }
+  }
+  var source = map.getSource(PREVIEW_SOURCE);
+  if (source) source.setData(routeGeoJSON(coords, false));
+}
+
 function updateBanner(splitOverride) {
   if (!steps.length) return;
   var split = splitOverride || splitAtRider(lastRiderPoint);
@@ -533,6 +580,7 @@ function applyRider(point) {
   }
   if (navActive) fitNav(point, destination);
   if (fullCoords.length) renderRouteProgress();
+  renderPreviewLine();
   requestRoute();
 }
 
@@ -542,6 +590,9 @@ function removeRoute() {
   if (map.getLayer(ROUTE_CASING)) map.removeLayer(ROUTE_CASING);
   if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
   routeSourceAdded = false;
+  if (map.getLayer(PREVIEW_LINE)) map.removeLayer(PREVIEW_LINE);
+  if (map.getSource(PREVIEW_SOURCE)) map.removeSource(PREVIEW_SOURCE);
+  previewSourceAdded = false;
 }
 
 window.setRiderLocation = function (lat, lng) {
@@ -573,6 +624,9 @@ window.clearRiderLocation = function () {
   pendingPoint = null;
   lastRiderPoint = null;
   pendingNav = false;
+  // Keep the stops-chain preview alive: the line towards the customers should
+  // not vanish just because the GPS fix was withdrawn.
+  renderPreviewLine();
 };
 
 window.setRiderMapStyle = function (id) {
@@ -597,14 +651,16 @@ document.body.appendChild(toggle);
 map.on('style.load', function () {
   if (!mapLoaded) return;
   routeSourceAdded = false;
+  previewSourceAdded = false;
   // Prefer a location queued while the new style was loading so that update is
   // not dropped until the next GPS tick.
   if (pendingPoint) {
     var queued = pendingPoint;
     pendingPoint = null;
     applyRider(queued);
-  } else if (fullCoords.length) {
-    ensureRouteLayers();
+  } else {
+    if (fullCoords.length) ensureRouteLayers();
+    renderPreviewLine();
   }
   if (navActive && lastRiderPoint) fitNav(lastRiderPoint, destination);
 });
@@ -614,6 +670,9 @@ function flushPending() {
   if (map.getStyle() && map.isStyleLoaded()) {
     mapLoaded = true;
     map.resize();
+    // The route-ahead line needs no GPS: draw it as soon as the style is ready
+    // so the blue line towards the customers is there from the first frame.
+    renderPreviewLine();
     if (pendingPoint) { applyRider(pendingPoint); pendingPoint = null; }
     if (pendingNav) { pendingNav = false; requestRoute(); }
     return true;
