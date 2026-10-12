@@ -866,7 +866,7 @@ function RunCard({
           value={String(run.addressStopCount ?? (run.totalStopCount || run.stops.length))}
         />
         <Metric label="Bags" value={String(bagTarget)} />
-        <Metric label="Cash due" value={money(run.expectedCashPaise)} />
+        <Metric label="Cash due" value={money(run.outstandingDuePaise ?? run.expectedCashPaise)} />
       </View>
       {productTotals.size ? (
         <View style={styles.productSummary}>
@@ -886,7 +886,9 @@ function RunCard({
               {stop.expectedParcelCount} bag
             </Text>
             <Text style={styles.customerProof}>
-              {stop.cashDuePaise > 0 ? money(stop.cashDuePaise) : "₹0 funded"}
+              {(stop.outstandingDuePaise ?? stop.cashDuePaise) > 0
+                ? money(stop.outstandingDuePaise ?? stop.cashDuePaise)
+                : "₹0 funded"}
             </Text>
           </View>
         ))}

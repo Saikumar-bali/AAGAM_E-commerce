@@ -37,6 +37,19 @@ describe('Rider assignment visibility contract', () => {
     expect(service).toContain('pickupConfirmedAt');
     expect(service).toContain('cashToCollectPaise');
     expect(service).toContain('cashDuePaise');
+    // "Cash to collect" is a due figure: the board must reconcile the ledger
+    // with the day cells (a stranded skipped funding day reads 0 per cell while
+    // the subscription still owes) instead of summing raw `cashDuePaise`.
+    expect(service).toContain('reconcileSubscriptionBalance');
+    expect(service).toContain('outstandingDuePaise');
+  });
+
+  it('reconciles the Runs tab "cash due" the same way instead of the raw run column', () => {
+    const planning = api('subscriptions/delivery-run-planning.service.ts');
+    expect(planning).toContain('reconcileSubscriptionBalance');
+    expect(planning).toContain('outstandingDuePaise');
+    const page = dashboard('app/(store)/store/subscriptions/page.tsx');
+    expect(page).toContain('run.outstandingDuePaise ?? run.expectedCashPaise');
   });
 
   it('links a dispatch to the rider run and the order so it is visible everywhere', () => {
@@ -71,5 +84,7 @@ describe('Rider assignment visibility contract', () => {
     expect(dialog).toContain('Rider Assignments');
     expect(dialog).toContain('Unassigned');
     expect(dialog).toContain('cashToCollectPaise');
+    // Per-stop chips prefer the reconciled outstanding over the raw day cell.
+    expect(dialog).toContain('outstandingDuePaise');
   });
 });

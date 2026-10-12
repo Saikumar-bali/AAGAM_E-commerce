@@ -23,6 +23,7 @@ import { serviceWindow, startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TERMINAL_RUN_STOP_STATUSES } from './run-stop-status';
 import { countAddressStops } from './delivery-stop-grouping';
+import { reconcileSubscriptionBalance } from './subscription-balances';
 
 type Actor = { id: string; role: Role };
 
@@ -438,7 +439,7 @@ export class DeliveryRunPlanningService {
           include: {
             subscriptionDelivery: {
               include: {
-                subscription: { select: { customerId: true, addressSnapshot: true, itemsSnapshot: true, deliveryMethod: true } },
+                subscription: { select: { id: true, customerId: true, addressSnapshot: true, itemsSnapshot: true, deliveryMethod: true, amountCollectedPaise: true, amountDuePaise: true } },
                 order: { include: { customer: { select: { name: true, phone: true } }, items: { include: { product: true } } } },
               },
             },
@@ -446,21 +447,59 @@ export class DeliveryRunPlanningService {
         },
       },
     });
+
+    // "Cash due" is a due reader, so it reconciles like the grid/subscribers
+    // tabs: a full-plan or manual subscription stamps its whole balance on
+    // sequence 1, and a skipped funding day strands the ledger due with no day
+    // cell to ride on. Absorb the day-cell cash evidence, then expose what is
+    // actually outstanding per stop and per run (the DB columns stay untouched
+    // for rider cash-limit math).
+    const subscriptionIds = Array.from(
+      new Set(
+        runs
+          .flatMap((run) => run.stops.map((stop) => stop.subscriptionDelivery?.subscription?.id))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const cashCells = subscriptionIds.length
+      ? await prisma.subscriptionDelivery.findMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+          select: { subscriptionId: true, cashCollectedPaise: true },
+        })
+      : [];
+    const cellsBySubscription = new Map<string, { cashCollectedPaise: number | null }[]>();
+    for (const cell of cashCells) {
+      const list = cellsBySubscription.get(cell.subscriptionId) || [];
+      list.push({ cashCollectedPaise: cell.cashCollectedPaise });
+      cellsBySubscription.set(cell.subscriptionId, list);
+    }
+
     // A stop row is per subscription-day; the store reads "stops" as doors, and
     // a household with several subscriptions produces several rows for one
     // address, so expose the address-level count alongside the raw rows.
-    return runs.map((run) => ({
-      ...run,
-      addressStopCount: countAddressStops(
-        run.stops.map((stop) => ({
-          id: stop.id,
-          deliveryLatitude: stop.deliveryLatitude,
-          deliveryLongitude: stop.deliveryLongitude,
-          deliveryJobId: stop.deliveryJobId,
-          addressSnapshot: stop.subscriptionDelivery?.subscription?.addressSnapshot,
-        })),
-      ),
-    }));
+    return runs.map((run) => {
+      const stops = run.stops.map((stop) => {
+        const subscription = stop.subscriptionDelivery?.subscription;
+        const outstandingDuePaise = subscription
+          ? reconcileSubscriptionBalance(subscription, cellsBySubscription.get(subscription.id) ?? []).amountDuePaise
+          : 0;
+        return { ...stop, outstandingDuePaise };
+      });
+      return {
+        ...run,
+        stops,
+        outstandingDuePaise: stops.reduce((sum, stop) => sum + stop.outstandingDuePaise, 0),
+        addressStopCount: countAddressStops(
+          stops.map((stop) => ({
+            id: stop.id,
+            deliveryLatitude: stop.deliveryLatitude,
+            deliveryLongitude: stop.deliveryLongitude,
+            deliveryJobId: stop.deliveryJobId,
+            addressSnapshot: stop.subscriptionDelivery?.subscription?.addressSnapshot,
+          })),
+        ),
+      };
+    });
   }
 
   async confirmReturnedStop(
