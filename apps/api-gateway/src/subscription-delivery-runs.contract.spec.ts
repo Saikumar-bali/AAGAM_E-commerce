@@ -123,6 +123,10 @@ describe('COD subscription delivery runs production contract', () => {
   it('renders truthful ₹0 funded-delivery messaging and real operational controls across web and Android', () => {
     const customerAndroid = repo('apps/mobile-customer/src/screens/customer/SubscriptionDetailScreen.tsx');
     const riderAndroid = repo('apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx');
+    // The per-stop sheet moved into the full-screen map console (the run-detail
+    // board was deduplicated into it), so the funded cash instruction lives on
+    // the console's focused-stop sheet now — not in the run screen.
+    const riderConsole = repo('apps/mobile-partners/src/screens/rider/RiderRunConsole.tsx');
     const storeAndroid = repo('apps/mobile-partners/src/screens/store/StoreSubscriptionOperationsScreen.tsx');
     const customerWeb = repo('apps/admin-dashboard/src/app/(shop)/shop/subscriptions/[id]/page.tsx');
     const riderWeb = repo('apps/admin-dashboard/src/app/(rider)/rider/runs/page.tsx');
@@ -133,7 +137,7 @@ describe('COD subscription delivery runs production contract', () => {
     // Delivery-first: the pending balance stays visible even though the plan is
     // live, on both the customer Android app and the customer web app.
     expect(customerAndroid).toContain('amountDuePaise');
-    expect(riderAndroid).toContain('Do not collect cash');
+    expect(riderConsole).toContain('Do not collect cash');
     expect(riderAndroid).toContain('Finish route after all stops');
     expect(storeAndroid).toContain('Confirm store handoff');
     expect(customerWeb).toContain('All dues cleared');
