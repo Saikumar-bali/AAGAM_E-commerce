@@ -33,6 +33,8 @@ type RiderStop = {
   product: string;
   liters: number;
   cashDuePaise: number;
+  /** Reconciled outstanding across the whole subscription (ledger + day cells). */
+  outstandingDuePaise?: number;
   cashCollectedPaise: number;
   orderId: string | null;
   orderStatus: string | null;
@@ -335,7 +337,7 @@ export default function RiderAssignmentsDialog({ onClose }: { onClose: () => voi
                       <span className="text-sm font-semibold">Unassigned ({unassigned.length})</span>
                     </div>
                     <span className="text-[11px] font-semibold text-red-600">
-                      {money(unassigned.reduce((s, x) => s + x.cashDuePaise, 0))} cash due
+                      {money(unassigned.reduce((s, x) => s + (x.outstandingDuePaise ?? x.cashDuePaise), 0))} cash due
                     </span>
                   </header>
                   <ul className="divide-y divide-slate-100">
@@ -353,7 +355,7 @@ export default function RiderAssignmentsDialog({ onClose }: { onClose: () => voi
                         </div>
                         <div className="flex items-center gap-2">
                           <SlotBadge slot={stop.slot} />
-                          <span className="text-xs font-semibold text-amber-700">{money(stop.cashDuePaise)}</span>
+                    <span className="text-xs font-semibold text-amber-700">{money(stop.outstandingDuePaise ?? stop.cashDuePaise)}</span>
                         </div>
                       </li>
                     ))}
@@ -457,7 +459,7 @@ function RiderCard({ rider }: { rider: RiderGroup }) {
                 </span>
               </div>
               <span className="text-[11px] text-slate-500">
-                {run.stops.length} stop{run.stops.length === 1 ? '' : 's'} · {money(run.cashToCollectPaise)} cash
+                {run.stops.length} stop{run.stops.length === 1 ? '' : 's'} · {money(run.cashToCollectPaise)} due
               </span>
             </div>
 
@@ -491,7 +493,7 @@ function RiderCard({ rider }: { rider: RiderGroup }) {
                         {stop.orderStatus.replaceAll('_', ' ')}
                       </span>
                     )}
-                    <span className="text-xs font-semibold text-amber-700">{money(stop.cashDuePaise)}</span>
+                          <span className="text-xs font-semibold text-amber-700">{money(stop.outstandingDuePaise ?? stop.cashDuePaise)}</span>
                   </div>
                 </li>
               ))}

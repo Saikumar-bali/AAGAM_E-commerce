@@ -1628,6 +1628,26 @@ export class StoreMilkGridService {
       return { start: start.toISOString(), end: end.toISOString() };
     };
 
+    // The board's "cash to collect" is a *due* figure, so it must reconcile like
+    // every other Paid/Due reader (subscription-balances.ts): a full-plan or
+    // manual subscription stamps its whole balance on sequence 1, and if that
+    // day is skipped the remaining ledger due has no day cell to ride on — the
+    // raw `cashDuePaise` reads 0 while the customer still owes. Absorb the
+    // day-cell cash evidence first, then surface what is actually outstanding.
+    const subscriptionIds = Array.from(new Set(deliveries.map((d) => d.subscription.id)));
+    const cashCells = subscriptionIds.length
+      ? await prisma.subscriptionDelivery.findMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+          select: { subscriptionId: true, cashCollectedPaise: true },
+        })
+      : [];
+    const cellsBySubscription = new Map<string, { cashCollectedPaise: number | null }[]>();
+    for (const cell of cashCells) {
+      const list = cellsBySubscription.get(cell.subscriptionId) || [];
+      list.push({ cashCollectedPaise: cell.cashCollectedPaise });
+      cellsBySubscription.set(cell.subscriptionId, list);
+    }
+
     const toStop = (d: (typeof deliveries)[number]) => {
       const planName = d.subscription.plan.name || '';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
@@ -1651,6 +1671,10 @@ export class StoreMilkGridService {
         product: `${baseQty}L ${isBuffalo ? 'BM' : 'CM'}`,
         liters: baseQty + extraLiters,
         cashDuePaise: d.cashDuePaise || 0,
+        outstandingDuePaise: reconcileSubscriptionBalance(
+          d.subscription,
+          cellsBySubscription.get(d.subscription.id) ?? [],
+        ).amountDuePaise,
         cashCollectedPaise: d.cashCollectedPaise || 0,
         orderId: d.order?.id ?? null,
         orderStatus: d.order?.status ?? null,
@@ -1694,7 +1718,9 @@ export class StoreMilkGridService {
     for (const d of deliveries) {
       slotCounts[d.deliverySlot] = (slotCounts[d.deliverySlot] || 0) + 1;
       const stop = toStop(d);
-      cashToCollectPaise += stop.cashDuePaise;
+      // Cash to collect is the reconciled outstanding, not the day cell (whose
+      // due is 0 on every non-funding day and on stranded skipped days).
+      cashToCollectPaise += stop.outstandingDuePaise;
       cashCollectedPaise += stop.cashCollectedPaise;
       totalLiters += stop.liters;
 
@@ -1752,7 +1778,7 @@ export class StoreMilkGridService {
         runs: Array.from(r.runs.values()).map((run) => ({
           ...run,
           totalStopCount: run.stops.length || run.totalStopCount,
-          cashToCollectPaise: run.stops.reduce((sum, s) => sum + s.cashDuePaise, 0),
+          cashToCollectPaise: run.stops.reduce((sum, s) => sum + s.outstandingDuePaise, 0),
         })),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));

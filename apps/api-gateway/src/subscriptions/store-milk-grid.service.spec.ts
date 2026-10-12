@@ -676,3 +676,99 @@ describe('StoreMilkGridService — RECORD_PAYMENT over-collection guards', () =>
   });
 });
 
+describe('StoreMilkGridService — getRiderAssignments reconciles the due it shows', () => {
+  const service = new StoreMilkGridService({} as any, new SubscriptionLifecycleService(), {} as any);
+
+  // A full-plan / manual subscription stamps its whole balance on sequence 1.
+  // When that day is skipped (resolveMissedDeliveries tears down the rider
+  // artifacts without rolling the cash forward) every remaining day cell reads
+  // 0 while the ledger still holds the due — the board used to show "0 due".
+  const stoppedDelivery = (overrides: Record<string, any> = {}) => ({
+    id: 'del-1',
+    status: 'SCHEDULED',
+    serviceDate: new Date('2026-10-12T00:00:00.000Z'),
+    sequenceNumber: 5,
+    deliverySlot: 'AM',
+    cashDuePaise: 0,
+    cashCollectedPaise: 0,
+    proofMode: 'RIDER_PHOTO_GPS',
+    deferredReason: null,
+    failureReason: null,
+    subscriptionId: 'sub-1',
+    subscription: {
+      id: 'sub-1',
+      status: 'ACTIVE',
+      amountDuePaise: 89903,
+      amountCollectedPaise: 29997,
+      priceSnapshot: {},
+      itemsSnapshot: null,
+      addressSnapshot: { line1: 'Rani Home' },
+      deliveryMethod: 'PERSONAL_HANDOVER',
+      customer: { id: 'cust-1', name: 'Rani', phone: '9000000000' },
+      plan: { id: 'plan-1', name: 'Cow Milk 1L', code: 'COW-1L' },
+    },
+    order: { id: 'order-1', status: 'OUT_FOR_DELIVERY' },
+    runStop: null,
+    ...overrides,
+  });
+
+  it('reports the ledger due as cash to collect when the day cell is stranded at 0', async () => {
+    (prisma.subscriptionDelivery.findMany as jest.Mock)
+      .mockResolvedValueOnce([stoppedDelivery()])
+      .mockResolvedValueOnce([{ subscriptionId: 'sub-1', cashCollectedPaise: 0 }]);
+
+    const board = await service.getRiderAssignments({ id: 'store-user', role: Role.ADMIN }, '2026-10-12');
+
+    expect(board.unassigned).toHaveLength(1);
+    expect(board.unassigned[0].cashDuePaise).toBe(0);
+    expect(board.unassigned[0].outstandingDuePaise).toBe(89903);
+    expect(board.totals.cashToCollectPaise).toBe(89903);
+  });
+
+  it('absorbs day-cell cash the ledger never recorded before reporting the due', async () => {
+    (prisma.subscriptionDelivery.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        stoppedDelivery({
+          subscription: {
+            ...stoppedDelivery().subscription,
+            amountCollectedPaise: 0,
+            amountDuePaise: 10000,
+          },
+          runStop: {
+            id: 'stop-1',
+            sequenceNumber: 1,
+            status: 'READY',
+            proofMode: 'RIDER_PHOTO_GPS',
+            deliveryRun: {
+              id: 'run-1',
+              routeCode: 'RUN-AAGA-AM-2026-10-12-f2ce',
+              deliverySlot: 'AM',
+              status: 'IN_PROGRESS',
+              totalStopCount: 1,
+              expectedCashPaise: 10000,
+              serviceDate: new Date('2026-10-12T00:00:00.000Z'),
+              startedAt: null,
+              pickupConfirmedAt: null,
+              completedAt: null,
+              rider: {
+                id: 'rider-1',
+                status: 'BUSY',
+                vehicleType: 'Bike',
+                vehicleNumber: 'AP-01-XX-0001',
+                user: { id: 'user-1', name: 'Sai', phone: '9111111111' },
+              },
+            },
+          },
+        }),
+      ])
+      .mockResolvedValueOnce([{ subscriptionId: 'sub-1', cashCollectedPaise: 5000 }]);
+
+    const board = await service.getRiderAssignments({ id: 'store-user', role: Role.ADMIN }, '2026-10-12');
+
+    expect(board.riders).toHaveLength(1);
+    expect(board.riders[0].runs[0].stops[0].outstandingDuePaise).toBe(5000);
+    expect(board.riders[0].runs[0].cashToCollectPaise).toBe(5000);
+    expect(board.totals.cashToCollectPaise).toBe(5000);
+  });
+});
+

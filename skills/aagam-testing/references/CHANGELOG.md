@@ -782,3 +782,25 @@ human), what changed, why.
     cookie jars. **`GET /store/subscriptions/grid` takes a 0-indexed `month`**
     (`month=9` = October) — an empty grid from `month=10` is November, not a
     regression.
+
+- **2026-10-12 · v1.8.5 · opencode (BUG-040 fix session)**
+  - Fixed **BUG-040** in the working tree (not deployed): the store due readers
+    now reconcile through `reconcileSubscriptionBalance` instead of reading raw
+    day cells — `getRiderAssignments()` and `storeRuns()` expose
+    `outstandingDuePaise` per stop/run (board totals use the reconciled sum for
+    `cashToCollectPaise`), and the web Runs-tab Cash Due column, the Rider
+    Assignments dialog, and the mobile store runs screen read it with a
+    fallback to the old column. A stranded auto-skipped funding day now shows
+    the ledger due (₹899.03 for Rani) instead of ₹0.
+  - Verified headless against mocked live-shaped payloads (Runs tab + dialog
+    both ₹899.03, 0 console errors), `getRiderAssignments` unit cases added
+    (stranded 0-cell, drift absorbed), contract spec extended, api-gateway /
+    admin-dashboard / mobile-partners `tsc --noEmit` all exit 0, root lint 0
+    errors.
+  - Method note: a Playwright route mock for `http://127.0.0.1:3005/**` (CORS
+    headers + `/auth/me` as STORE_OWNER) can drive the local dashboard dev
+    server (`next dev -p 3001`) without a backend; the Rider Assignments dialog
+    root is `.fixed.inset-0.z-50` (a bare `.fixed` matches the sidebar).
+  - Rider mobile collection still caps at the stop's day cell (BUG-033 write
+    path) — unchanged; the store can collect the reconciled due via the
+    grid/subscribers record-payment.

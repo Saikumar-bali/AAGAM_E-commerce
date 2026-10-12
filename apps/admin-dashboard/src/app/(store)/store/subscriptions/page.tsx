@@ -90,6 +90,8 @@ type Run = {
   packedAt?: string | null;
   storeHandoffConfirmedAt?: string | null;
   expectedCashPaise: number;
+  /** Reconciled outstanding due across the run's subscriptions (ledger + day cells). */
+  outstandingDuePaise?: number;
   rider?: {
     user?: { name?: string | null; phone?: string | null } | null;
   } | null;
@@ -1164,7 +1166,7 @@ export default function StoreSubscriptionOperationsPage() {
                           <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-600">{run.rider?.user?.name || "Unassigned"}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.addressStopCount ?? (run.totalStopCount || run.stops.length)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 font-bold text-slate-800">{run.expectedBagCount || run.totalStopCount || run.stops.length}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-amber-700">{money(run.expectedCashPaise)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-amber-700">{money(run.outstandingDuePaise ?? run.expectedCashPaise)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5">
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{title(run.status)}</span>
                           </td>

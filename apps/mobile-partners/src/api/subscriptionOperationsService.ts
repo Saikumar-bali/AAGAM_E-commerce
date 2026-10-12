@@ -57,6 +57,8 @@ export type DeliveryRunSummary = {
   failedStopCount: number;
   retryPendingStopCount: number;
   expectedCashPaise: number;
+  /** Reconciled outstanding due across the run's subscriptions (ledger + day cells). */
+  outstandingDuePaise?: number;
   collectedCashPaise: number;
   depositedCashPaise: number;
   varianceCashPaise: number;
@@ -87,6 +89,8 @@ export type DeliveryRunStop = {
   status: DeliveryRunStopStatus;
   proofMode: string;
   cashDuePaise: number;
+  /** Reconciled outstanding due across the stop's subscription (ledger + day cells). */
+  outstandingDuePaise?: number;
   expectedItemCount: number;
   expectedParcelCount: number;
   arrivedAt?: string | null;
@@ -183,6 +187,8 @@ export type StoreRunStop = {
   expectedItemCount: number;
   expectedParcelCount: number;
   cashDuePaise: number;
+  /** Reconciled outstanding due across the stop's subscription (ledger + day cells). */
+  outstandingDuePaise?: number;
   failureReason?: string | null;
   subscriptionDelivery: {
     id: string;
