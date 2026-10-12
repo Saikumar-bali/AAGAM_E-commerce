@@ -40,6 +40,8 @@ import { subscriptionOperationsService } from '../../api/subscriptionOperationsS
 import type { DeliveryFailureReason, DeliveryRunDetails, DeliveryRunStop } from '../../api/subscriptionOperationsService';
 import { riderService } from '../../api/riderService';
 import { PartnerDocumentPicker } from '../../native/PartnerDocumentPicker';
+import { PartnerConnectivity } from '../../native/PartnerConnectivity';
+import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
 
 type Coordinates = { latitude: number; longitude: number };
 
@@ -156,6 +158,12 @@ export type RiderRunConsoleProps = {
   /** Re-fetches the run after a successful action. */
   onRefresh: () => Promise<void> | void;
   /**
+   * Called after an offline action is written to the local queue, so the run
+   * screen can refresh its pending count immediately (no connectivity
+   * transition happens when the device was already offline).
+   */
+  onOfflineQueued?: () => void;
+  /**
    * The run screen's full board, injected so the console is the single surface:
    * the expanded sheet hosts the ordered stops and the run lifecycle (handoff,
    * settlement) rather than sending the rider back to the page. Optional so the
@@ -209,6 +217,7 @@ export const RiderRunConsole = ({
   starting,
   resolveLocation,
   onRefresh,
+  onOfflineQueued,
   renderBoard,
   headerChips,
   lifecycle,
@@ -400,13 +409,15 @@ export const RiderRunConsole = ({
   const reportProblem = (stop: DeliveryRunStop) => {
     void runAction('fail', async () => {
       const coordinates = await resolveLocation();
-      return subscriptionOperationsService.failStop(run.id, stop.id, {
-        ...coordinates,
-        version: stop.version,
-        reason: failureReason,
-        note: failureNote.trim() || undefined,
-        retryRequested,
-      });
+      const payload = { ...coordinates, version: stop.version, reason: failureReason, note: failureNote.trim() || undefined, retryRequested };
+      // Queue the exception offline like every other route action; the run
+      // screen's connectivity subscriber replays it on reconnect.
+      if (!(await PartnerConnectivity.getCurrent())) {
+        await RiderRunOfflineQueue.enqueue({ kind: 'FAIL', runId: run.id, stopId: stop.id, payload });
+        onOfflineQueued?.();
+        throw new Error('Offline: delivery exception queued and will replay after reconnect.');
+      }
+      return subscriptionOperationsService.failStop(run.id, stop.id, payload);
     }, {
       title: retryRequested ? 'Retry recorded' : 'Failure recorded',
       body: retryRequested ? 'The stop stays unresolved and must be retried.' : 'The exception is visible to the store and admin.',
@@ -436,6 +447,13 @@ export const RiderRunConsole = ({
     try {
       if (stop.status === 'READY' || stop.status === 'PLANNED' || stop.status === 'RETRY_PENDING') {
         const coordinates = await resolveLocation();
+        // Offline arrival is saved locally and replayed by the run screen's
+        // connectivity subscriber, so a dead-zone stop still queues.
+        if (!(await PartnerConnectivity.getCurrent())) {
+          await RiderRunOfflineQueue.enqueue({ kind: 'ARRIVE', runId: run.id, stopId: stop.id, payload: { ...coordinates, version: stop.version } });
+          onOfflineQueued?.();
+          throw new Error('Offline: arrival saved securely and will replay after connectivity returns.');
+        }
         await subscriptionOperationsService.arriveAtStop(run.id, stop.id, { ...coordinates, version: stop.version });
         await onRefresh();
       }
@@ -470,7 +488,11 @@ export const RiderRunConsole = ({
         setCapture((current) => (current ? { ...current, photoId: uploaded.storageKey, photoName: picked.name } : current));
       }
       Toast.show({ type: 'success', text1: 'Delivery photo secured', text2: 'Now complete the stop.' });
-    } catch (error) {
+    } catch (error: any) {
+      // Backing out of the native camera is a normal rider action, not a
+      // failure — the picker rejects a cancelled capture with the same
+      // DOCUMENT_PICKER_CANCELLED code as a cancelled document pick.
+      if (error?.code === 'DOCUMENT_PICKER_CANCELLED') return;
       Toast.show({ type: 'error', text1: 'Photo upload failed', text2: errorMessage(error) });
     } finally {
       setBusy(null);
