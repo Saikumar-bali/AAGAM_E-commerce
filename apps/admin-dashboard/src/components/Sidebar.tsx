@@ -123,6 +123,20 @@ const rootRoutes = new Set(["/admin", "/rider", "/shop", "/store"]);
 const SIDEBAR_COLLAPSE_KEY = "aagam:sidebar-collapsed:v1";
 const COLLAPSED_WIDTH_CLASS = "w-[76px]";
 const EXPANDED_WIDTH_CLASS = "w-[260px]";
+// useLayoutEffect on the client (runs before paint, so the fold preference
+// lands without a visible expand flash), a plain useEffect during SSR — a
+// layout effect on the server only produces React's "does nothing on the
+// server" warning.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+// Every page mounts <DashboardLayout> itself (there is no shared route-group
+// layout), so each navigation unmounts and remounts this sidebar. Reading the
+// stored preference only in an effect made the fresh instance paint expanded
+// and then fold — the "flash expand then collapse" on every menu click while
+// folded. This module-level cache keeps the last-known value across remounts
+// within the tab, so a remount paints in the right state immediately; it is
+// null on a fresh page load, where the server-rendered (expanded) markup must
+// win hydration and the effect adopts the stored value before paint.
+let collapsedPreferenceCache: boolean | null = null;
 const focusableSelector = [
   "a[href]",
   "button:not([disabled])",
@@ -145,24 +159,36 @@ const Sidebar: React.FC<SidebarProps> = ({ role }) => {
   // Desk roles (store owner, admin) can fold the sidebar down to an icon rail.
   // The preference is read after mount so the server-rendered markup (always
   // expanded) stays valid, then remembered per browser in localStorage.
+  // Seeding from the module cache means a navigation remount starts folded;
+  // the first visit of a page load starts expanded (matching SSR) and syncs
+  // in the layout effect below before the browser paints.
   const canCollapse = role === "ADMIN" || role === "STORE_OWNER";
-  const [collapsed, setCollapsed] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState(() => collapsedPreferenceCache ?? false);
 
-  React.useEffect(() => {
+  // Layout effect (client only; plain effect during SSR so the server render
+  // stays warning-free): on a full page load the server HTML is expanded, so
+  // the stored "collapsed" value must be applied before the browser paints or
+  // the user sees an expand→fold flash on every reload. On a navigation
+  // remount the cache above already seeded the right state and this is a no-op.
+  useIsomorphicLayoutEffect(() => {
     if (!canCollapse) {
+      collapsedPreferenceCache = null;
       setCollapsed(false);
       return;
     }
     try {
-      setCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1");
+      const stored = window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1";
+      collapsedPreferenceCache = stored;
+      setCollapsed((previous) => (previous === stored ? previous : stored));
     } catch {
-      setCollapsed(false);
+      // Storage can be unavailable (private browsing) — keep the in-memory value.
     }
   }, [canCollapse]);
 
   const toggleCollapsed = () => {
     setCollapsed((previous) => {
       const next = !previous;
+      collapsedPreferenceCache = next;
       try {
         window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, next ? "1" : "0");
       } catch {
