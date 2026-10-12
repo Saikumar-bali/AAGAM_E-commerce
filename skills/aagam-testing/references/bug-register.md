@@ -1704,7 +1704,7 @@ area, and treat a recurrence as a **major** finding.
   **Rider Assignments** dialog (₹0 due / Cash to collect ₹0);
   `GET /store/subscription-operations/runs`; same root cause as BUG-033
 - **Role:** store | rider | admin
-- **Status:** OPEN
+- **Status:** `FIXED-NOT-DEPLOYED` (working tree, 2026-10-12; no commit yet)
 - **Repro:**
   1. Take a full-plan (web) or admin-manual subscription whose only cash-due
      cell is delivery sequence 1 (`cashDueForSequence` stamps seq 1 only).
@@ -1733,13 +1733,37 @@ area, and treat a recurrence as a **major** finding.
   (seq-1 SKIPPED/MISSED rows carrying the due; all later cells 0);
   `GET /store/subscription-operations/runs` `expectedCashPaise: 0`; store
   Runs-tab screenshot showing Cash Due ₹0.
-- **Fix:** —
+- **Fix:** FIXED in the working tree (not yet deployed) — the due readers now
+  reconcile instead of reading raw day cells, per the repo rule that every
+  Paid/Due reader goes through `reconcileSubscriptionBalance`
+  (`subscription-balances.ts`): `store-milk-grid.service.ts`
+  `getRiderAssignments()` fetches the subscriptions' day cells in one extra
+  query and exposes `outstandingDuePaise` per stop, with
+  `cashToCollectPaise` (per run and totals) now the sum of those;
+  `delivery-run-planning.service.ts` `storeRuns()` does the same and adds
+  `outstandingDuePaise` per stop and per run (DB columns untouched — rider
+  cash-limit math still uses `expectedCashPaise`). UI reads
+  `outstandingDuePaise ?? <old column>`: Runs-tab Cash Due column, dialog
+  per-stop chips + rider/run "due" figures, and the mobile store screens
+  (`StoreSubscriptionOperationsScreen`, `StoreRiderAssignmentsScreen` inherits
+  via `cashToCollectPaise`). Tests: two `getRiderAssignments` unit cases in
+  `store-milk-grid.service.spec.ts` (stranded 0-cell → ledger due; drift
+  absorbed), extended `rider-assignments.contract.spec.ts`; verified in a
+  headless browser against mocked live-shaped payloads (run `expectedCashPaise:
+  0` + `outstandingDuePaise: 89903` renders ₹899.03 on the Runs tab, the
+  dialog card, rider badge, run line and stop chip; 0 console errors).
 - **Notes:** the collection-side root cause of BUG-033 generalised to the store
   surfaces. The day-1 stamping itself is by design
   (`customer-subscription.service.ts:139-143`,
-  `subscription-admin-reporting.service.ts:940`). Unlike customer skip, the
-  missed sweep also does not extend the plan or update `nextCashCollectionDate`,
-  so a MISSED day is simply lost — separate decision to make.
+  `subscription-admin-reporting.service.ts:940`). This fix makes the stranded
+  due **visible and collectable from the store** (grid/subscribers
+  record-payment collects against the subscription due, which is the 89903 the
+  board now shows). It does **not** roll the cell forward, so the mobile rider
+  stop completion still caps at the stop's `cashDuePaise` (0) — the rider app
+  cannot collect it yet (BUG-033 / write-path decision). Unlike customer skip,
+  the missed sweep also does not extend the plan or update
+  `nextCashCollectionDate`, so a MISSED day is simply lost — separate decision
+  to make.
 
 ### BUG-041 — "Stops" (addressStopCount) merges two different addresses that share one map pin
 
