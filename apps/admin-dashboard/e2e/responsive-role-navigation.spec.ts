@@ -265,4 +265,48 @@ test.describe('Responsive role navigation', () => {
       .poll(async () => (await page.locator('#primary-sidebar').boundingBox())?.width ?? 0)
       .toBeGreaterThanOrEqual(240);
   });
+
+  test('folded sidebar never flashes expanded while navigating menu items', async ({ page }) => {
+    // Every page mounts <DashboardLayout> itself, so each navigation remounts
+    // the sidebar. Regression: the remount used to paint the rail expanded
+    // (useState default) and only fold it once the mount effect read
+    // localStorage — a visible expand→fold flash on every menu click. The
+    // high-water mark below samples the rail on every animation frame, so even
+    // a single painted frame at the expanded width fails the test.
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await loginWithCookieSession(page, 'ADMIN');
+    await page.goto('/admin');
+
+    const sidebar = page.locator('#primary-sidebar');
+    await page.getByRole('button', { name: 'Collapse navigation' }).click();
+    await expect(sidebar).toHaveAttribute('data-collapsed', 'true');
+    // Wait out the 200ms width transition from the collapse click, so that
+    // animation cannot leak into the high-water mark below.
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.width ?? 0)
+      .toBeLessThanOrEqual(80);
+
+    await page.evaluate(() => {
+      const state = window as unknown as { hwm: number; raf: number };
+      state.hwm = 0;
+      const sample = () => {
+        const el = document.getElementById('primary-sidebar');
+        if (el) state.hwm = Math.max(state.hwm, el.getBoundingClientRect().width);
+        state.raf = requestAnimationFrame(sample);
+      };
+      state.raf = requestAnimationFrame(sample);
+    });
+
+    for (const href of ['/admin/stores', '/admin/orders', '/admin/live-tracking', '/admin']) {
+      await sidebar.locator(`a[href="${href}"]`).click();
+      await page.waitForURL(`**${href}`, { timeout: 15000 });
+      await expect(sidebar).toHaveAttribute('data-collapsed', 'true');
+    }
+
+    const highWater = await page.evaluate(() => (window as unknown as { hwm: number }).hwm);
+    await page.evaluate(() => cancelAnimationFrame((window as unknown as { raf: number }).raf));
+    // The collapsed rail is 76px; anything near the expanded 260px means a
+    // frame rendered without the stored preference.
+    expect(highWater).toBeLessThanOrEqual(80);
+  });
 });
