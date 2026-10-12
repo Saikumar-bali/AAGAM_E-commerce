@@ -124,8 +124,13 @@ class PartnerDocumentPickerModule(
     if (resultCode != Activity.RESULT_OK) {
       if (requestCode == REQUEST_CAMERA) {
         pendingCameraUri?.let { reactContext.contentResolver.delete(it, null, null) }
+        // Same code as a cancelled document pick so every JS cancel-guard
+        // (error?.code === 'DOCUMENT_PICKER_CANCELLED') keeps working, but the
+        // message names what the rider actually backed out of.
+        finishWithError("DOCUMENT_PICKER_CANCELLED", "Camera capture was cancelled")
+      } else {
+        finishWithError("DOCUMENT_PICKER_CANCELLED", "Document selection was cancelled")
       }
-      finishWithError("DOCUMENT_PICKER_CANCELLED", "Document selection was cancelled")
       return
     }
 

@@ -21,6 +21,7 @@ export const RiderRunOfflineQueue = {
     return row;
   },
   remove: async (actionId: string) => write((await read()).filter((row) => row.id !== actionId)),
+  has: async (kind: OfflineRunAction['kind'], runId: string, stopId: string) => (await read()).some((row) => row.kind === kind && row.runId === runId && row.stopId === stopId),
   clearTrustedDropMarker: async (runId: string, stopId: string) => write((await read()).filter((row) => !(row.kind === 'TRUSTED_DROP_RESCAN_REQUIRED' && row.runId === runId && row.stopId === stopId))),
   flush: async () => {
     const items = await read();

@@ -58,11 +58,55 @@ describe('rider map console operations', () => {
     const detail = read('RiderRunDetailScreen.tsx');
     // The run screen *is* the board — the console is rendered directly.
     expect(detail).toContain('<RiderRunConsole');
-    expect(detail).toContain('renderBoard={() => board}');
+    expect(detail).toContain('renderBoard={({ focusStop }) => board(focusStop)}');
     expect(detail).toContain('lifecycle={lifecycle}');
     // The old button-gated full-screen map (and its second map) is gone.
     expect(detail).not.toContain('rider_open_map_console');
     expect(detail).not.toContain('Open full-screen map console');
+  });
+
+  it('the board is a route-order overlay, not a second set of stop actions', () => {
+    const detail = read('RiderRunDetailScreen.tsx');
+    // Rows exist only to focus the console sheet and to hold the route order.
+    expect(detail).toContain('function StopRow(');
+    expect(detail).toContain('accessibilityLabel={`Focus stop ${stop.sequenceNumber}`}');
+    expect(detail).toContain('onFocus={() => focusStop(stop.id)}');
+    // Reorder (including its offline queue) lives on the board, and terminal
+    // stops keep their position (the server rejects those reorders).
+    expect(detail).toContain("kind: 'REORDER'");
+    expect(detail).toContain("const actionable = !['DELIVERED', 'CANCELLED', 'FAILED', 'RETURNED'].includes(stop.status)");
+    expect(detail).toContain('index > 0 && actionable && !reorderMutation.isPending');
+    // ...and Finish + cash settlement are the two actions the sheet cannot do.
+    expect(detail).toContain('Finish route after all stops');
+    expect(detail).toContain('Create deposit batch');
+    // Every per-stop mutation moved into the console's focused-stop sheet:
+    // none of them may reappear on the run screen (the duplicate the board
+    // was deduplicating).
+    expect(detail).not.toContain('completeStop(');
+    expect(detail).not.toContain('failStop(');
+    expect(detail).not.toContain('skipStop(');
+    expect(detail).not.toContain('undoStop(');
+    expect(detail).not.toContain('recordStopPayment(');
+    expect(detail).not.toContain('addExtraMilk(');
+    expect(detail).not.toContain('toggleStopSlot(');
+    expect(detail).not.toContain('arriveAtStop(');
+    expect(detail).not.toContain('PartnerQrScanner');
+    expect(detail).not.toContain('RiderRouteMap');
+    expect(detail).not.toContain('showFullStop');
+  });
+
+  it('keeps offline parity: the console queues ARRIVE and FAIL like the board queues REORDER', () => {
+    const detail = read('RiderRunDetailScreen.tsx');
+    // The legacy modal owned the offline enqueue for arrival/failure; now that
+    // the modal is gone, those two queues must live in the console instead.
+    expect(console).toContain("kind: 'ARRIVE'");
+    expect(console).toContain("kind: 'FAIL'");
+    expect(console).toContain('RiderRunOfflineQueue.enqueue');
+    expect(console).toContain('PartnerConnectivity.getCurrent()');
+    // The queue callback keeps the run screen's pending chip fresh even when
+    // there is no connectivity transition to trigger the subscriber.
+    expect(console).toContain('onOfflineQueued?.()');
+    expect(detail).toContain('onOfflineQueued=');
   });
 
   it('exposes one draggable sheet with a route-board snap point', () => {
