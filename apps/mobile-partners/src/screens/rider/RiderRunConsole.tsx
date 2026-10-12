@@ -42,6 +42,7 @@ import { riderService } from '../../api/riderService';
 import { PartnerDocumentPicker } from '../../native/PartnerDocumentPicker';
 import { PartnerConnectivity } from '../../native/PartnerConnectivity';
 import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
+import { riderStopCustomerKey } from './riderStopIdentity';
 
 type Coordinates = { latitude: number; longitude: number };
 
@@ -65,6 +66,15 @@ function errorMessage(error: unknown) {
   return message || candidate?.message || 'The route action could not be completed.';
 }
 
+// A queued-offline route action is a successful outcome, not a failure: the run
+// screen's connectivity subscriber replays it on reconnect. Distinguish it from
+// a thrown error so runAction shows an informational toast instead of an
+// "Action failed" one.
+type OfflineQueuedResult = { offline: true; message: string };
+function isOfflineQueuedResult(value: unknown): value is OfflineQueuedResult {
+  return typeof value === 'object' && value !== null && (value as { offline?: unknown }).offline === true;
+}
+
 function addressFrom(stop?: DeliveryRunStop | null) {
   const snapshot = stop?.subscriptionDelivery?.subscription?.addressSnapshot || {};
   const parts = [snapshot.line1, snapshot.line2, snapshot.city, snapshot.pincode]
@@ -83,12 +93,6 @@ function stopCoordinates(stop?: DeliveryRunStop | null): Coordinates | null {
     return { latitude: snapshot.latitude, longitude: snapshot.longitude };
   }
   return null;
-}
-
-function customerKey(stop: DeliveryRunStop) {
-  return stop.deliveryJob?.order?.customer?.name?.trim().toLowerCase()
-    || stop.subscriptionDelivery?.subscription?.customerId
-    || stop.id;
 }
 
 function planLabel(stop: DeliveryRunStop) {
@@ -289,7 +293,7 @@ export const RiderRunConsole = ({
   const actionable = useMemo(() => stops.filter((stop) => ACTIVE_STATUSES.includes(stop.status)), [stops]);
   const duplicateKeys = useMemo(() => {
     const counts = new Map<string, number>();
-    stops.forEach((stop) => counts.set(customerKey(stop), (counts.get(customerKey(stop)) || 0) + 1));
+    stops.forEach((stop) => counts.set(riderStopCustomerKey(stop), (counts.get(riderStopCustomerKey(stop)) || 0) + 1));
     return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
   }, [stops]);
 
@@ -308,7 +312,7 @@ export const RiderRunConsole = ({
     if (!point) return [];
     const done = DONE_STATUSES.includes(stop.status);
     const isFocused = focusedStop?.id === stop.id;
-    const multiSub = duplicateKeys.has(customerKey(stop));
+    const multiSub = duplicateKeys.has(riderStopCustomerKey(stop));
     return [{
       id: stop.id,
       latitude: point.latitude,
@@ -361,10 +365,14 @@ export const RiderRunConsole = ({
     if (busy) return;
     setBusy(key);
     try {
-      await fn();
+      const result = await fn();
       await onRefresh();
       if (collapse) setExpander('none');
-      if (success) Toast.show({ type: 'success', text1: success.title, text2: success.body });
+      if (isOfflineQueuedResult(result)) {
+        Toast.show({ type: 'info', text1: 'Saved offline', text2: result.message });
+      } else if (success) {
+        Toast.show({ type: 'success', text1: success.title, text2: success.body });
+      }
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Action failed', text2: errorMessage(error) });
     } finally {
@@ -411,11 +419,15 @@ export const RiderRunConsole = ({
       const coordinates = await resolveLocation();
       const payload = { ...coordinates, version: stop.version, reason: failureReason, note: failureNote.trim() || undefined, retryRequested };
       // Queue the exception offline like every other route action; the run
-      // screen's connectivity subscriber replays it on reconnect.
+      // screen's connectivity subscriber replays it on reconnect. A repeat tap
+      // finds the existing entry rather than stacking a duplicate that would
+      // replay against a stale version and be dropped as a 409 conflict.
       if (!(await PartnerConnectivity.getCurrent())) {
-        await RiderRunOfflineQueue.enqueue({ kind: 'FAIL', runId: run.id, stopId: stop.id, payload });
+        if (!(await RiderRunOfflineQueue.has('FAIL', run.id, stop.id))) {
+          await RiderRunOfflineQueue.enqueue({ kind: 'FAIL', runId: run.id, stopId: stop.id, payload });
+        }
         onOfflineQueued?.();
-        throw new Error('Offline: delivery exception queued and will replay after reconnect.');
+        return { offline: true, message: 'Delivery exception queued and will replay after reconnect.' };
       }
       return subscriptionOperationsService.failStop(run.id, stop.id, payload);
     }, {
@@ -448,11 +460,16 @@ export const RiderRunConsole = ({
       if (stop.status === 'READY' || stop.status === 'PLANNED' || stop.status === 'RETRY_PENDING') {
         const coordinates = await resolveLocation();
         // Offline arrival is saved locally and replayed by the run screen's
-        // connectivity subscriber, so a dead-zone stop still queues.
+        // connectivity subscriber, so a dead-zone stop still queues. A repeat
+        // tap finds the existing entry rather than stacking a duplicate that
+        // would replay against a stale version and be dropped as a conflict.
         if (!(await PartnerConnectivity.getCurrent())) {
-          await RiderRunOfflineQueue.enqueue({ kind: 'ARRIVE', runId: run.id, stopId: stop.id, payload: { ...coordinates, version: stop.version } });
+          if (!(await RiderRunOfflineQueue.has('ARRIVE', run.id, stop.id))) {
+            await RiderRunOfflineQueue.enqueue({ kind: 'ARRIVE', runId: run.id, stopId: stop.id, payload: { ...coordinates, version: stop.version } });
+          }
           onOfflineQueued?.();
-          throw new Error('Offline: arrival saved securely and will replay after connectivity returns.');
+          Toast.show({ type: 'info', text1: 'Saved offline', text2: 'Arrival saved securely and will replay after connectivity returns.' });
+          return;
         }
         await subscriptionOperationsService.arriveAtStop(run.id, stop.id, { ...coordinates, version: stop.version });
         await onRefresh();
@@ -611,7 +628,7 @@ export const RiderRunConsole = ({
           {stops.map((stop) => {
             const done = DONE_STATUSES.includes(stop.status);
             const isFocused = focusedStop?.id === stop.id;
-            const multiSub = duplicateKeys.has(customerKey(stop));
+            const multiSub = duplicateKeys.has(riderStopCustomerKey(stop));
             const paid = collectedPaise(stop);
             const due = Number(stop.cashDuePaise || 0);
             const part = paid > 0 && paid < due;
@@ -671,7 +688,7 @@ export const RiderRunConsole = ({
                 <View style={styles.planRow}>
                   <Text style={styles.sheetPlan} numberOfLines={1}>{planLabel(focusedStop)}</Text>
                   {focusedStop.subscriptionDelivery?.deliverySlot ? <Text style={styles.slotPill}>{focusedStop.subscriptionDelivery.deliverySlot}</Text> : null}
-                  {duplicateKeys.has(customerKey(focusedStop)) ? <Text style={styles.multiBadge}>2 subscriptions</Text> : null}
+                  {duplicateKeys.has(riderStopCustomerKey(focusedStop)) ? <Text style={styles.multiBadge}>2 subscriptions</Text> : null}
                 </View>
               </View>
               <View style={[styles.statusChip, { backgroundColor: focusTone.bg }]}>

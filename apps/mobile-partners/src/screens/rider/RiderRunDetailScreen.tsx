@@ -41,6 +41,7 @@ import { RIDER_RUNS_QUERY_KEY } from './RiderRunsScreen';
 import { PartnerConnectivity } from '../../native/PartnerConnectivity';
 import { RiderRunOfflineQueue } from '../../services/RiderRunOfflineQueue';
 import { RiderRunConsole } from './RiderRunConsole';
+import { riderStopCustomerKey } from './riderStopIdentity';
 
 type Coordinates = { latitude: number; longitude: number; accuracyMetres?: number };
 
@@ -94,14 +95,8 @@ function addressFrom(stop?: DeliveryRunStop | null) {
   return values.join(', ') || 'Customer delivery address';
 }
 
-// A customer may hold more than one subscription (different plan or slot), and
-// each delivery becomes its own stop. Identify the customer so the route can
-// flag the duplicates, then label each stop with its own plan/slot.
-function customerKey(stop: DeliveryRunStop) {
-  const customer = stop.deliveryJob.order.customer;
-  return customer?.phone || customer?.name || stop.subscriptionDelivery?.subscription?.customerId || stop.id;
-}
-
+// Label each stop with its own plan/slot so a customer's duplicate deliveries
+// are distinguishable once the board flags them.
 function planLabel(stop: DeliveryRunStop) {
   const plan = stop.subscriptionDelivery?.subscription?.plan?.name;
   const items = stop.deliveryJob.order.items || [];
@@ -247,7 +242,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
   const duplicateCustomerKeys = useMemo(() => {
     const counts = new Map<string, number>();
     (run?.stops || []).forEach((stop) => {
-      const key = customerKey(stop);
+      const key = riderStopCustomerKey(stop);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
     return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
@@ -376,7 +371,7 @@ export const RiderRunDetailScreen = ({ route, navigation }: { route: RouteProp<R
             key={stop.id}
             stop={stop}
             isCurrent={currentStop?.id === stop.id}
-            duplicateCustomer={duplicateCustomerKeys.has(customerKey(stop))}
+            duplicateCustomer={duplicateCustomerKeys.has(riderStopCustomerKey(stop))}
             canMoveUp={index > 0 && actionable && !reorderMutation.isPending}
             canMoveDown={index < run.stops.length - 1 && actionable && !reorderMutation.isPending}
             onMove={(direction) => reorderMutation.mutate({ stop, direction })}
