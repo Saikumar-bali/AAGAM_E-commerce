@@ -419,7 +419,10 @@
     .col h2, .col .note { padding: 0 16px; }
     .device { width: 100%; border-radius: 0; padding: 0; box-shadow: none; background: transparent; }
     .statusbar { display: none; }
-    .viewport { height: auto; min-height: 620px; border-radius: 0; }
+    /* Keep the fixed-height phone frame so .viewport scrolls internally; a
+       growing viewport would push the sticky action bar below the fold on
+       first paint, defeating the redesign's above-the-fold action. */
+    .viewport { height: 664px; border-radius: 0; }
     .fold { display: none; }
   }
 
@@ -778,7 +781,7 @@
                 <div class="trow"><span>Delivery · 3.2 km</span><span class="v" style="color:var(--stamp)">not priced</span></div>
                 <div class="due">
                   <span class="lab">Total due<small>Awaiting price</small></span>
-                  <span class="val" style="color:var(--ink-muted)">₹86.00</span>
+                  <span class="val" style="color:var(--ink-muted)">Unavailable</span>
                 </div>
               </div>
             </div>
