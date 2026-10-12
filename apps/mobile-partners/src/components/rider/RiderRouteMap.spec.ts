@@ -44,4 +44,26 @@ describe('RiderRouteMap', () => {
     expect(html).toContain('pitch');
     expect(html).toContain('bearing');
   });
+
+  it('always draws a blue route-ahead line towards the upcoming customers', () => {
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store', null, {
+      stops: [
+        { latitude: 12.972, longitude: 77.595, sequence: 1, id: 'a', label: 'A', status: 'READY', state: 'current' },
+        { latitude: 12.974, longitude: 77.598, sequence: 2, id: 'b', label: 'B', status: 'READY', state: 'upcoming' },
+      ],
+    });
+    // The preview line needs no GPS and no directions call: it is built from
+    // the ordered stops, so a blue line is there from the first frame.
+    expect(html).toContain("'rider-stops-preview'");
+    expect(html).toContain("'rider-stops-preview-line'");
+    expect(html).toContain('function previewCoords()');
+    expect(html).toContain('renderPreviewLine();');
+  });
+
+  it('keeps the focused marker red regardless of its status skin', () => {
+    // `.no-pin` used to be declared after `.current`, so the current stop
+    // rendered teal; the current skin must win over every colliding one.
+    const html = buildRiderMapHtml({ latitude: 12.9716, longitude: 77.5946 }, 'Store');
+    expect(html).toContain('.stop-marker.current,.stop-marker.current.delivered,.stop-marker.current.partial,.stop-marker.current.failed,.stop-marker.current.no-pin,.stop-marker.current.skip{background:#dc2626');
+  });
 });

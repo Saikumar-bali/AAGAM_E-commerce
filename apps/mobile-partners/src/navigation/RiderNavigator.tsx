@@ -130,7 +130,8 @@ export const RiderNavigator = () => {
             : undefined,
         })}
       />
-      <Tab.Screen name="RiderRunDetail" component={RiderRunDetailScreen} options={hidden} />
+      {/* The run console is a full-screen map: no tab menu, maximum map area. */}
+      <Tab.Screen name="RiderRunDetail" component={RiderRunDetailScreen} options={{ ...hidden, tabBarStyle: { display: 'none' } }} />
       <Tab.Screen name="Notifications" component={PartnerNotificationsScreen} options={hidden} />
       <Tab.Screen name="NotificationSettings" component={RiderNotificationSettingsScreen} options={hidden} />
       <Tab.Screen name="TrackingDiagnostics" component={RiderTrackingDiagnosticsScreen} options={hidden} />

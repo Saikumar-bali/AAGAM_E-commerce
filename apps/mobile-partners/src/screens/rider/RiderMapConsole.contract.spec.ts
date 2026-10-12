@@ -72,6 +72,23 @@ describe('rider map console operations', () => {
     expect(console).toContain('Drag up for the route board');
     expect(console).toContain('renderBoard ? <View style={styles.boardHost}>');
   });
+
+  it('maximises the map and docks the primary actions at the screen bottom', () => {
+    // The console map is chromeless: no card header/footer, the WebView is the
+    // whole layer and the nav tools float above the sheet.
+    expect(console).toContain('chromeless');
+    expect(console).toContain('controlsBottom');
+    const routeMap = read('../../components/rider/RiderRouteMap.tsx');
+    expect(routeMap).toContain('chromeless?: boolean');
+    expect(routeMap).toContain('styles.bare');
+    // Navigate / Deliver live in a dock pinned to the screen bottom, so the
+    // board can never push them off-screen or under a menu.
+    expect(console).toContain('styles.dock');
+    expect(console).toContain('accessibilityLabel="Deliver this stop"');
+    // The tab menu is hidden while the rider is inside the full-screen console.
+    const navigator = read('../../navigation/RiderNavigator.tsx');
+    expect(navigator).toContain("name=\"RiderRunDetail\" component={RiderRunDetailScreen} options={{ ...hidden, tabBarStyle: { display: 'none' } }}");
+  });
 });
 
 describe('rider map stop signals', () => {

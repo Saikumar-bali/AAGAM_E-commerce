@@ -24,6 +24,13 @@ export type RiderRouteMapProps = {
   activeStopId?: string | null;
   /** Fired when the rider taps a stop pin on the map. */
   onStopPress?: (stopId: string, sequence: number) => void;
+  /**
+   * Map-first consoles: render the WebView full-bleed with no card header or
+   * footer, so the map owns the whole layer and every control floats above it.
+   */
+  chromeless?: boolean;
+  /** Distance from the bottom edge for the floating nav controls (chromeless). */
+  controlsBottom?: number;
 };
 
 const validCoordinate = (point?: Coordinate | null): point is Coordinate => Boolean(
@@ -34,7 +41,7 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal, activeStopId, onStopPress }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal, activeStopId, onStopPress, chromeless = false, controlsBottom }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
   const stopPressRef = useRef(onStopPress);
   stopPressRef.current = onStopPress;
@@ -101,6 +108,58 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
     `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`,
   );
 
+  const mapView = (
+    <CompatibleWebView
+      ref={webView}
+      testID="rider_route_webview"
+      source={{ html }}
+      originWhitelist={['https://*']}
+      javaScriptEnabled
+      domStorageEnabled={false}
+      scrollEnabled={false}
+      overScrollMode="never"
+      onMessage={handleMessage}
+      onLoadEnd={() => {
+        // Belt-and-braces seed in case the map's own load handler fired
+        // before the first location was available.
+        if (!active || !validCoordinate(riderLocation)) {
+          setHasFix(false);
+          webView.current?.injectJavaScript('if(window.clearRiderLocation){window.clearRiderLocation();}true;');
+        } else {
+          webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
+        }
+        // Defer so the injected script runs after the page finishes loading.
+        setTimeout(() => setReady(true), 500);
+      }}
+    />
+  );
+
+  // Map-first console: the WebView is the whole layer, and the only chrome is a
+  // floating tool cluster (nav camera toggle + open in maps) parked just above
+  // the bottom sheet.
+  if (chromeless) {
+    return (
+      <View testID="rider_live_route_map" style={styles.bare}>
+        <View style={styles.bareClip}>{mapView}</View>
+        <View style={[styles.floatControls, { bottom: controlsBottom ?? 12 }]}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={navigationMode ? 'Stop navigation mode' : 'Start navigation mode'}
+            testID="rider_navigation_mode"
+            style={[styles.floatPill, navigationMode && styles.navigateActive]}
+            onPress={() => setNavigationMode((on) => !on)}
+          >
+            <Navigation size={15} color="#FFFFFF" />
+            <Text style={styles.navigateText}>{navigationMode ? 'Stop nav' : 'Start nav'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open turn-by-turn navigation" testID="rider_open_turn_by_turn" style={styles.floatIcon} onPress={() => void openNavigation()}>
+            <ExternalLink size={16} color="#0F766E" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View testID="rider_live_route_map" style={[styles.card, expanded && styles.expandedCard]}>
       <View style={styles.header}>
@@ -108,29 +167,7 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
         <Text style={styles.provider}>Mapbox · Satellite</Text>
       </View>
       <View style={[styles.mapClip, expanded && styles.expandedMap]}>
-        <CompatibleWebView
-          ref={webView}
-          testID="rider_route_webview"
-          source={{ html }}
-          originWhitelist={['https://*']}
-          javaScriptEnabled
-          domStorageEnabled={false}
-          scrollEnabled={false}
-          overScrollMode="never"
-          onMessage={handleMessage}
-          onLoadEnd={() => {
-            // Belt-and-braces seed in case the map's own load handler fired
-            // before the first location was available.
-            if (!active || !validCoordinate(riderLocation)) {
-              setHasFix(false);
-              webView.current?.injectJavaScript('if(window.clearRiderLocation){window.clearRiderLocation();}true;');
-            } else {
-              webView.current?.injectJavaScript(`window.setRiderLocation(${riderLocation.latitude},${riderLocation.longitude});true;`);
-            }
-            // Defer so the injected script runs after the page finishes loading.
-            setTimeout(() => setReady(true), 500);
-          }}
-        />
+        {mapView}
       </View>
       <View style={styles.footer}>
         <View style={styles.footerCopy}>
@@ -158,6 +195,11 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
 const styles = StyleSheet.create({
   card: { marginTop: 16, borderRadius: 20, borderWidth: 1, borderColor: '#B7E4D7', overflow: 'hidden', backgroundColor: '#FFFFFF' },
   expandedCard: { flex: 1, marginTop: 0, borderRadius: 18 },
+  bare: { flex: 1, backgroundColor: '#0B1B3A' },
+  bareClip: { flex: 1, overflow: 'hidden', backgroundColor: '#E8F3EF' },
+  floatControls: { position: 'absolute', right: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  floatPill: { height: 38, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#2563EB', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  floatIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(15,23,42,0.08)' },
   header: { height: 42, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#16A34A' },

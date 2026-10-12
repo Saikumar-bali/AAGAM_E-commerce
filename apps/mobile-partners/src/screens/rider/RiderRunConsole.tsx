@@ -222,7 +222,9 @@ export const RiderRunConsole = ({
   // reveals the whole route board. Two snap points keep the map the hero while
   // making everything reachable without leaving the console.
   const expandedHeight = Math.round(windowHeight * 0.86);
-  const peekHeight = Math.min(430, Math.round(windowHeight * 0.5));
+  // Compact peek so the map keeps maximum area: the primary actions (Navigate /
+  // Deliver) live in the docked bar at the screen bottom, not in the sheet flow.
+  const peekHeight = Math.min(392, Math.round(windowHeight * 0.46));
   const peekOffset = expandedHeight - peekHeight;
   const [sheetExpanded, setSheetExpanded] = useState(false);
   // Animated.Value + PanResponder are created once; the latest snap state is
@@ -533,6 +535,8 @@ export const RiderRunConsole = ({
           activeStopId={focusedStop?.id || null}
           onStopPress={(stopId) => { focusStop(stopId); snapTo(true); }}
           expanded
+          chromeless
+          controlsBottom={Math.round(peekHeight) + 10}
         />
       </View>
 
@@ -612,9 +616,10 @@ export const RiderRunConsole = ({
         </ScrollView>
       </View>
 
-      {/* Bottom console: one draggable sheet. Peek = the stop answering now and
-          its actions; drag up = the full route board (ordered stops + run
-          lifecycle), so the rider never leaves this map to work the route. */}
+      {/* Bottom console: one draggable sheet. Peek = the stop answering now;
+          drag up = the full route board (ordered stops + run lifecycle), so the
+          rider never leaves this map to work the route. The primary actions sit
+          in the docked bar below, not inside the sheet flow. */}
       {focusedStop ? (
         <Animated.View
           style={[styles.sheet, { height: expandedHeight, paddingBottom: Math.max(insets.bottom, 12) + 8, transform: [{ translateY: sheetTranslate }] }]}
@@ -628,7 +633,6 @@ export const RiderRunConsole = ({
             <ScrollView
               style={styles.sheetScroll}
               contentContainerStyle={styles.sheetScrollContent}
-              scrollEnabled={sheetExpanded}
               showsVerticalScrollIndicator={sheetExpanded}
               keyboardShouldPersistTaps="handled"
             >
@@ -890,40 +894,6 @@ export const RiderRunConsole = ({
               </View>
             ) : null}
 
-            <View style={styles.actionRow}>
-              <TouchableOpacity accessibilityLabel="Navigate to this stop" style={styles.actionGhost} onPress={() => onNavigate(focusedStop)}>
-                <Navigation size={17} color="#0F766E" />
-                <Text style={styles.actionGhostText}>Navigate</Text>
-              </TouchableOpacity>
-              {focusedStop.deliveryJob?.order?.customer?.phone ? (
-                <TouchableOpacity accessibilityLabel="Call the customer" style={styles.actionGhost} onPress={() => void Linking.openURL(`tel:${focusedStop.deliveryJob.order.customer.phone}`)}>
-                  <Phone size={17} color="#0F766E" />
-                  <Text style={styles.actionGhostText}>Call</Text>
-                </TouchableOpacity>
-              ) : null}
-              {undoable ? (
-                <TouchableOpacity accessibilityLabel="Undo last action" style={styles.actionGhost} disabled={busy === 'undo'} onPress={() => undoStop(focusedStop)}>
-                  {busy === 'undo' ? <ActivityIndicator color="#0F766E" /> : <RotateCcw size={17} color="#0F766E" />}
-                  <Text style={styles.actionGhostText}>Undo</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  accessibilityLabel="Deliver this stop"
-                  style={[styles.actionPrimary, (!focusActionable || busy === 'arrive') && styles.actionPrimaryMuted]}
-                  disabled={!focusActionable || busy === 'arrive'}
-                  onPress={() => void beginDeliver(focusedStop)}
-                >
-                  {busy === 'arrive' ? <ActivityIndicator color="#FFFFFF" /> : (
-                    <>
-                      <Text style={styles.actionPrimaryText}>
-                        {!focusActionable ? 'Not deliverable yet' : focusOutstanding > 0 ? `Deliver · collect ${money(focusOutstanding)}` : 'Deliver'}
-                      </Text>
-                      <ChevronRight size={18} color="#FFFFFF" />
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
             {renderBoard ? <View style={styles.boardHost}>{renderBoard({ focusStop: (id) => focusStop(id) })}</View> : null}
             </ScrollView>
           </View>
@@ -935,6 +905,47 @@ export const RiderRunConsole = ({
           </View>
         </View>
       )}
+
+      {/* Primary actions docked at the screen bottom: always visible in both
+          sheet snaps, never clipped by the board, and clear of any menu. */}
+      {focusedStop ? (
+        <View style={[styles.dock, { bottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="box-none">
+          <View style={styles.actionRow}>
+            <TouchableOpacity accessibilityLabel="Navigate to this stop" style={styles.actionGhost} onPress={() => onNavigate(focusedStop)}>
+              <Navigation size={17} color="#0F766E" />
+              <Text style={styles.actionGhostText}>Navigate</Text>
+            </TouchableOpacity>
+            {focusedStop.deliveryJob?.order?.customer?.phone ? (
+              <TouchableOpacity accessibilityLabel="Call the customer" style={styles.actionGhost} onPress={() => void Linking.openURL(`tel:${focusedStop.deliveryJob.order.customer.phone}`)}>
+                <Phone size={17} color="#0F766E" />
+                <Text style={styles.actionGhostText}>Call</Text>
+              </TouchableOpacity>
+            ) : null}
+            {undoable ? (
+              <TouchableOpacity accessibilityLabel="Undo last action" style={styles.actionGhost} disabled={busy === 'undo'} onPress={() => undoStop(focusedStop)}>
+                {busy === 'undo' ? <ActivityIndicator color="#0F766E" /> : <RotateCcw size={17} color="#0F766E" />}
+                <Text style={styles.actionGhostText}>Undo</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                accessibilityLabel="Deliver this stop"
+                style={[styles.actionPrimary, (!focusActionable || busy === 'arrive') && styles.actionPrimaryMuted]}
+                disabled={!focusActionable || busy === 'arrive'}
+                onPress={() => void beginDeliver(focusedStop)}
+              >
+                {busy === 'arrive' ? <ActivityIndicator color="#FFFFFF" /> : (
+                  <>
+                    <Text style={styles.actionPrimaryText}>
+                      {!focusActionable ? 'Not deliverable yet' : focusOutstanding > 0 ? `Deliver · collect ${money(focusOutstanding)}` : 'Deliver'}
+                    </Text>
+                    <ChevronRight size={18} color="#FFFFFF" />
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      ) : null}
 
       {/* Inline proof capture: photo or OTP, without leaving the console. */}
       {capture ? (
@@ -1104,7 +1115,22 @@ const styles = StyleSheet.create({
   sheetGrip: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#C7D2CE' },
   sheetGripLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '600', marginTop: 5 },
   sheetScroll: { flex: 1 },
-  sheetScrollContent: { paddingBottom: 6 },
+  sheetScrollContent: { paddingBottom: 96 },
+  dock: {
+    position: 'absolute',
+    left: 26,
+    right: 26,
+    borderRadius: 18,
+    backgroundColor: GLASS,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: 8,
+    shadowColor: '#0B1B3A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 8,
+  },
   boardHost: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#EEF2F6', paddingTop: 4 },
   sheetHead: { flexDirection: 'row', alignItems: 'center' },
   seqCircle: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#E7F0EE', alignItems: 'center', justifyContent: 'center' },
@@ -1175,7 +1201,7 @@ const styles = StyleSheet.create({
   expanderDanger: { backgroundColor: '#B42318' },
   expanderActionDisabled: { opacity: 0.5 },
   expanderActionText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
-  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 13 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: '#B7E4D7', backgroundColor: '#EFFBF5', paddingHorizontal: 13, minHeight: 48 },
   actionGhostText: { color: '#0F766E', fontSize: 13, fontWeight: '700' },
   actionPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 14, backgroundColor: '#0F766E', minHeight: 48 },
