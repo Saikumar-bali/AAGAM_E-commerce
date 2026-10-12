@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Checkout redesign — Market Ledger (UX proposal 2026-10-12)</title>
+<style>
+  /* ============================================================
+     Static mockup. No dependencies, no build step, no webfont.
+     Left device  = current CheckoutScreen.tsx
+     Right device = proposed "Market Ledger" checkout
+     State tabs switch default / loading / empty / error / offline.
+     ============================================================ */
+
+  :root {
+    /* existing product tokens (packages/mobile-shared/src/constants/theme.ts) */
+    --primary: #0F766E;
+    --primary-dark: #115E59;
+    --brand-green: #0C7659;
+    --accent: #14B8A6;
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --text: #0F172A;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+    --border: #E2E8F0;
+    --error: #DC2626;
+    --success: #10B981;
+    --warning: #F59E0B;
+
+    /* proposed "Market Ledger" tokens (additive) */
+    --paper: #FFFDF8;
+    --paper-rule: #E7DFD2;
+    --ink: #0B3B34;
+    --ink-muted: #5C6B62;
+    --stamp: #8F1D1D;
+    --stamp-surface: #FFF1F0;
+    --error-strong: #8F1D1D;
+
+    --tap: 44px;
+    --tap-large: 52px;
+
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    color: #17202b;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #eaf3f0 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, #f5efe2 0%, transparent 55%),
+      #eef1f4;
+    -webkit-font-smoothing: antialiased;
+    padding: 28px 20px 64px;
+  }
+
+  /* ---------------- page chrome ---------------- */
+
+  .page-head { max-width: 1120px; margin: 0 auto 18px; }
+
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    font-weight: 700; color: var(--primary);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(26px, 4vw, 40px);
+    line-height: 1.08; margin: 8px 0 6px; color: #0b2b26;
+    letter-spacing: -0.01em;
+  }
+
+  .lede { margin: 0; max-width: 70ch; color: #46545f; line-height: 1.55; font-size: 14px; }
+
+  .dir {
+    margin-top: 16px; padding: 14px 16px; border-radius: 14px;
+    background: #fffdf8; border: 1px solid #e7dfd2;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: baseline;
+  }
+  .dir b { font-family: var(--serif); font-size: 16px; color: #0b3b34; }
+  .dir span { color: #5c6b62; font-size: 13px; }
+
+  /* state tabs */
+  .tabs {
+    max-width: 1120px; margin: 18px auto 22px;
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .tabs button {
+    font: inherit; font-size: 13px; font-weight: 600;
+    min-height: var(--tap); padding: 0 16px; cursor: pointer;
+    border-radius: 999px; border: 1px solid #cfd8dd; background: #fff; color: #2c3a44;
+  }
+  .tabs button[aria-pressed="true"] {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+  }
+  .tabs button:focus-visible { outline: 3px solid #0b3b34; outline-offset: 2px; }
+
+  /* ---------------- comparison layout ---------------- */
+
+  .compare {
+    max-width: 1120px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start;
+  }
+
+  .col h2 {
+    font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #5b6873; margin: 0 0 4px; font-weight: 700;
+  }
+  .col h2 span { text-transform: none; letter-spacing: 0; color: #97a3ac; font-weight: 500; }
+  .col .note { margin: 0 0 12px; font-size: 12px; color: #6b7883; line-height: 1.5; }
+  .col.after h2 { color: var(--primary-dark); }
+
+  /* device frame */
+  .device {
+    width: 360px; max-width: 100%; margin: 0 auto;
+    background: #0d1117; border-radius: 38px; padding: 9px;
+    box-shadow: 0 22px 45px -18px rgba(15, 23, 42, 0.55), 0 2px 0 rgba(255,255,255,.4) inset;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #e6edf3; font-size: 11px; font-weight: 600; padding: 4px 14px 8px;
+  }
+  .statusbar .dots { letter-spacing: 2px; }
+
+  .viewport {
+    position: relative; height: 664px; overflow-y: auto; overflow-x: hidden;
+    background: var(--bg); border-radius: 30px; scrollbar-width: thin;
+  }
+  .viewport::-webkit-scrollbar { width: 6px; }
+  .viewport::-webkit-scrollbar-thumb { background: #c7d0d6; border-radius: 99px; }
+
+  /* state switching: only the panel matching body[data-state] shows */
+  .panel { display: none; }
+  body[data-state="default"] .panel[data-panel="default"],
+  body[data-state="loading"] .panel[data-panel="loading"],
+  body[data-state="empty"]   .panel[data-panel="empty"],
+  body[data-state="error"]   .panel[data-panel="error"],
+  body[data-state="offline"] .panel[data-panel="offline"] { display: block; }
+  body[data-state="offline"] .col.current .panel[data-panel="offline"] { display: block; }
+
+  /* fold marker used in the "current" device */
+  .fold {
+    position: absolute; left: 0; right: 0; top: 560px; z-index: 5; pointer-events: none;
+  }
+  .fold::before {
+    content: ""; display: block; border-top: 1.5px dashed #94a3b8;
+  }
+  .fold b {
+    position: absolute; right: 8px; top: -20px;
+    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: #64748b; background: rgba(248,250,252,.9); padding: 2px 6px; border-radius: 6px;
+  }
+
+  /* ============================================================
+     CURRENT screen (reproduction of CheckoutScreen.tsx)
+     ============================================================ */
+
+  .cur { padding: 16px 16px 150px; }
+  .cur .head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .cur .back {
+    width: var(--tap); height: var(--tap); border-radius: 16px; display: grid; place-items: center;
+    background: #fff; border: 1px solid var(--border); color: var(--text);
+  }
+  .cur .title { font-size: 22px; font-weight: 700; color: var(--text); }
+  .cur .sub { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 2px; }
+  .cur h3 { font-size: 20px; font-weight: 700; color: var(--text); margin: 12px 0; }
+
+  .cur .addr {
+    background: #fff; border: 1px solid var(--primary); background-color: #F0FDFA;
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  .cur .addr .lbl { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
+  .cur .addr .nm { margin-top: 6px; font-size: 16px; font-weight: 700; color: var(--text); }
+  .cur .addr .ln { margin-top: 4px; color: #475569; font-size: 13px; }
+  .cur .addr .ph { margin-top: 6px; color: var(--text); font-weight: 600; font-size: 13px; }
+  .cur .addlink { color: var(--primary); font-weight: 600; font-size: 13px; padding: 8px 0; display: inline-block; }
+
+  .cur .pay { display: grid; gap: 12px; }
+  .cur .paytile { border-radius: 16px; padding: 16px; border: 1px solid var(--border); background: #fff; }
+  .cur .paytile.on { border-color: var(--primary); background: #F0FDFA; }
+  .cur .paytile.off { opacity: .55; background: #F8FAFC; }
+  .cur .payname { font-size: 15px; font-weight: 700; color: var(--text); }
+  .cur .paytile.on .payname { color: var(--primary-dark); }
+  .cur .paytile.off .payname { color: var(--text-muted); }
+  .cur .paymeta { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+
+  .cur .couph { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .cur .deals { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; color: var(--primary); font-size: 12px; font-weight: 700; }
+  .cur .crow { display: flex; gap: 12px; }
+  .cur .cin {
+    flex: 1; border: 1px solid #CBD5E1; border-radius: 15px; padding: 10px 16px;
+    font-size: 14px; color: var(--text); font-weight: 600; background: #fff;
+  }
+  .cur .cin::placeholder { color: var(--text-muted); font-weight: 400; }
+  .cur .apply {
+    border: 0; border-radius: 15px; background: #0F172A; color: #fff;
+    font-weight: 700; font-size: 13px; padding: 0 18px; cursor: pointer;
+  }
+
+  .cur .sum { border: 1px solid var(--border); border-radius: 16px; background: #fff; padding: 16px; margin-top: 4px; }
+  .cur .free { border: 1px solid #FDE68A; background: #FFFBEB; border-radius: 14px; padding: 12px; margin-bottom: 16px; }
+  .cur .free b { color: #065F46; font-size: 13px; }
+  .cur .free p { margin: 4px 0 0; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+  .cur .row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 14px; }
+  .cur .row .k { color: #475569; flex: 1; }
+  .cur .row .v { color: #334155; font-weight: 600; }
+  .cur .divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .cur .row.total .k, .cur .row.total .v { font-size: 17px; font-weight: 700; color: var(--text); }
+  .cur .cta {
+    margin-top: 20px; width: 100%; border: 0; border-radius: 16px; background: var(--primary);
+    color: #fff; font-size: 16px; font-weight: 700; padding: 16px; cursor: pointer;
+  }
+  .cur .cta.dead { background: var(--text-muted); }
+
+  .cur .center { min-height: 560px; display: grid; place-content: center; justify-items: center; text-align: center; padding: 24px; gap: 8px; }
+  .cur .center h3 { margin: 0; }
+  .cur .center p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .cur .ghost {
+    margin-top: 12px; border: 0; border-radius: 14px; background: var(--primary); color: #fff;
+    font-weight: 700; font-size: 14px; padding: 12px 18px; cursor: pointer;
+  }
+  .cur .spin {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 4px solid #ccfbf1; border-top-color: var(--primary);
+    animation: spin 900ms linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .cur .errline { margin-top: 12px; color: #B91C1C; font-weight: 600; font-size: 13px; }
+  .cur .toast {
+    position: absolute; left: 12px; right: 12px; top: 10px; z-index: 9;
+    background: #7f1d1d; color: #fff; border-radius: 12px; padding: 10px 12px;
+    font-size: 12px; font-weight: 600; box-shadow: 0 10px 22px -10px rgba(0,0,0,.6);
+  }
+  .cur .toast small { display: block; font-weight: 400; opacity: .85; margin-top: 2px; }
+  .cur .nooffline {
+    min-height: 560px; display: grid; place-content: center; text-align: center; padding: 30px; gap: 10px;
+  }
+  .cur .nooffline .tagx {
+    display: inline-block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; color: #991b1b; background: #FEF2F2; border: 1px solid #FECACA;
+    padding: 5px 10px; border-radius: 999px;
+  }
+  .cur .nooffline p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin: 0; max-width: 34ch; }
+
+  /* ============================================================
+     PROPOSED screen — "Market Ledger"
+     ============================================================ */
+
+  .nw {
+    display: flex; flex-direction: column; min-height: 664px;
+    background: var(--paper); color: var(--ink);
+  }
+  .nw .scroll { padding: 14px 16px 18px; flex: 1; }
+  .nw .topbar { display: flex; align-items: center; gap: 12px; }
+  .nw .back {
+    width: var(--tap); height: var(--tap); border-radius: 12px; display: grid; place-items: center;
+    background: #fff; border: 1px solid var(--paper-rule); color: var(--ink); cursor: pointer;
+  }
+  .nw .brandline { flex: 1; }
+  .nw .brandline .eb { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: var(--primary); }
+  .nw h1.t { font-family: var(--serif); font-size: 26px; margin: 2px 0 0; color: var(--ink); letter-spacing: -0.01em; }
+  .nw .step { font-size: 11px; font-weight: 700; color: var(--ink-muted); background: #fff; border: 1px solid var(--paper-rule); border-radius: 999px; padding: 6px 10px; }
+
+  .nw .sect {
+    margin: 18px 0 8px; font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-muted);
+  }
+
+  /* address selector */
+  .nw .addsel {
+    width: 100%; text-align: left; cursor: pointer; font: inherit;
+    display: flex; gap: 12px; align-items: flex-start;
+    background: #fff; border: 1.5px solid var(--primary); border-radius: 14px; padding: 13px 14px;
+  }
+  .nw .addsel .pin { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #E6FFFA; color: var(--primary-dark); }
+  .nw .addsel .who { font-weight: 700; font-size: 15px; color: var(--ink); }
+  .nw .addsel .where { font-size: 12.5px; color: var(--ink-muted); margin-top: 3px; line-height: 1.45; }
+  .nw .addsel .chg { margin-left: auto; align-self: center; font-size: 12px; font-weight: 700; color: var(--primary-dark); border: 1px solid var(--primary); border-radius: 999px; padding: 10px 12px; }
+
+  /* the bill (receipt) */
+  .nw .bill {
+    background: #fff; border: 1px solid var(--paper-rule); border-radius: 4px 4px 14px 14px;
+    padding: 16px 16px 14px; position: relative;
+    box-shadow: 0 1px 0 #fff inset, 0 14px 26px -22px rgba(11,59,52,.5);
+  }
+  .nw .bill::before {
+    content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 6px;
+    background: repeating-linear-gradient(90deg, transparent 0 7px, var(--paper) 7px 14px);
+    -webkit-mask: radial-gradient(circle at 7px 0, transparent 0 6px, #000 6px);
+    mask: radial-gradient(circle at 7px 0, transparent 0 6px, #000 6px);
+  }
+  .nw .li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 7px 0; }
+  .nw .li .nm { font-size: 14px; color: var(--ink); }
+  .nw .li .qt { font-size: 11.5px; color: var(--ink-muted); grid-column: 1; }
+  .nw .li .amt { grid-row: 1 / span 2; align-self: center; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; color: var(--ink); }
+  .nw .rule { border: 0; border-top: 1px dashed var(--paper-rule); margin: 10px 0; }
+  .nw .trow { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; color: var(--ink-muted); }
+  .nw .trow .v { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+  .nw .trow.disc .v { color: var(--primary-dark); }
+  .nw .due { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 8px; padding-top: 12px; border-top: 2px solid var(--ink); }
+  .nw .due .lab { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--ink-muted); }
+  .nw .due .lab small { display: block; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--ink-muted); margin-top: 3px; font-size: 11px; }
+  .nw .due .val {
+    font-family: var(--serif); font-size: 38px; line-height: 1; color: var(--stamp);
+    font-variant-numeric: tabular-nums; animation: stamp 380ms cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes stamp { from { transform: translateY(8px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  .nw .nudge { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; background: #F3F7F2; border: 1px solid #DCE7DA; border-radius: 10px; }
+  .nw .nudge .bar { flex: 1; height: 6px; border-radius: 99px; background: #DCE7DA; overflow: hidden; }
+  .nw .nudge .bar i { display: block; height: 100%; width: 87%; background: var(--primary); }
+  .nw .nudge p { margin: 0; font-size: 11.5px; color: #3f5148; font-weight: 600; }
+
+  /* payment */
+  .nw .opts { display: grid; gap: 10px; }
+  .nw .opt {
+    display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; font: inherit;
+    background: #fff; border: 1.5px solid var(--paper-rule); border-radius: 14px; padding: 13px 14px; cursor: pointer;
+  }
+  .nw .opt.on { border-color: var(--primary); background: #F4FBF9; }
+  .nw .opt[aria-disabled="true"] { background: #F7F5F0; cursor: not-allowed; }
+  .nw .opt .rad { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #aabbb3; display: grid; place-items: center; margin-top: 1px; }
+  .nw .opt.on .rad { border-color: var(--primary); }
+  .nw .opt.on .rad i { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); }
+  .nw .opt .ttl { font-weight: 700; font-size: 14.5px; color: var(--ink); }
+  .nw .opt .meta { font-size: 12px; color: var(--ink-muted); margin-top: 3px; }
+  .nw .opt[aria-disabled="true"] .ttl { color: #6f7b74; }
+  .nw .opt .soon { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8a6d1f; background: #FBF3DA; border: 1px solid #EBD9A6; border-radius: 999px; padding: 2px 7px; vertical-align: 2px; }
+
+  /* coupon */
+  .nw .field label { display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .nw .field .hint { font-weight: 500; color: var(--ink-muted); font-size: 11px; }
+  .nw .frow { display: flex; gap: 10px; }
+  .nw .fin {
+    flex: 1; min-height: var(--tap); border: 1.5px solid #D9E4DE; border-radius: 12px;
+    padding: 11px 14px; font-size: 14px; font-family: var(--sans); background: #fff; color: var(--ink);
+  }
+  .nw .fin::placeholder { color: #9aa8a1; }
+  .nw .fin:focus-visible { outline: 3px solid #0b3b34; outline-offset: 1px; }
+  .nw .btn {
+    min-height: var(--tap); border-radius: 12px; border: 1px solid transparent; cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 700; padding: 0 16px;
+  }
+  .nw .btn.dark { background: var(--ink); color: #fff; }
+  .nw .btn.line { background: #fff; color: var(--primary-dark); border-color: #B9CFC8; }
+  .nw .btn:focus-visible { outline: 3px solid #0b3b34; outline-offset: 2px; }
+  .nw .deals { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .nw .deals p { margin: 0; font-size: 12px; color: var(--ink-muted); }
+
+  /* pinned action bar */
+  .nw .actionbar {
+    position: sticky; bottom: 0; z-index: 8;
+    background: linear-gradient(#FFFDF8E6, #FFFDF8 42%);
+    border-top: 1px solid var(--paper-rule); padding: 12px 16px 16px;
+  }
+  .nw .reason { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 9px; }
+  .nw .reason .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex: 0 0 auto; }
+  .nw .reason.warn .dot { background: var(--warning); }
+  .nw .reason.bad .dot { background: var(--stamp); }
+  .nw .primary {
+    width: 100%; min-height: var(--tap-large); border: 0; border-radius: 14px; cursor: pointer;
+    background: var(--primary); color: #fff; font: inherit; font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .nw .primary .tot { font-variant-numeric: tabular-nums; }
+  .nw .primary.dead { background: #C8D2CE; color: #5f6b66; cursor: not-allowed; }
+  .nw .primary:focus-visible { outline: 3px solid #0b3b34; outline-offset: 2px; }
+
+  /* proposed states */
+  .nw .skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg,#EFE9DC 25%,#F7F3EA 50%,#EFE9DC 75%); background-size: 200% 100%; animation: sh 1.3s ease-in-out infinite; }
+  @keyframes sh { to { background-position: -200% 0; } }
+  .nw .skelrow { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; }
+  .nw .skelrow .a { width: 46%; } .nw .skelrow .b { width: 20%; }
+
+  .nw .emptywrap, .nw .errwrap { padding: 26px 20px; text-align: center; }
+  .nw .emptywrap .mark { font-family: var(--serif); font-size: 30px; color: var(--ink); }
+  .nw .emptywrap p { color: var(--ink-muted); font-size: 13px; line-height: 1.55; margin: 8px 0 0; }
+  .nw .ticket {
+    margin: 18px auto 0; max-width: 300px; background: #fff; border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 16px; text-align: left;
+  }
+  .nw .ticket .tl { border-bottom: 1px dashed var(--paper-rule); padding-bottom: 10px; }
+  .nw .ticket .tl div { height: 10px; border-radius: 5px; background: #F0EBE0; margin-bottom: 8px; }
+  .nw .ticket .tl div:nth-child(2) { width: 62%; }
+  .nw .ticket .tl div:nth-child(3) { width: 40%; margin-bottom: 0; }
+  .nw .cta2 { margin-top: 16px; }
+
+  .nw .errbox {
+    display: flex; gap: 12px; align-items: flex-start; text-align: left;
+    background: var(--stamp-surface); border: 1.5px solid #E9B7B7; border-radius: 14px; padding: 14px;
+  }
+  .nw .errbox .ic { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--error-strong); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+  .nw .errbox h4 { margin: 0; font-size: 15px; color: #5f1414; }
+  .nw .errbox p { margin: 4px 0 0; font-size: 12.5px; color: #7a2a2a; line-height: 1.5; }
+  .nw .errbox .acts { margin-top: 12px; display: flex; gap: 10px; }
+
+  .nw .offbanner {
+    display: flex; gap: 10px; align-items: center; background: #2b2b2b; color: #f6f2e9;
+    border-radius: 12px; padding: 11px 13px; margin: 14px 0 4px;
+  }
+  .nw .offbanner b { font-size: 13px; }
+  .nw .offbanner span { font-size: 11.5px; opacity: .82; display: block; margin-top: 1px; }
+
+  /* reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* ---------------- responsive: true 360px render ---------------- */
+  @media (max-width: 780px) {
+    body { padding: 18px 0 40px; }
+    .page-head, .tabs { padding: 0 16px; }
+    .compare { grid-template-columns: 1fr; gap: 34px; }
+    .col h2, .col .note { padding: 0 16px; }
+    .device { width: 100%; border-radius: 0; padding: 0; box-shadow: none; background: transparent; }
+    .statusbar { display: none; }
+    .viewport { height: auto; min-height: 620px; border-radius: 0; }
+    .fold { display: none; }
+  }
+
+  /* ---------------- footer legend ---------------- */
+  .legend {
+    max-width: 1120px; margin: 40px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .legend div {
+    background: #fff; border: 1px solid #dfe5e8; border-radius: 14px; padding: 14px 16px;
+  }
+  .legend h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--primary-dark); }
+  .legend p { margin: 0; font-size: 12.5px; color: #4d5a64; line-height: 1.5; }
+  .legend kbd { font-family: var(--sans); font-size: 11px; border: 1px solid #cfd8dd; border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; background: #f7f9fa; }
+</style>
+</head>
+<body data-state="default">
+
+<header class="page-head">
+  <div class="eyebrow">AAGAM · UX proposal · 2026-10-12</div>
+  <h1>Checkout, rebuilt as a market ledger</h1>
+  <p class="lede">
+    One screen, one job: turn a grocery cart into a paid order. The current screen buries the
+    pay button under a full scroll of address and coupon chrome and shows money two different ways.
+    This mockup puts the bill first, pins the action, and makes every failure state legible.
+    Left = <code>apps/mobile-customer/src/screens/customer/CheckoutScreen.tsx</code> today. Right = proposed.
+  </p>
+  <div class="dir">
+    <b>Direction: “Market Ledger”</b>
+    <span>Warm receipt paper instead of cool grey · tabular money that sums in a column · serif for the amount you pay · one stamp-red total.</span>
+  </div>
+</header>
+
+<nav class="tabs" role="group" aria-label="Checkout states">
+  <button type="button" data-set="default" aria-pressed="true">Default</button>
+  <button type="button" data-set="loading" aria-pressed="false">Loading</button>
+  <button type="button" data-set="empty" aria-pressed="false">Empty</button>
+  <button type="button" data-set="error" aria-pressed="false">Error</button>
+  <button type="button" data-set="offline" aria-pressed="false">Offline</button>
+</nav>
+
+<main class="compare">
+
+  <!-- ======================= CURRENT ======================= -->
+  <section class="col current" aria-label="Current checkout">
+    <h2>Current <span>CheckoutScreen.tsx</span></h2>
+    <p class="note">Reproduced at 360 dp. Scroll inside the frame — the primary action sits below the fold.</p>
+    <div class="device">
+      <div class="statusbar"><span>9:41</span><span class="dots">●●●</span></div>
+      <div class="viewport">
+
+        <!-- DEFAULT -->
+        <div class="panel" data-panel="default">
+          <div class="fold"><b>fold ≈ 360×640</b></div>
+          <div class="cur">
+            <div class="head">
+              <span class="back" aria-hidden="true">←</span>
+              <div><div class="title">Checkout</div><div class="sub">Confirm delivery and payment</div></div>
+            </div>
+
+            <h3>Delivery Address</h3>
+            <div class="addr">
+              <div class="lbl">Home • Default</div>
+              <div class="nm">Nookalamma R</div>
+              <div class="ln">12-4 Gandhi Street, Anakapalle</div>
+              <div class="ln">Anakapalle, Andhra Pradesh - 531001</div>
+              <div class="ph">+91 98765 43210</div>
+            </div>
+            <span class="addlink">+ Add another address</span>
+
+            <h3>Payment Method</h3>
+            <div class="pay">
+              <div class="paytile on"><div class="payname">Cash on Delivery</div><div class="paymeta">Pay when the order arrives</div></div>
+              <div class="paytile off"><div class="payname">Pay Online</div><div class="paymeta">Currently unavailable</div></div>
+            </div>
+
+            <div class="couph"><h3 style="margin:12px 0">Coupon</h3><span class="deals">🏷 Browse deals</span></div>
+            <div class="crow">
+              <input class="cin" placeholder="Enter coupon code" aria-label="Coupon code" />
+              <button class="apply" type="button">Apply</button>
+            </div>
+
+            <h3>Order Summary</h3>
+            <div class="sum">
+              <div class="free">
+                <b>Add ₹13.00 for free delivery</b>
+                <p>Delivery at ₹0.15/km. Free on orders of ₹99.00 or more.</p>
+              </div>
+              <div class="row"><span class="k">Amul Butter 500g x 1</span><span class="v">₹58</span></div>
+              <div class="row"><span class="k">Tata Salt 1kg x 1</span><span class="v">₹28</span></div>
+              <div class="divider"></div>
+              <div class="row"><span class="k">Subtotal</span><span class="v">₹86.00</span></div>
+              <div class="row"><span class="k">Delivery Fee · 3.2 km</span><span class="v">₹15.00</span></div>
+              <div class="row total"><span class="k">Grand Total</span><span class="v">₹101.00</span></div>
+            </div>
+            <button class="cta" type="button">Place COD Order</button>
+          </div>
+        </div>
+
+        <!-- LOADING -->
+        <div class="panel" data-panel="loading">
+          <div class="cur">
+            <div class="head">
+              <span class="back" aria-hidden="true">←</span>
+              <div><div class="title">Checkout</div><div class="sub">Confirm delivery and payment</div></div>
+            </div>
+          </div>
+          <div class="center" role="status" aria-live="polite">
+            <div class="spin" aria-hidden="true"></div>
+            <p style="margin-top:14px">Loading addresses…</p>
+          </div>
+        </div>
+
+        <!-- EMPTY -->
+        <div class="panel" data-panel="empty">
+          <div class="center">
+            <h3>Your cart is empty.</h3>
+            <p>Add a few items before checking out.</p>
+            <button class="ghost" type="button">Browse products</button>
+          </div>
+        </div>
+
+        <!-- ERROR -->
+        <div class="panel" data-panel="error">
+          <div class="toast" role="alert">Checkout failed<small>Failed to place order.</small></div>
+          <div class="cur">
+            <div class="head">
+              <span class="back" aria-hidden="true">←</span>
+              <div><div class="title">Checkout</div><div class="sub">Confirm delivery and payment</div></div>
+            </div>
+            <h3>Delivery Address</h3>
+            <div class="addr">
+              <div class="lbl">Home • Default</div>
+              <div class="nm">Nookalamma R</div>
+              <div class="ln">12-4 Gandhi Street, Anakapalle</div>
+              <div class="ln">Anakapalle, Andhra Pradesh - 531001</div>
+              <div class="ph">+91 98765 43210</div>
+            </div>
+            <h3>Order Summary</h3>
+            <div class="sum">
+              <div class="row"><span class="k">Subtotal</span><span class="v">₹86.00</span></div>
+              <div class="row"><span class="k">Delivery Fee</span><span class="v">—</span></div>
+              <div class="row total"><span class="k">Grand Total</span><span class="v">₹86.00</span></div>
+              <div class="errline">Failed to calculate the latest total.</div>
+            </div>
+            <button class="cta dead" type="button" aria-disabled="true">Place COD Order</button>
+          </div>
+        </div>
+
+        <!-- OFFLINE -->
+        <div class="panel" data-panel="offline">
+          <div class="nooffline">
+            <span class="tagx">No offline state exists</span>
+            <p>
+              <code>CheckoutScreen.tsx</code> has no network detection — no <code>NetInfo</code> import and
+              no <code>netinfo</code> dependency in <code>apps/mobile-customer</code>. A dropped connection
+              surfaces only as a transient toast, and the button silently reverts to looking ready.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= PROPOSED ======================= -->
+  <section class="col after" aria-label="Proposed checkout">
+    <h2>Proposed <span>Market Ledger</span></h2>
+    <p class="note">Bill first, action pinned, reason line always visible. Try <kbd>Tab</kbd> — focus rings are real.</p>
+    <div class="device">
+      <div class="statusbar"><span>9:41</span><span class="dots">●●●</span></div>
+      <div class="viewport">
+
+        <!-- DEFAULT -->
+        <div class="panel" data-panel="default">
+          <div class="nw">
+            <div class="scroll">
+              <div class="topbar">
+                <button class="back" type="button" aria-label="Back to cart">←</button>
+                <div class="brandline">
+                  <div class="eb">Aagam · Order receipt</div>
+                  <h1 class="t">Checkout</h1>
+                </div>
+                <span class="step">Step 1 of 1</span>
+              </div>
+
+              <div class="sect">Deliver to</div>
+              <button class="addsel" type="button">
+                <span class="pin" aria-hidden="true">📍</span>
+                <span>
+                  <span class="who">Nookalamma R · Home</span>
+                  <span class="where">12-4 Gandhi Street, Anakapalle,<br />Andhra Pradesh – 531001</span>
+                </span>
+                <span class="chg">Change</span>
+              </button>
+
+              <div class="sect">Your bill</div>
+              <div class="bill">
+                <div class="li">
+                  <span class="nm">Amul Butter 500g</span><span class="amt">₹58.00</span>
+                  <span class="qt">1 × ₹58.00</span>
+                </div>
+                <div class="li">
+                  <span class="nm">Tata Salt 1kg</span><span class="amt">₹28.00</span>
+                  <span class="qt">1 × ₹28.00</span>
+                </div>
+                <hr class="rule" />
+                <div class="trow"><span>Subtotal (2 items)</span><span class="v">₹86.00</span></div>
+                <div class="trow"><span>Delivery · 3.2 km</span><span class="v">₹15.00</span></div>
+                <div class="due">
+                  <span class="lab">Total due<small>Cash on delivery</small></span>
+                  <span class="val">₹101.00</span>
+                </div>
+                <div class="nudge">
+                  <span class="bar" aria-hidden="true"><i></i></span>
+                  <p>₹13.00 more → free delivery</p>
+                </div>
+              </div>
+
+              <div class="sect">Pay with</div>
+              <div class="opts">
+                <button class="opt on" type="button" aria-pressed="true">
+                  <span class="rad" aria-hidden="true"><i></i></span>
+                  <span>
+                    <span class="ttl">Cash on Delivery</span>
+                    <span class="meta">Hand ₹101.00 to the rider. No card needed.</span>
+                  </span>
+                </button>
+                <button class="opt" type="button" aria-disabled="true" tabindex="-1">
+                  <span class="rad" aria-hidden="true"></span>
+                  <span>
+                    <span class="ttl">Cards &amp; UPI <span class="soon">Soon</span></span>
+                    <span class="meta">Not available yet — use Cash on Delivery today.</span>
+                  </span>
+                </button>
+              </div>
+
+              <div class="sect">Coupon</div>
+              <div class="field">
+                <label for="nw-coupon">Coupon code <span class="hint">— optional, 3–32 characters</span></label>
+                <div class="frow">
+                  <input id="nw-coupon" class="fin" placeholder="e.g. FRESH20" autocomplete="off" autocapitalize="characters" />
+                  <button class="btn dark" type="button">Apply</button>
+                </div>
+                <div class="deals">
+                  <button class="btn line" type="button">Browse deals</button>
+                  <p>See offers that apply to this cart.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="actionbar">
+              <div class="reason"><span class="dot" aria-hidden="true"></span>All set — pay <span class="tot" style="font-variant-numeric:tabular-nums">₹101.00</span> on delivery.</div>
+              <button class="primary" type="button">Place COD Order <span class="tot" aria-hidden="true">· ₹101.00</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOADING -->
+        <div class="panel" data-panel="loading">
+          <div class="nw">
+            <div class="scroll">
+              <div class="topbar">
+                <button class="back" type="button" aria-label="Back to cart">←</button>
+                <div class="brandline">
+                  <div class="eb">Aagam · Order receipt</div>
+                  <h1 class="t">Checkout</h1>
+                </div>
+              </div>
+              <div class="sect">Deliver to</div>
+              <div class="addsel" style="border-color:#D9E4DE">
+                <span class="skel" style="width:26px;height:26px;border-radius:9px"></span>
+                <span style="flex:1">
+                  <span class="skel" style="display:block;width:52%"></span>
+                  <span class="skel" style="display:block;width:78%;margin-top:8px"></span>
+                </span>
+              </div>
+              <div class="sect">Your bill</div>
+              <div class="bill" role="status" aria-live="polite">
+                <div class="skelrow"><span class="skel a"></span><span class="skel b"></span></div>
+                <div class="skelrow"><span class="skel a" style="width:36%"></span><span class="skel b"></span></div>
+                <hr class="rule" />
+                <div class="skelrow"><span class="skel" style="width:30%"></span><span class="skel" style="width:24%"></span></div>
+                <div class="skelrow"><span class="skel" style="width:34%"></span><span class="skel" style="width:22%"></span></div>
+                <p style="margin:12px 0 2px;font-size:12px;color:var(--ink-muted)">Checking delivery availability and price…</p>
+              </div>
+            </div>
+            <div class="actionbar">
+              <div class="reason warn"><span class="dot" aria-hidden="true"></span>Checking delivery availability…</div>
+              <button class="primary dead" type="button" aria-disabled="true">Place COD Order</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- EMPTY -->
+        <div class="panel" data-panel="empty">
+          <div class="nw">
+            <div class="scroll">
+              <div class="topbar">
+                <button class="back" type="button" aria-label="Back to cart">←</button>
+                <div class="brandline">
+                  <div class="eb">Aagam · Order receipt</div>
+                  <h1 class="t">Checkout</h1>
+                </div>
+              </div>
+              <div class="emptywrap">
+                <div class="mark">Nothing to bill yet</div>
+                <p>Your cart is empty, so there is no order to place. Fresh milk, atta and staples are one tap away.</p>
+                <div class="ticket" aria-hidden="true">
+                  <div class="tl"><div></div><div></div><div></div></div>
+                  <div class="trow" style="margin-top:12px"><span>Subtotal</span><span class="v">₹0.00</span></div>
+                  <div class="trow"><span>Delivery</span><span class="v">—</span></div>
+                </div>
+                <button class="btn dark cta2" type="button" style="min-height:var(--tap-large);width:100%">Start shopping</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERROR -->
+        <div class="panel" data-panel="error">
+          <div class="nw">
+            <div class="scroll">
+              <div class="topbar">
+                <button class="back" type="button" aria-label="Back to cart">←</button>
+                <div class="brandline">
+                  <div class="eb">Aagam · Order receipt</div>
+                  <h1 class="t">Checkout</h1>
+                </div>
+              </div>
+
+              <div class="errbox" role="alert" style="margin-top:16px">
+                <span class="ic" aria-hidden="true">!</span>
+                <div>
+                  <h4>We couldn’t confirm your delivery price</h4>
+                  <p>The 3.2 km delivery fee for Nookalamma R’s address could not be calculated. Your cart and address are safe — retry to continue.</p>
+                  <div class="acts">
+                    <button class="btn dark" type="button">Retry price check</button>
+                    <button class="btn line" type="button">Change address</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sect">Your bill</div>
+              <div class="bill">
+                <div class="li">
+                  <span class="nm">Amul Butter 500g</span><span class="amt">₹58.00</span>
+                  <span class="qt">1 × ₹58.00</span>
+                </div>
+                <div class="li">
+                  <span class="nm">Tata Salt 1kg</span><span class="amt">₹28.00</span>
+                  <span class="qt">1 × ₹28.00</span>
+                </div>
+                <hr class="rule" />
+                <div class="trow"><span>Subtotal (2 items)</span><span class="v">₹86.00</span></div>
+                <div class="trow"><span>Delivery · 3.2 km</span><span class="v" style="color:var(--stamp)">not priced</span></div>
+                <div class="due">
+                  <span class="lab">Total due<small>Awaiting price</small></span>
+                  <span class="val" style="color:var(--ink-muted)">₹86.00</span>
+                </div>
+              </div>
+            </div>
+            <div class="actionbar">
+              <div class="reason bad"><span class="dot" aria-hidden="true"></span>Retry the price check to continue.</div>
+              <button class="primary dead" type="button" aria-disabled="true">Place COD Order</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- OFFLINE -->
+        <div class="panel" data-panel="offline">
+          <div class="nw">
+            <div class="scroll">
+              <div class="topbar">
+                <button class="back" type="button" aria-label="Back to cart">←</button>
+                <div class="brandline">
+                  <div class="eb">Aagam · Order receipt</div>
+                  <h1 class="t">Checkout</h1>
+                </div>
+              </div>
+
+              <div class="offbanner" role="status" aria-live="polite">
+                <span aria-hidden="true">⚡</span>
+                <span>
+                  <b>You’re offline</b>
+                  <span>Checkout needs a connection. Your cart and address are kept.</span>
+                </span>
+              </div>
+
+              <div class="sect">Deliver to</div>
+              <button class="addsel" type="button">
+                <span class="pin" aria-hidden="true">📍</span>
+                <span>
+                  <span class="who">Nookalamma R · Home</span>
+                  <span class="where">12-4 Gandhi Street, Anakapalle,<br />Andhra Pradesh – 531001</span>
+                </span>
+                <span class="chg">Change</span>
+              </button>
+
+              <div class="sect">Your bill</div>
+              <div class="bill">
+                <div class="li"><span class="nm">Amul Butter 500g</span><span class="amt">₹58.00</span><span class="qt">1 × ₹58.00</span></div>
+                <div class="li"><span class="nm">Tata Salt 1kg</span><span class="amt">₹28.00</span><span class="qt">1 × ₹28.00</span></div>
+                <hr class="rule" />
+                <div class="trow"><span>Subtotal (2 items)</span><span class="v">₹86.00</span></div>
+                <div class="trow"><span>Delivery · 3.2 km</span><span class="v" style="color:var(--ink-muted)">last known ₹15.00</span></div>
+                <div class="due">
+                  <span class="lab">Total due<small>Last known price</small></span>
+                  <span class="val" style="color:var(--ink-muted)">₹101.00</span>
+                </div>
+              </div>
+            </div>
+            <div class="actionbar">
+              <div class="reason bad"><span class="dot" aria-hidden="true"></span>Offline — reconnect to place this order.</div>
+              <button class="primary dead" type="button" aria-disabled="true">Place COD Order</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<section class="legend" aria-label="Legend">
+  <div>
+    <h4>What moved</h4>
+    <p>The bill and its total now render before payment and coupon, and the pay action is pinned to the
+       bottom edge — visible on first paint at 360 dp, never more than a thumb away.</p>
+  </div>
+  <div>
+    <h4>One money system</h4>
+    <p>Every figure is <code>₹1,234.50</code> with tabular numerals, so the line items visibly sum to the
+       total. The amount charged is the largest element on the screen.</p>
+  </div>
+  <div>
+    <h4>Never a silent dead button</h4>
+    <p>A reason line sits directly above the action and changes with the state:
+       all-set, checking, retry-needed, or offline.</p>
+  </div>
+  <div>
+    <h4>Accessibility</h4>
+    <p>Persistent visible labels, 44 pt minimum targets, real <kbd>Tab</kbd> order with focus rings,
+       errors at ~7.5:1 with an icon, and all motion gated behind <code>prefers-reduced-motion</code>.</p>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var body = document.body;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+
+    function setState(state) {
+      body.setAttribute('data-state', state);
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === state));
+      });
+      document.querySelectorAll('.viewport').forEach(function (v) { v.scrollTop = 0; });
+    }
+
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { setState(b.getAttribute('data-set')); });
+    });
+
+    document.querySelector('.tabs').addEventListener('keydown', function (e) {
+      var i = buttons.indexOf(document.activeElement);
+      if (i === -1) return;
+      var next = null;
+      if (e.key === 'ArrowRight') next = (i + 1) % buttons.length;
+      if (e.key === 'ArrowLeft') next = (i - 1 + buttons.length) % buttons.length;
+      if (next === null) return;
+      e.preventDefault();
+      buttons[next].focus();
+      setState(buttons[next].getAttribute('data-set'));
+    });
+
+    document.querySelectorAll('.nw .opt[aria-disabled="true"]').forEach(function (el) {
+      el.addEventListener('click', function (e) { e.preventDefault(); });
+    });
+  })();
+</script>
+</body>
+</html>
