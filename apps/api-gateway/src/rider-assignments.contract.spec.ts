@@ -5,6 +5,8 @@ describe('Rider assignment visibility contract', () => {
   const api = (file: string) => readFileSync(path.join(__dirname, file), 'utf8');
   const dashboard = (file: string) =>
     readFileSync(path.join(__dirname, '../../admin-dashboard/src', file), 'utf8');
+  const mobile = (file: string) =>
+    readFileSync(path.join(__dirname, '../../mobile-partners/src', file), 'utf8');
 
   it('exposes a store-scoped rider-assignments endpoint on the subscriptions controller', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
@@ -86,5 +88,13 @@ describe('Rider assignment visibility contract', () => {
     expect(dialog).toContain('cashToCollectPaise');
     // Per-stop chips prefer the reconciled outstanding over the raw day cell.
     expect(dialog).toContain('outstandingDuePaise');
+  });
+
+  it('renders the reconciled due on the mobile rider-assignments board too', () => {
+    const screen = mobile('screens/store/StoreRiderAssignmentsScreen.tsx');
+    // The mobile board is the same surface as the dialog; its per-stop cash chip
+    // must read the reconciled outstanding, not the raw day cell, or a stranded
+    // due shows ₹0 on mobile while the web dialog shows the real amount.
+    expect(screen).toContain('outstandingDuePaise ?? stop.cashDuePaise');
   });
 });

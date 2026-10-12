@@ -1648,12 +1648,33 @@ export class StoreMilkGridService {
       cellsBySubscription.set(cell.subscriptionId, list);
     }
 
+    // A subscription can own two deliveries on one service date (a manual "BOTH"
+    // AM+PM plan) and the reconciled due is a subscription-level figure, so
+    // counting it once per delivery double-counts the board. Reconcile each
+    // subscription once and reuse it for every stop of that subscription.
+    const dueBySubscription = new Map<string, number>();
+    for (const d of deliveries) {
+      if (!dueBySubscription.has(d.subscription.id)) {
+        dueBySubscription.set(
+          d.subscription.id,
+          reconcileSubscriptionBalance(d.subscription, cellsBySubscription.get(d.subscription.id) ?? []).amountDuePaise,
+        );
+      }
+    }
+    const dueAttributed = new Set<string>();
+
     const toStop = (d: (typeof deliveries)[number]) => {
       const planName = d.subscription.plan.name || '';
       const isBuffalo = planName.toLowerCase().includes('buffalo') || planName.toLowerCase().includes('bm');
       const baseQty = this.resolveBaseLiters(planName, d.subscription.priceSnapshot, d.deliverySlot, (d.subscription as any).itemsSnapshot);
       const extraLiters = sumAddOnLiters(d.deferredReason, d.failureReason);
       const addr = d.subscription.addressSnapshot as any;
+      // The reconciled due is one subscription-level figure; carry it on the
+      // subscription's first stop of the day only, so the per-stop values (and
+      // every sum built from them) count the debt once.
+      const firstStopOfSubscription = !dueAttributed.has(d.subscription.id);
+      dueAttributed.add(d.subscription.id);
+      const outstandingDuePaise = firstStopOfSubscription ? dueBySubscription.get(d.subscription.id) ?? 0 : 0;
       return {
         stopId: d.runStop?.id ?? null,
         sequenceNumber: d.runStop?.sequenceNumber ?? d.sequenceNumber,
@@ -1671,10 +1692,7 @@ export class StoreMilkGridService {
         product: `${baseQty}L ${isBuffalo ? 'BM' : 'CM'}`,
         liters: baseQty + extraLiters,
         cashDuePaise: d.cashDuePaise || 0,
-        outstandingDuePaise: reconcileSubscriptionBalance(
-          d.subscription,
-          cellsBySubscription.get(d.subscription.id) ?? [],
-        ).amountDuePaise,
+        outstandingDuePaise,
         cashCollectedPaise: d.cashCollectedPaise || 0,
         orderId: d.order?.id ?? null,
         orderStatus: d.order?.status ?? null,
