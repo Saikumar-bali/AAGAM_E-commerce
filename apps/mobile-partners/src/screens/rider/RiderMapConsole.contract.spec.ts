@@ -193,4 +193,24 @@ describe('rider map stop signals', () => {
     // Navigation mode must accept the fallback origin too, not only a GPS fix.
     expect(html).toContain('var from = routeOrigin();');
   });
+
+  it('draws the route without waiting on isStyleLoaded (Mapbox quirk guard)', () => {
+    // Regression guard: map.isStyleLoaded() can stay false for the composite
+    // satellite-streets style even while tiles paint, which silently froze the
+    // whole route/preview/ETA chain behind an unmet gate. Readiness must come
+    // from the load/idle events (plus a bounded force-ready poll), never from
+    // isStyleLoaded().
+    const html = buildRiderMapHtml({ latitude: 17.69, longitude: 83.0 }, 'Store', null, {
+      stops: [{ latitude: 17.691, longitude: 83.001, sequence: 1, id: 'a', label: 'A', status: 'READY', state: 'current' }],
+      fallbackOrigin: { latitude: 17.68, longitude: 82.99 },
+    });
+    expect(html).toContain('function markReady()');
+    expect(html).toContain("map.on('load', markReady)");
+    expect(html).toContain("map.on('idle', markReady)");
+    // No readiness gate may consult isStyleLoaded any more.
+    expect(html).not.toContain('map.isStyleLoaded()');
+    // The route/preview/ETA chain is gated only on mapLoaded.
+    expect(html).toContain('if (!mapLoaded) return;');
+    expect(html).toContain('if (!mapLoaded || fullCoords.length < 2)');
+  });
 });
