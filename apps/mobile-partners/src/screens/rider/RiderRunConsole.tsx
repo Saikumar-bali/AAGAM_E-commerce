@@ -283,9 +283,9 @@ export const RiderRunConsole = ({
   // stays the hero and the card never grows unbounded.
   const [expander, setExpander] = useState<'none' | 'cash' | 'extra' | 'skip' | 'problem'>('none');
   const toggleExpander = (next: 'cash' | 'extra' | 'skip' | 'problem') => {
-    const willOpen = expander !== next;
-    setExpander(willOpen ? next : 'none');
-    if (willOpen) snapTo(true);
+    // The expander panels live in the fixed bottom stack above the dock, so
+    // opening one never needs to expand the route board behind them.
+    setExpander(expander === next ? 'none' : next);
   };
   const [cashPaise, setCashPaise] = useState(0);
   const [cashMode, setCashMode] = useState<'CASH' | 'PHONE_PE'>('CASH');
@@ -693,14 +693,10 @@ export const RiderRunConsole = ({
                 <Text style={styles.sheetEyebrow}>
                   {focusDelivered ? 'DELIVERED' : focusSkipped ? 'SKIPPED' : focusActionable ? 'NEXT STOP' : 'STOP'} · {focusedStop.sequenceNumber} OF {total}
                 </Text>
-                <Text style={styles.sheetName} numberOfLines={1}>{focusedStop.deliveryJob?.order?.customer?.name || 'Customer'}</Text>
-                {/* Identity chips: plan + slot beside the name, then the cash
-                    state and proof mode so the rider reads them without
-                    scanning further down the sheet. */}
-                <View style={styles.planRow}>
-                  <Text style={styles.sheetPlan} numberOfLines={1}>{planLabel(focusedStop)}</Text>
-                  {focusedStop.subscriptionDelivery?.deliverySlot ? <Text style={styles.slotPill}>{focusedStop.subscriptionDelivery.deliverySlot}</Text> : null}
-                  {duplicateKeys.has(riderStopCustomerKey(focusedStop)) ? <Text style={styles.multiBadge}>2 subscriptions</Text> : null}
+                {/* Cash + proof state ride on the name line itself, so the
+                    rider reads who / paid-what / proof in one glance. */}
+                <View style={styles.nameRow}>
+                  <Text style={styles.sheetName} numberOfLines={1}>{focusedStop.deliveryJob?.order?.customer?.name || 'Customer'}</Text>
                   {focusShownCollected > 0 ? (
                     <View style={[styles.signal, focusOutstanding > 0 ? styles.signalPartial : styles.signalPaid]}>
                       <Banknote size={12} color={focusOutstanding > 0 ? '#8A4B00' : '#065F46'} />
@@ -715,6 +711,11 @@ export const RiderRunConsole = ({
                       : <View style={[styles.signal, styles.signalPaid]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalPaidText}>Prepaid</Text></View>
                   ) : null}
                   {focusActionable ? <View style={[styles.signal, styles.signalMeta]}><Layers size={12} color="#475569" /><Text style={styles.signalMetaText}>{proofQuickLabel(focusedStop)}</Text></View> : null}
+                </View>
+                <View style={styles.planRow}>
+                  <Text style={styles.sheetPlan} numberOfLines={1}>{planLabel(focusedStop)}</Text>
+                  {focusedStop.subscriptionDelivery?.deliverySlot ? <Text style={styles.slotPill}>{focusedStop.subscriptionDelivery.deliverySlot}</Text> : null}
+                  {duplicateKeys.has(riderStopCustomerKey(focusedStop)) ? <Text style={styles.multiBadge}>2 subscriptions</Text> : null}
                 </View>
               </View>
               <View style={[styles.statusChip, { backgroundColor: focusTone.bg }]}>
@@ -752,55 +753,25 @@ export const RiderRunConsole = ({
               </View>
             ) : null}
 
-            {/* Quick ops: one glass button per operation. Enabled when it applies. */}
-            <View style={styles.opsRow}>
-              <TouchableOpacity
-                accessibilityLabel="Record cash collected"
-                disabled={focusDelivered || focusSkipped || (!focusActionable && focusCollected === 0)}
-                style={[styles.op, expander === 'cash' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
-                onPress={() => toggleExpander('cash')}
-              >
-                <Banknote size={17} color={expander === 'cash' ? '#FFFFFF' : '#A15C00'} />
-                <Text style={[styles.opText, expander === 'cash' && styles.opTextActive]}>Cash</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Attach extra milk"
-                disabled={focusDelivered || focusSkipped}
-                style={[styles.op, expander === 'extra' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
-                onPress={() => toggleExpander('extra')}
-              >
-                <Milk size={17} color={expander === 'extra' ? '#FFFFFF' : '#1D4ED8'} />
-                <Text style={[styles.opText, expander === 'extra' && styles.opTextActive]}>Extra</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Toggle AM or PM slot"
-                disabled={focusDelivered || focusSkipped}
-                style={[styles.op, (focusDelivered || focusSkipped) && styles.opDisabled]}
-                onPress={() => toggleSlot(focusedStop)}
-              >
-                <Clock size={17} color="#0F766E" />
-                <Text style={styles.opText}>Slot</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Skip this stop"
-                disabled={focusDelivered || focusSkipped}
-                style={[styles.op, expander === 'skip' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
-                onPress={() => toggleExpander('skip')}
-              >
-                <SkipForward size={17} color={expander === 'skip' ? '#FFFFFF' : '#475569'} />
-                <Text style={[styles.opText, expander === 'skip' && styles.opTextActive]}>Skip</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Report a delivery problem"
-                disabled={focusDelivered || focusSkipped || !focusActionable}
-                style={[styles.op, expander === 'problem' && styles.opActiveDanger, (focusDelivered || focusSkipped || !focusActionable) && styles.opDisabled]}
-                onPress={() => toggleExpander('problem')}
-              >
-                <CircleAlert size={17} color={expander === 'problem' ? '#FFFFFF' : '#B42318'} />
-                <Text style={[styles.opText, expander === 'problem' && styles.opTextActive]}>Problem</Text>
-              </TouchableOpacity>
-            </View>
+            {renderBoard ? <View style={styles.boardHost}>{renderBoard({ focusStop: (id) => focusStop(id) })}</View> : null}
+            </ScrollView>
+          </View>
+        </Animated.View>
+      ) : (
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="box-none">
+          <View style={styles.sheetCard}>
+            <View style={styles.emptyRow}><Route size={20} color="#0F766E" /><Text style={styles.emptyText}>No stops with a map pin on this route.</Text></View>
+          </View>
+        </View>
+      )}
 
+      {/* Fixed bottom stack, glass cards stacked upward from the screen
+          bottom: the action ops (Cash / Extra / Slot / Skip / Problem) sit
+          directly on top of the Navigate / Deliver dock, with any open
+          expander panel above them. All of it floats over the map and the
+          sheet, so the rider always has the controls in thumb reach. */}
+      {focusedStop ? (
+        <View style={[styles.bottomStack, { bottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="box-none">
             {expander === 'cash' ? (
               <View style={styles.expander}>
                 <View style={styles.expanderHead}>
@@ -959,55 +930,92 @@ export const RiderRunConsole = ({
               </View>
             ) : null}
 
-            {renderBoard ? <View style={styles.boardHost}>{renderBoard({ focusStop: (id) => focusStop(id) })}</View> : null}
-            </ScrollView>
-          </View>
-        </Animated.View>
-      ) : (
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="box-none">
-          <View style={styles.sheetCard}>
-            <View style={styles.emptyRow}><Route size={20} color="#0F766E" /><Text style={styles.emptyText}>No stops with a map pin on this route.</Text></View>
-          </View>
-        </View>
-      )}
-
-      {/* Primary actions docked at the screen bottom: always visible in both
-          sheet snaps, never clipped by the board, and clear of any menu. */}
-      {focusedStop ? (
-        <View style={[styles.dock, { bottom: Math.max(insets.bottom, 12) + 8 }]} pointerEvents="box-none">
-          <View style={styles.actionRow}>
-            <TouchableOpacity accessibilityLabel="Navigate to this stop" style={styles.actionGhost} onPress={() => onNavigate(focusedStop)}>
-              <Navigation size={17} color="#0F766E" />
-              <Text style={styles.actionGhostText}>Navigate</Text>
-            </TouchableOpacity>
-            {focusedStop.deliveryJob?.order?.customer?.phone ? (
-              <TouchableOpacity accessibilityLabel="Call the customer" style={styles.actionGhost} onPress={() => void Linking.openURL(`tel:${focusedStop.deliveryJob.order.customer.phone}`)}>
-                <Phone size={17} color="#0F766E" />
-                <Text style={styles.actionGhostText}>Call</Text>
-              </TouchableOpacity>
-            ) : null}
-            {undoable ? (
-              <TouchableOpacity accessibilityLabel="Undo last action" style={styles.actionGhost} disabled={busy === 'undo'} onPress={() => undoStop(focusedStop)}>
-                {busy === 'undo' ? <ActivityIndicator color="#0F766E" /> : <RotateCcw size={17} color="#0F766E" />}
-                <Text style={styles.actionGhostText}>Undo</Text>
-              </TouchableOpacity>
-            ) : (
+          {/* Quick ops: one glass button per operation, sitting on the dock. */}
+          <View style={styles.opsCard}>
+            <View style={styles.opsRow}>
               <TouchableOpacity
-                accessibilityLabel="Deliver this stop"
-                style={[styles.actionPrimary, (!focusActionable || busy === 'arrive') && styles.actionPrimaryMuted]}
-                disabled={!focusActionable || busy === 'arrive'}
-                onPress={() => void beginDeliver(focusedStop)}
+                accessibilityLabel="Record cash collected"
+                disabled={focusDelivered || focusSkipped || (!focusActionable && focusCollected === 0)}
+                style={[styles.op, expander === 'cash' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
+                onPress={() => toggleExpander('cash')}
               >
-                {busy === 'arrive' ? <ActivityIndicator color="#FFFFFF" /> : (
-                  <>
-                    <Text style={styles.actionPrimaryText}>
-                      {!focusActionable ? 'Not deliverable yet' : focusDayOutstanding > 0 ? `Deliver · collect ${money(focusDayOutstanding)}` : 'Deliver'}
-                    </Text>
-                    <ChevronRight size={18} color="#FFFFFF" />
-                  </>
-                )}
+                <Banknote size={17} color={expander === 'cash' ? '#FFFFFF' : '#A15C00'} />
+                <Text style={[styles.opText, expander === 'cash' && styles.opTextActive]}>Cash</Text>
               </TouchableOpacity>
-            )}
+              <TouchableOpacity
+                accessibilityLabel="Attach extra milk"
+                disabled={focusDelivered || focusSkipped}
+                style={[styles.op, expander === 'extra' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
+                onPress={() => toggleExpander('extra')}
+              >
+                <Milk size={17} color={expander === 'extra' ? '#FFFFFF' : '#1D4ED8'} />
+                <Text style={[styles.opText, expander === 'extra' && styles.opTextActive]}>Extra</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Toggle AM or PM slot"
+                disabled={focusDelivered || focusSkipped}
+                style={[styles.op, (focusDelivered || focusSkipped) && styles.opDisabled]}
+                onPress={() => toggleSlot(focusedStop)}
+              >
+                <Clock size={17} color="#0F766E" />
+                <Text style={styles.opText}>Slot</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Skip this stop"
+                disabled={focusDelivered || focusSkipped}
+                style={[styles.op, expander === 'skip' && styles.opActive, (focusDelivered || focusSkipped) && styles.opDisabled]}
+                onPress={() => toggleExpander('skip')}
+              >
+                <SkipForward size={17} color={expander === 'skip' ? '#FFFFFF' : '#475569'} />
+                <Text style={[styles.opText, expander === 'skip' && styles.opTextActive]}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityLabel="Report a delivery problem"
+                disabled={focusDelivered || focusSkipped || !focusActionable}
+                style={[styles.op, expander === 'problem' && styles.opActiveDanger, (focusDelivered || focusSkipped || !focusActionable) && styles.opDisabled]}
+                onPress={() => toggleExpander('problem')}
+              >
+                <CircleAlert size={17} color={expander === 'problem' ? '#FFFFFF' : '#B42318'} />
+                <Text style={[styles.opText, expander === 'problem' && styles.opTextActive]}>Problem</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.dock}>
+            <View style={styles.actionRow}>
+              <TouchableOpacity accessibilityLabel="Navigate to this stop" style={styles.actionGhost} onPress={() => onNavigate(focusedStop)}>
+                <Navigation size={17} color="#0F766E" />
+                <Text style={styles.actionGhostText}>Navigate</Text>
+              </TouchableOpacity>
+              {focusedStop.deliveryJob?.order?.customer?.phone ? (
+                <TouchableOpacity accessibilityLabel="Call the customer" style={styles.actionGhost} onPress={() => void Linking.openURL(`tel:${focusedStop.deliveryJob.order.customer.phone}`)}>
+                  <Phone size={17} color="#0F766E" />
+                  <Text style={styles.actionGhostText}>Call</Text>
+                </TouchableOpacity>
+              ) : null}
+              {undoable ? (
+                <TouchableOpacity accessibilityLabel="Undo last action" style={styles.actionGhost} disabled={busy === 'undo'} onPress={() => undoStop(focusedStop)}>
+                  {busy === 'undo' ? <ActivityIndicator color="#0F766E" /> : <RotateCcw size={17} color="#0F766E" />}
+                  <Text style={styles.actionGhostText}>Undo</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  accessibilityLabel="Deliver this stop"
+                  style={[styles.actionPrimary, (!focusActionable || busy === 'arrive') && styles.actionPrimaryMuted]}
+                  disabled={!focusActionable || busy === 'arrive'}
+                  onPress={() => void beginDeliver(focusedStop)}
+                >
+                  {busy === 'arrive' ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <Text style={styles.actionPrimaryText}>
+                        {!focusActionable ? 'Not deliverable yet' : focusDayOutstanding > 0 ? `Deliver · collect ${money(focusDayOutstanding)}` : 'Deliver'}
+                      </Text>
+                      <ChevronRight size={18} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
       ) : null}
@@ -1170,11 +1178,11 @@ const styles = StyleSheet.create({
   sheetGrip: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#C7D2CE' },
   sheetGripLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '600', marginTop: 5 },
   sheetScroll: { flex: 1 },
-  sheetScrollContent: { paddingBottom: 96 },
+  sheetScrollContent: { paddingBottom: 150 },
+  // Fixed bottom stack: expander panels (when open) → ops card → action dock,
+  // stacked upward from the screen bottom as sibling glass cards.
+  bottomStack: { position: 'absolute', left: 26, right: 26, gap: 8 },
   dock: {
-    position: 'absolute',
-    left: 26,
-    right: 26,
     borderRadius: 18,
     backgroundColor: GLASS,
     borderWidth: 1,
@@ -1195,7 +1203,8 @@ const styles = StyleSheet.create({
   seqTextActive: { color: '#FFFFFF' },
   sheetCopy: { flex: 1, marginLeft: 11, marginRight: 8 },
   sheetEyebrow: { color: '#0F766E', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  sheetName: { color: '#0B1B3A', fontSize: 17, fontWeight: '700', marginTop: 2 },
+  sheetName: { color: '#0B1B3A', fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' },
   sheetPlan: { color: '#475569', fontSize: 11, fontWeight: '600', flexShrink: 1 },
   slotPill: { color: '#155E75', backgroundColor: '#E0F2FE', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, fontSize: 9, fontWeight: '700' },
@@ -1221,14 +1230,15 @@ const styles = StyleSheet.create({
     failureText: { flex: 1, color: '#B42318', fontSize: 11.5, fontWeight: '600' },
     fundedBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#E5F7EE', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
     fundedBannerText: { flex: 1, color: '#065F46', fontSize: 11.5, fontWeight: '600' },
-  opsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  opsCard: { borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_BORDER, padding: 8 },
+  opsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   op: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 8, borderRadius: 13, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' },
   opActive: { backgroundColor: '#0B1B3A', borderColor: '#0B1B3A' },
   opActiveDanger: { backgroundColor: '#B42318', borderColor: '#B42318' },
   opDisabled: { opacity: 0.4 },
   opText: { color: '#334155', fontSize: 10.5, fontWeight: '700' },
   opTextActive: { color: '#FFFFFF' },
-  expander: { marginTop: 11, borderTopWidth: 1, borderTopColor: '#EEF2F6', paddingTop: 11 },
+  expander: { borderRadius: 18, backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_BORDER, padding: 12 },
   expanderHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 },
   expanderTitle: { color: '#0B1B3A', fontSize: 12.5, fontWeight: '700' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
