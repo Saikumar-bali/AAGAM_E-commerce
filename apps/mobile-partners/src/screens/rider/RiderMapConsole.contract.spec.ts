@@ -140,9 +140,12 @@ describe('rider map console operations', () => {
     const routeMap = read('../../components/rider/RiderRouteMap.tsx');
     expect(routeMap).toContain('chromeless?: boolean');
     expect(routeMap).toContain('styles.bare');
-    // Navigate / Deliver live in a dock pinned to the screen bottom, so the
-    // board can never push them off-screen or under a menu.
+    // Navigate / Deliver live in a dock pinned to the screen bottom, with the
+    // ops row (Cash / Extra / Slot / Skip / Problem) sitting directly on top of
+    // it in the same fixed stack, so the board can never push them off-screen.
     expect(console).toContain('styles.dock');
+    expect(console).toContain('styles.bottomStack');
+    expect(console).toContain('styles.opsCard');
     expect(console).toContain('accessibilityLabel="Deliver this stop"');
     // The tab menu is hidden while the rider is inside the full-screen console.
     const navigator = read('../../navigation/RiderNavigator.tsx');
