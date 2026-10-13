@@ -212,5 +212,16 @@ describe('rider map stop signals', () => {
     // The route/preview/ETA chain is gated only on mapLoaded.
     expect(html).toContain('if (!mapLoaded) return;');
     expect(html).toContain('if (!mapLoaded || fullCoords.length < 2)');
+    // The Map constructor must not pass `language`: in Mapbox GL v3 it rewrites
+    // satellite-streets through an internal style transform that can leave the
+    // style permanently mid-load — raster tiles and DOM markers still paint,
+    // but custom WebGL line layers (the blue route) never render. Live riders
+    // saw the GPS dot with no line on APK 1487 for exactly this reason.
+    expect(html).not.toMatch(/new mapboxgl\.Map\(\{[^}]*language:/);
+    // A healing pass re-adds the line layers if a style transition drops them
+    // while mapLoaded stays true (the dot survives, the line silently vanishes).
+    expect(html).toContain('var healTimer = setInterval');
+    expect(html).toContain('!map.getLayer(ROUTE_LINE)');
+    expect(html).toContain('!map.getLayer(PREVIEW_LINE)');
   });
 });

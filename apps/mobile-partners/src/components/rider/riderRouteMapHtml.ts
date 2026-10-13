@@ -175,7 +175,12 @@ var currentStyle = '${initialStyle}';
 var destination = [${destination.longitude}, ${destination.latitude}];
 var fallbackOrigin = ${JSON.stringify(fallbackOrigin)};
 var destLabel = ${safeLabelJson};
-var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], center: destination, zoom: 15, attributionControl: true, language: 'en' });
+// NB: no language option here. In Mapbox GL v3 it rewrites satellite-streets
+// through an internal style transform that can leave the style permanently
+// mid-load: raster tiles and DOM markers still paint, but custom WebGL layers
+// (the blue route line) never enter the render pipeline — and isStyleLoaded()
+// never flips. Labels default to English anyway, so the option bought nothing.
+var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], center: destination, zoom: 15, attributionControl: true });
 
 var ROUTE_SOURCE = 'rider-route';
 var ROUTE_CASING = 'rider-route-casing';
@@ -467,6 +472,15 @@ function ensureRouteLayers() {
   if (!mapLoaded || fullCoords.length < 2) { pendingNav = true; return; }
   if (!routeSourceAdded) {
     try {
+      // A layer can fail to attach after the source is created (style
+      // transition mid-install), leaving the source behind while this flag
+      // stays false. Re-adding it would throw; drop the partial install and
+      // retry from a clean source instead.
+      if (map.getSource(ROUTE_SOURCE)) {
+        if (map.getLayer(ROUTE_LINE)) map.removeLayer(ROUTE_LINE);
+        if (map.getLayer(ROUTE_CASING)) map.removeLayer(ROUTE_CASING);
+        map.removeSource(ROUTE_SOURCE);
+      }
       map.addSource(ROUTE_SOURCE, { type: 'geojson', data: routeGeoJSON(fullCoords, false) });
       map.addLayer({ id: ROUTE_CASING, type: 'line', source: ROUTE_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0b2f7a', 'line-width': 13, 'line-opacity': 0.55 } });
       map.addLayer({ id: ROUTE_LINE, type: 'line', source: ROUTE_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 8, 'line-opacity': 0.95 } });
@@ -517,6 +531,12 @@ function renderPreviewLine() {
   if (coords.length < 2) { coords = []; }
   if (!previewSourceAdded) {
     try {
+      // Same partial-install recovery as ensureRouteLayers: a source can exist
+      // while its layer never attached, so clear the leftover before retrying.
+      if (map.getSource(PREVIEW_SOURCE)) {
+        if (map.getLayer(PREVIEW_LINE)) map.removeLayer(PREVIEW_LINE);
+        map.removeSource(PREVIEW_SOURCE);
+      }
       map.addSource(PREVIEW_SOURCE, { type: 'geojson', data: routeGeoJSON(coords, false) });
       map.addLayer({ id: PREVIEW_LINE, type: 'line', source: PREVIEW_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.55, 'line-dasharray': [1.4, 1.4] } });
       previewSourceAdded = true;
@@ -760,5 +780,25 @@ var flushTimer = setInterval(function () {
   if (!mapLoaded && ++flushTries > 25) markReady();
   if (mapLoaded) clearInterval(flushTimer);
 }, 400);
+
+// Healing pass: a style transition (initial transform, toggle, any late
+// style.load) can drop the custom route/preview layers while mapLoaded stays
+// true — the rider dot (DOM) survives, the blue line (WebGL) silently vanishes.
+// Re-add the layers whenever they go missing, so the line always comes back.
+var healTries = 0;
+var healTimer = setInterval(function () {
+  if (!mapLoaded) return;
+  if (++healTries > 40) { clearInterval(healTimer); return; }
+  try {
+    if (fullCoords.length >= 2 && !map.getLayer(ROUTE_LINE)) {
+      routeSourceAdded = false;
+      ensureRouteLayers();
+    }
+    if (!map.getLayer(PREVIEW_LINE)) {
+      previewSourceAdded = false;
+      renderPreviewLine();
+    }
+  } catch (e) {}
+}, 500);
 </script></body></html>`;
 };
