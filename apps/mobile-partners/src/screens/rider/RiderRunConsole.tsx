@@ -587,6 +587,9 @@ export const RiderRunConsole = ({
           destinationLabel={focusedStop ? `${focusedStop.sequenceNumber}. ${focusedStop.deliveryJob?.order?.customer?.name || 'Customer'}` : run.store.name}
           active
           riderLocation={riderLocation}
+          fallbackOrigin={Number.isFinite(run.store?.latitude) && Number.isFinite(run.store?.longitude)
+            ? { latitude: run.store.latitude, longitude: run.store.longitude }
+            : null}
           stops={mapStops}
           progressDone={completed}
           progressTotal={total}
@@ -691,10 +694,27 @@ export const RiderRunConsole = ({
                   {focusDelivered ? 'DELIVERED' : focusSkipped ? 'SKIPPED' : focusActionable ? 'NEXT STOP' : 'STOP'} · {focusedStop.sequenceNumber} OF {total}
                 </Text>
                 <Text style={styles.sheetName} numberOfLines={1}>{focusedStop.deliveryJob?.order?.customer?.name || 'Customer'}</Text>
+                {/* Identity chips: plan + slot beside the name, then the cash
+                    state and proof mode so the rider reads them without
+                    scanning further down the sheet. */}
                 <View style={styles.planRow}>
                   <Text style={styles.sheetPlan} numberOfLines={1}>{planLabel(focusedStop)}</Text>
                   {focusedStop.subscriptionDelivery?.deliverySlot ? <Text style={styles.slotPill}>{focusedStop.subscriptionDelivery.deliverySlot}</Text> : null}
                   {duplicateKeys.has(riderStopCustomerKey(focusedStop)) ? <Text style={styles.multiBadge}>2 subscriptions</Text> : null}
+                  {focusShownCollected > 0 ? (
+                    <View style={[styles.signal, focusOutstanding > 0 ? styles.signalPartial : styles.signalPaid]}>
+                      <Banknote size={12} color={focusOutstanding > 0 ? '#8A4B00' : '#065F46'} />
+                      <Text style={focusOutstanding > 0 ? styles.signalPartialText : styles.signalPaidText}>
+                        {money(focusShownCollected)} {focusOutstanding > 0 ? 'part-paid' : 'paid'}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {focusActionable && focusShownCollected === 0 ? (
+                    focusOutstanding > 0
+                      ? <View style={[styles.signal, styles.signalDue]}><Banknote size={12} color="#8A4B00" /><Text style={styles.signalPartialText}>{money(focusOutstanding)} due</Text></View>
+                      : <View style={[styles.signal, styles.signalPaid]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalPaidText}>Prepaid</Text></View>
+                  ) : null}
+                  {focusActionable ? <View style={[styles.signal, styles.signalMeta]}><Layers size={12} color="#475569" /><Text style={styles.signalMetaText}>{proofQuickLabel(focusedStop)}</Text></View> : null}
                 </View>
               </View>
               <View style={[styles.statusChip, { backgroundColor: focusTone.bg }]}>
@@ -707,26 +727,16 @@ export const RiderRunConsole = ({
               <Text style={styles.sheetAddress} numberOfLines={2}>{addressFrom(focusedStop)}</Text>
             </View>
 
-            {/* State signals: what already happened to this stop, at a glance. */}
-            <View style={styles.signalRow}>
-              {focusDelivered ? <View style={[styles.signal, styles.signalDone]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalDoneText}>Delivered</Text></View> : null}
-              {focusSkipped ? <View style={[styles.signal, styles.signalSkip]}><SkipForward size={12} color="#475569" /><Text style={styles.signalSkipText}>Skipped</Text></View> : null}
-              {focusShownCollected > 0 ? (
-                <View style={[styles.signal, focusOutstanding > 0 ? styles.signalPartial : styles.signalPaid]}>
-                  <Banknote size={12} color={focusOutstanding > 0 ? '#8A4B00' : '#065F46'} />
-                  <Text style={focusOutstanding > 0 ? styles.signalPartialText : styles.signalPaidText}>
-                    {money(focusShownCollected)} {focusOutstanding > 0 ? 'part-paid' : 'paid'}
-                  </Text>
-                </View>
-              ) : null}
-              {focusExtra > 0 ? <View style={[styles.signal, styles.signalExtra]}><Milk size={12} color="#1D4ED8" /><Text style={styles.signalExtraText}>+{focusExtra}L extra</Text></View> : null}
-              {focusActionable && focusShownCollected === 0 ? (
-                focusOutstanding > 0
-                  ? <View style={[styles.signal, styles.signalDue]}><Banknote size={12} color="#8A4B00" /><Text style={styles.signalPartialText}>{money(focusOutstanding)} due</Text></View>
-                  : <View style={[styles.signal, styles.signalPaid]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalPaidText}>Prepaid</Text></View>
-              ) : null}
-              {focusActionable ? <View style={[styles.signal, styles.signalMeta]}><Layers size={12} color="#475569" /><Text style={styles.signalMetaText}>{proofQuickLabel(focusedStop)}</Text></View> : null}
-            </View>
+            {/* Rarer state signals only; the cash/proof chips live by the name.
+                The row is skipped entirely when empty so it never leaves a
+                phantom gap above the ops. */}
+            {(focusDelivered || focusSkipped || focusExtra > 0) ? (
+              <View style={styles.signalRow}>
+                {focusDelivered ? <View style={[styles.signal, styles.signalDone]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalDoneText}>Delivered</Text></View> : null}
+                {focusSkipped ? <View style={[styles.signal, styles.signalSkip]}><SkipForward size={12} color="#475569" /><Text style={styles.signalSkipText}>Skipped</Text></View> : null}
+                {focusExtra > 0 ? <View style={[styles.signal, styles.signalExtra]}><Milk size={12} color="#1D4ED8" /><Text style={styles.signalExtraText}>+{focusExtra}L extra</Text></View> : null}
+              </View>
+            ) : null}
 
             {focusedStop.failureReason ? (
               <View style={styles.failureRow}><CircleAlert size={14} color="#B42318" /><Text style={styles.failureText} numberOfLines={2}>{focusedStop.failureReason}</Text></View>
@@ -1176,7 +1186,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
-  boardHost: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#EEF2F6', paddingTop: 4 },
+  boardHost: { marginTop: 8, borderTopWidth: 1, borderTopColor: '#EEF2F6', paddingTop: 2 },
   sheetHead: { flexDirection: 'row', alignItems: 'center' },
   seqCircle: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#E7F0EE', alignItems: 'center', justifyContent: 'center' },
   seqCircleActive: { backgroundColor: '#0F766E' },

@@ -25,6 +25,14 @@ function getMapboxToken(explicitToken?: string | null): string | null {
 type BuildRiderMapHtmlOptions = {
   initialStyle?: RiderMapStyleId;
   stops?: RiderMapStop[];
+  /**
+   * Used as the route origin until a live GPS fix arrives (and when the fix is
+   * withdrawn). Riders start the run at the store, so a store-anchored line +
+   * ETA is truthful for the first mile and re-routes from the real position as
+   * soon as the watch delivers a fix. Without it a single-stop run with no GPS
+   * renders no line at all (the preview needs two coordinates).
+   */
+  fallbackOrigin?: MapCoordinate | null;
 };
 
 export type RiderMapStop = {
@@ -84,6 +92,11 @@ export const buildRiderMapHtml = (
       })),
   );
   const initialStyle: RiderMapStyleId = options.initialStyle && RIDER_MAP_STYLES[options.initialStyle] ? options.initialStyle : 'satellite';
+  const fallbackOrigin = options.fallbackOrigin
+    && Number.isFinite(options.fallbackOrigin.latitude)
+    && Number.isFinite(options.fallbackOrigin.longitude)
+    ? [Number(options.fallbackOrigin.longitude), Number(options.fallbackOrigin.latitude)]
+    : null;
   return `<!doctype html>
 <html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.29.0/mapbox-gl.css" rel="stylesheet" />
@@ -160,6 +173,7 @@ mapboxgl.accessToken = '${token}';
 var STYLES = { satellite: '${RIDER_MAP_STYLES.satellite}', streets: '${RIDER_MAP_STYLES.streets}' };
 var currentStyle = '${initialStyle}';
 var destination = [${destination.longitude}, ${destination.latitude}];
+var fallbackOrigin = ${JSON.stringify(fallbackOrigin)};
 var destLabel = ${safeLabelJson};
 var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], center: destination, zoom: 15, attributionControl: true, language: 'en' });
 
@@ -197,6 +211,12 @@ var navRequestSeq = 0;
 var navActive = false;
 var routeEtaSeconds = 0;
 var routeEtaMeters = 0;
+
+// Route origin: the live rider fix when we have one, otherwise the store the
+// run starts from, so there is always a blue line + ETA towards the customer.
+function routeOrigin() {
+  return lastRiderPoint || fallbackOrigin;
+}
 
 var destEl = document.createElement('div');
 destEl.className = 'dest-pin';
@@ -481,7 +501,8 @@ function previewCoords() {
   }
   upcoming.sort(function (a, b) { return (a.sequence || 0) - (b.sequence || 0); });
   var coords = [];
-  if (lastRiderPoint) coords.push(lastRiderPoint);
+  var origin = routeOrigin();
+  if (origin) coords.push(origin);
   for (var k = 0; k < upcoming.length; k++) {
     var p = [upcoming[k].longitude, upcoming[k].latitude];
     var last = coords[coords.length - 1];
@@ -534,14 +555,15 @@ function updateBanner(splitOverride) {
 }
 
 function requestRoute() {
-  if (!lastRiderPoint || !mapLoaded || !map.isStyleLoaded()) { pendingNav = true; return; }
+  var from = routeOrigin();
+  if (!from || !mapLoaded || !map.isStyleLoaded()) { pendingNav = true; return; }
   var now = Date.now();
   if (routeInFlight || now - lastRoutedAt < 6000) return;
   routeInFlight = true;
   lastRoutedAt = now;
   var seq = ++navRequestSeq;
   var url = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic/'
-    + lastRiderPoint[0] + ',' + lastRiderPoint[1] + ';' + destination[0] + ',' + destination[1]
+    + from[0] + ',' + from[1] + ';' + destination[0] + ',' + destination[1]
     + '?geometries=geojson&overview=full&steps=true&access_token=' + mapboxgl.accessToken;
   fetch(url).then(function (r) { return r.json(); }).then(function (json) {
     if (seq !== navRequestSeq) { routeInFlight = false; return; }
@@ -550,7 +572,7 @@ function requestRoute() {
       routeEtaSeconds = 0;
       routeEtaMeters = 0;
       updateEtaChip(null);
-      if (fullCoords.length < 2) { fullCoords = [lastRiderPoint, destination]; steps = []; ensureRouteLayers(); }
+      if (fullCoords.length < 2) { fullCoords = [from, destination]; steps = []; ensureRouteLayers(); }
       return;
     }
     var route = json.routes[0];
@@ -573,14 +595,14 @@ function requestRoute() {
     }
     ensureRouteLayers();
     updateEtaChip(null);
-    if (navActive) fitNav(lastRiderPoint, destination);
-    else fitOverview(lastRiderPoint, destination);
+    if (navActive) fitNav(from, destination);
+    else fitOverview(from, destination);
   }).catch(function () {
     routeInFlight = false;
     routeEtaSeconds = 0;
     routeEtaMeters = 0;
     updateEtaChip(null);
-    if (fullCoords.length < 2) { fullCoords = [lastRiderPoint, destination]; ensureRouteLayers(); }
+    if (fullCoords.length < 2) { fullCoords = [from, destination]; ensureRouteLayers(); }
   });
 }
 
@@ -641,14 +663,15 @@ window.setRiderLocation = function (lat, lng) {
 
 window.setNavigationMode = function (on) {
   navActive = !!on;
-  if (!mapLoaded || !map.isStyleLoaded() || !lastRiderPoint) return;
+  var from = routeOrigin();
+  if (!mapLoaded || !map.isStyleLoaded() || !from) return;
   if (navActive) {
-    fitNav(lastRiderPoint, destination);
+    fitNav(from, destination);
     if (fullCoords.length) renderRouteProgress();
     requestRoute();
   } else {
     try { map.easeTo({ pitch: 0, bearing: 0, duration: 600 }); } catch (e) {}
-    fitOverview(lastRiderPoint, destination);
+    fitOverview(from, destination);
     requestRoute();
   }
 };
@@ -662,9 +685,11 @@ window.clearRiderLocation = function () {
   pendingPoint = null;
   lastRiderPoint = null;
   pendingNav = false;
-  // Keep the stops-chain preview alive: the line towards the customers should
-  // not vanish just because the GPS fix was withdrawn.
+  // Keep the route alive on the store fallback origin: the line towards the
+  // customer must not vanish just because the GPS fix was withdrawn.
   renderPreviewLine();
+  lastRoutedAt = 0;
+  requestRoute();
 };
 
 window.setRiderMapStyle = function (id) {
@@ -712,7 +737,10 @@ function flushPending() {
     // so the blue line towards the customers is there from the first frame.
     renderPreviewLine();
     if (pendingPoint) { applyRider(pendingPoint); pendingPoint = null; }
-    if (pendingNav) { pendingNav = false; requestRoute(); }
+    // Fetch the road route (and ETA chip) from the rider fix or the store
+    // fallback origin — not only after the first GPS tick.
+    if (pendingNav) { pendingNav = false; }
+    requestRoute();
     return true;
   }
   return false;
