@@ -472,6 +472,15 @@ function ensureRouteLayers() {
   if (!mapLoaded || fullCoords.length < 2) { pendingNav = true; return; }
   if (!routeSourceAdded) {
     try {
+      // A layer can fail to attach after the source is created (style
+      // transition mid-install), leaving the source behind while this flag
+      // stays false. Re-adding it would throw; drop the partial install and
+      // retry from a clean source instead.
+      if (map.getSource(ROUTE_SOURCE)) {
+        if (map.getLayer(ROUTE_LINE)) map.removeLayer(ROUTE_LINE);
+        if (map.getLayer(ROUTE_CASING)) map.removeLayer(ROUTE_CASING);
+        map.removeSource(ROUTE_SOURCE);
+      }
       map.addSource(ROUTE_SOURCE, { type: 'geojson', data: routeGeoJSON(fullCoords, false) });
       map.addLayer({ id: ROUTE_CASING, type: 'line', source: ROUTE_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0b2f7a', 'line-width': 13, 'line-opacity': 0.55 } });
       map.addLayer({ id: ROUTE_LINE, type: 'line', source: ROUTE_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 8, 'line-opacity': 0.95 } });
@@ -522,6 +531,12 @@ function renderPreviewLine() {
   if (coords.length < 2) { coords = []; }
   if (!previewSourceAdded) {
     try {
+      // Same partial-install recovery as ensureRouteLayers: a source can exist
+      // while its layer never attached, so clear the leftover before retrying.
+      if (map.getSource(PREVIEW_SOURCE)) {
+        if (map.getLayer(PREVIEW_LINE)) map.removeLayer(PREVIEW_LINE);
+        map.removeSource(PREVIEW_SOURCE);
+      }
       map.addSource(PREVIEW_SOURCE, { type: 'geojson', data: routeGeoJSON(coords, false) });
       map.addLayer({ id: PREVIEW_LINE, type: 'line', source: PREVIEW_SOURCE, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2563eb', 'line-width': 5, 'line-opacity': 0.55, 'line-dasharray': [1.4, 1.4] } });
       previewSourceAdded = true;
