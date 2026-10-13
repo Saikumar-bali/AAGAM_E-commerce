@@ -464,7 +464,7 @@ function routeGeoJSON(coords, complete) {
 }
 
 function ensureRouteLayers() {
-  if (!mapLoaded || !map.isStyleLoaded() || fullCoords.length < 2) { pendingNav = true; return; }
+  if (!mapLoaded || fullCoords.length < 2) { pendingNav = true; return; }
   if (!routeSourceAdded) {
     try {
       map.addSource(ROUTE_SOURCE, { type: 'geojson', data: routeGeoJSON(fullCoords, false) });
@@ -512,7 +512,7 @@ function previewCoords() {
 }
 
 function renderPreviewLine() {
-  if (!mapLoaded || !map.isStyleLoaded()) return;
+  if (!mapLoaded) return;
   var coords = previewCoords();
   if (coords.length < 2) { coords = []; }
   if (!previewSourceAdded) {
@@ -556,7 +556,7 @@ function updateBanner(splitOverride) {
 
 function requestRoute() {
   var from = routeOrigin();
-  if (!from || !mapLoaded || !map.isStyleLoaded()) { pendingNav = true; return; }
+  if (!from || !mapLoaded) { pendingNav = true; return; }
   var now = Date.now();
   if (routeInFlight || now - lastRoutedAt < 6000) return;
   routeInFlight = true;
@@ -645,26 +645,27 @@ function applyRider(point) {
 }
 
 function removeRoute() {
-  if (!map.isStyleLoaded()) return;
-  if (map.getLayer(ROUTE_LINE)) map.removeLayer(ROUTE_LINE);
-  if (map.getLayer(ROUTE_CASING)) map.removeLayer(ROUTE_CASING);
-  if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
-  routeSourceAdded = false;
-  if (map.getLayer(PREVIEW_LINE)) map.removeLayer(PREVIEW_LINE);
-  if (map.getSource(PREVIEW_SOURCE)) map.removeSource(PREVIEW_SOURCE);
-  previewSourceAdded = false;
+  try {
+    if (map.getLayer(ROUTE_LINE)) map.removeLayer(ROUTE_LINE);
+    if (map.getLayer(ROUTE_CASING)) map.removeLayer(ROUTE_CASING);
+    if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
+    routeSourceAdded = false;
+    if (map.getLayer(PREVIEW_LINE)) map.removeLayer(PREVIEW_LINE);
+    if (map.getSource(PREVIEW_SOURCE)) map.removeSource(PREVIEW_SOURCE);
+    previewSourceAdded = false;
+  } catch (e) {}
 }
 
 window.setRiderLocation = function (lat, lng) {
   var point = [lng, lat];
-  if (!mapLoaded || !map.isStyleLoaded()) { pendingPoint = point; return; }
+  if (!mapLoaded) { pendingPoint = point; return; }
   applyRider(point);
 };
 
 window.setNavigationMode = function (on) {
   navActive = !!on;
   var from = routeOrigin();
-  if (!mapLoaded || !map.isStyleLoaded() || !from) return;
+  if (!mapLoaded || !from) return;
   if (navActive) {
     fitNav(from, destination);
     if (fullCoords.length) renderRouteProgress();
@@ -728,31 +729,36 @@ map.on('style.load', function () {
   if (navActive && lastRiderPoint) fitNav(lastRiderPoint, destination);
 });
 
-function flushPending() {
-  if (mapLoaded) return true;
-  if (map.getStyle() && map.isStyleLoaded()) {
-    mapLoaded = true;
-    map.resize();
-    // The route-ahead line needs no GPS: draw it as soon as the style is ready
-    // so the blue line towards the customers is there from the first frame.
-    renderPreviewLine();
-    if (pendingPoint) { applyRider(pendingPoint); pendingPoint = null; }
-    // Fetch the road route (and ETA chip) from the rider fix or the store
-    // fallback origin — not only after the first GPS tick.
-    if (pendingNav) { pendingNav = false; }
-    requestRoute();
-    return true;
-  }
-  return false;
+function markReady() {
+  if (mapLoaded) return;
+  mapLoaded = true;
+  map.resize();
+  // The route-ahead line needs no GPS: draw it as soon as the map is usable
+  // so the blue line towards the customers is there from the first frame.
+  renderPreviewLine();
+  if (pendingPoint) { applyRider(pendingPoint); pendingPoint = null; }
+  // Fetch the road route (and ETA chip) from the rider fix or the store
+  // fallback origin — not only after the first GPS tick.
+  if (pendingNav) { pendingNav = false; }
+  requestRoute();
 }
 
-map.on('load', flushPending);
+// Satellite-streets (and other composite styles) can paint tiles and markers
+// fine while the style-loaded flag never flips to true — a known Mapbox GL
+// quirk often tied to the language option or a slow glyph/sprite fetch. The
+// old code gated the entire route + preview + ETA chain on that flag, so the
+// blue line silently never drew. Trust the load/idle events instead, and
+// force-ready after a bounded poll as a last resort.
+map.on('load', markReady);
+map.on('idle', markReady);
 
-// Safety net for slow mobile connections where the load event may be delayed:
-// keep flushing until the style is ready (bounded so we never spin forever).
+// Safety net: some WebViews never fire load/idle reliably. After ~10s of
+// polling, flip ready anyway — by then the style is certainly loaded even if
+// the events were missed (addSource/addLayer below are try/catch-guarded).
 var flushTries = 0;
 var flushTimer = setInterval(function () {
-  if (flushPending() || ++flushTries > 40) clearInterval(flushTimer);
-}, 500);
+  if (!mapLoaded && ++flushTries > 25) markReady();
+  if (mapLoaded) clearInterval(flushTimer);
+}, 400);
 </script></body></html>`;
 };
