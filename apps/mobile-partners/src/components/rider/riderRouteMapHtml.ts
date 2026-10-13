@@ -175,7 +175,12 @@ var currentStyle = '${initialStyle}';
 var destination = [${destination.longitude}, ${destination.latitude}];
 var fallbackOrigin = ${JSON.stringify(fallbackOrigin)};
 var destLabel = ${safeLabelJson};
-var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], center: destination, zoom: 15, attributionControl: true, language: 'en' });
+// NB: no language option here. In Mapbox GL v3 it rewrites satellite-streets
+// through an internal style transform that can leave the style permanently
+// mid-load: raster tiles and DOM markers still paint, but custom WebGL layers
+// (the blue route line) never enter the render pipeline — and isStyleLoaded()
+// never flips. Labels default to English anyway, so the option bought nothing.
+var map = new mapboxgl.Map({ container: 'map', style: STYLES[currentStyle], center: destination, zoom: 15, attributionControl: true });
 
 var ROUTE_SOURCE = 'rider-route';
 var ROUTE_CASING = 'rider-route-casing';
@@ -760,5 +765,25 @@ var flushTimer = setInterval(function () {
   if (!mapLoaded && ++flushTries > 25) markReady();
   if (mapLoaded) clearInterval(flushTimer);
 }, 400);
+
+// Healing pass: a style transition (initial transform, toggle, any late
+// style.load) can drop the custom route/preview layers while mapLoaded stays
+// true — the rider dot (DOM) survives, the blue line (WebGL) silently vanishes.
+// Re-add the layers whenever they go missing, so the line always comes back.
+var healTries = 0;
+var healTimer = setInterval(function () {
+  if (!mapLoaded) return;
+  if (++healTries > 40) { clearInterval(healTimer); return; }
+  try {
+    if (fullCoords.length >= 2 && !map.getLayer(ROUTE_LINE)) {
+      routeSourceAdded = false;
+      ensureRouteLayers();
+    }
+    if (!map.getLayer(PREVIEW_LINE)) {
+      previewSourceAdded = false;
+      renderPreviewLine();
+    }
+  } catch (e) {}
+}, 500);
 </script></body></html>`;
 };
