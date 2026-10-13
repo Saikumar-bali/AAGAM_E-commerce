@@ -133,6 +133,9 @@ export type DeliveryRunStop = {
       trustedDropInstructions?: string | null;
       itemsSnapshot?: Record<string, unknown> | null;
       plan?: { name?: string | null } | null;
+      /** Reconciled ledger figures (the raw ledger can be short of day-cell cash). */
+      amountCollectedPaise?: number;
+      amountDuePaise?: number;
     };
   };
 };

@@ -64,6 +64,23 @@ describe('COD subscription delivery runs production contract', () => {
     expect(operations).toContain('Prisma.TransactionIsolationLevel.Serializable');
   });
 
+  it('serves riders a reconciled outstanding due, not the raw day cell', () => {
+    // The rider details endpoint must reconcile like the store planning path:
+    // a day cell can read ₹0 while the plan still owes (ledger drift / a skipped
+    // funding day), and a rider reading stop.cashDuePaise alone tells the
+    // customer "Prepaid" while ₹899 is outstanding (live 2026-10 bug). The
+    // day-cell columns stay untouched for complete()/recordPayment, which keep
+    // enforcing their own per-day caps.
+    const operations = api('subscriptions/delivery-run-operations.service.ts');
+    expect(operations).toContain('reconcileSubscriptionBalance');
+    expect(operations).toContain('outstandingDuePaise');
+    expect(operations).toContain('amountCollectedPaise: true');
+    expect(operations).toContain('amountDuePaise: true');
+    expect(operations).toContain('Collect exactly ${stop.cashDuePaise} paise for this funding cycle');
+    expect(operations).toContain('This subscription has no outstanding due balance to collect');
+    expect(operations).toContain("cannot exceed this delivery's outstanding due");
+  });
+
   it('forbids bulk delivery completion and uses server-owned stop state transitions', () => {
     const controller = api('subscriptions/subscriptions.controller.ts');
     const operations = api('subscriptions/delivery-run-operations.service.ts');

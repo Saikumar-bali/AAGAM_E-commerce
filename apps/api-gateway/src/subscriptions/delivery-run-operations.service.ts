@@ -36,7 +36,7 @@ import {
   UndoRunStopDto,
 } from './subscriptions.dto';
 import { SubscriptionCashFundingService } from './subscription-cash-funding.service';
-import { computeVoidAdjustment } from './subscription-balances';
+import { computeVoidAdjustment, reconcileSubscriptionBalance } from './subscription-balances';
 import { startOfUtcDay } from './subscription-calendar.service';
 import { isOneOf } from '../common/enum-membership';
 import { TrustedDropService } from './trusted-drop.service';
@@ -81,6 +81,8 @@ export class DeliveryRunOperationsService {
                     deliveryMethod: true,
                     trustedDropInstructions: true,
                     itemsSnapshot: true,
+                    amountCollectedPaise: true,
+                    amountDuePaise: true,
                     plan: { select: { name: true } },
                   },
                 },
@@ -111,7 +113,69 @@ export class DeliveryRunOperationsService {
 
   async details(runId: string, actor: Actor) {
     const { run } = await this.ownedRun(runId, actor);
-    return run;
+
+    // "Cash due" is a due reader, so it reconciles the same way the store
+    // planning path does (delivery-run-planning.service.ts): the ledger can be
+    // short of the cash already evidenced on day cells, and a skipped funding
+    // day strands the ledger due with no cell to ride on. Absorb the day-cell
+    // evidence, then expose the reconciled outstanding per stop (first stop of
+    // the subscription only, so a subscription's debt is never counted twice)
+    // and per run. The DB columns stay untouched for complete()/recordPayment
+    // math, which enforce their own per-day caps against stop.cashDuePaise.
+    const subscriptionIds = Array.from(new Set(
+      run.stops
+        .map((stop) => stop.subscriptionDelivery?.subscription?.id)
+        .filter((id): id is string => Boolean(id)),
+    ));
+    const cashCells = subscriptionIds.length
+      ? await prisma.subscriptionDelivery.findMany({
+          where: { subscriptionId: { in: subscriptionIds } },
+          select: { subscriptionId: true, cashCollectedPaise: true },
+        })
+      : [];
+    const cellsBySubscription = new Map<string, { cashCollectedPaise: number | null }[]>();
+    for (const cell of cashCells) {
+      const list = cellsBySubscription.get(cell.subscriptionId) || [];
+      list.push({ cashCollectedPaise: cell.cashCollectedPaise });
+      cellsBySubscription.set(cell.subscriptionId, list);
+    }
+    const reconciledBySubscription = new Map<string, { amountCollectedPaise: number; amountDuePaise: number }>();
+    for (const stop of run.stops) {
+      const subscription = stop.subscriptionDelivery?.subscription;
+      if (subscription && !reconciledBySubscription.has(subscription.id)) {
+        const reconciled = reconcileSubscriptionBalance(subscription, cellsBySubscription.get(subscription.id) ?? []);
+        reconciledBySubscription.set(subscription.id, {
+          amountCollectedPaise: reconciled.amountCollectedPaise,
+          amountDuePaise: reconciled.amountDuePaise,
+        });
+      }
+    }
+    const dueAttributed = new Set<string>();
+    let runOutstandingDuePaise = 0;
+    const stops = run.stops.map((stop) => {
+      const subscription = stop.subscriptionDelivery?.subscription;
+      const reconciled = subscription ? reconciledBySubscription.get(subscription.id) : undefined;
+      const outstandingDuePaise = subscription && !dueAttributed.has(subscription.id)
+        ? reconciled?.amountDuePaise ?? 0
+        : 0;
+      if (subscription) dueAttributed.add(subscription.id);
+      runOutstandingDuePaise += outstandingDuePaise;
+      return {
+        ...stop,
+        outstandingDuePaise,
+        subscriptionDelivery: stop.subscriptionDelivery && reconciled
+          ? {
+              ...stop.subscriptionDelivery,
+              subscription: {
+                ...stop.subscriptionDelivery.subscription,
+                amountCollectedPaise: reconciled.amountCollectedPaise,
+                amountDuePaise: reconciled.amountDuePaise,
+              },
+            }
+          : stop.subscriptionDelivery,
+      };
+    });
+    return { ...run, stops, outstandingDuePaise: runOutstandingDuePaise };
   }
 
   async confirmPickupReceipt(runId: string, dto: ConfirmRunPickupReceiptDto, actor: Actor) {

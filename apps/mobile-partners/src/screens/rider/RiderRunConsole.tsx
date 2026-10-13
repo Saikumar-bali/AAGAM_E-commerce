@@ -29,7 +29,6 @@ import {
   RotateCcw,
   Route,
   SkipForward,
-  Users,
   X,
   Plus,
 } from 'lucide-react-native';
@@ -132,6 +131,19 @@ function outstandingPaise(stop: DeliveryRunStop) {
 
 function collectedPaise(stop: DeliveryRunStop) {
   return Math.max(0, Number(stop.subscriptionDelivery?.cashCollectedPaise || 0));
+}
+
+// Reconciled subscription-level due carried on the stop by the rider details
+// endpoint (delivery-run-operations.service.ts reconciles the ledger against
+// every day cell, like the store planning path). Zero means "this stop carries
+// no attributed subscription due" — either the subscription is funded or the
+// debt sits on the subscription's first stop of the run.
+function reconciledDuePaise(stop: DeliveryRunStop) {
+  return Math.max(0, Number(stop.outstandingDuePaise || 0));
+}
+
+function reconciledCollectedPaise(stop: DeliveryRunStop) {
+  return Math.max(0, Number(stop.subscriptionDelivery?.subscription?.amountCollectedPaise || 0));
 }
 
 // The server stamps add-on milk into the delivery's deferredReason marker:
@@ -323,7 +335,7 @@ export const RiderRunConsole = ({
       plan: planLabel(stop),
       status: stop.status,
       multiSub,
-      cashDuePaise: stop.cashDuePaise,
+      cashDuePaise: Number(stop.outstandingDuePaise || stop.cashDuePaise || 0),
       cashPaidPaise: collectedPaise(stop),
       extraCount: extraCountFor(stop),
       skipped: stop.status === 'CANCELLED',
@@ -334,21 +346,28 @@ export const RiderRunConsole = ({
   }), [stops, focusedStop?.id, duplicateKeys]);
 
   const mapDestination = focusedStop ? stopCoordinates(focusedStop) : null;
-  const remaining = stops.filter((stop) => ACTIVE_STATUSES.includes(stop.status)).length;
-  const progress = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
-  const cashHeld = Math.max(0, Number(run.collectedCashPaise || 0) - Number(run.depositedCashPaise || 0));
-  const cashTarget = useMemo(
-    () => stops.reduce((sum, stop) => sum + Number(stop.cashDuePaise || 0), 0),
-    [stops],
-  );
   const focusTone = focusedStop ? statusTone(focusedStop.status) : statusTone('READY');
   // Deliver is only offered once the run is actually underway; before that the
   // rider confirms handoff/pickup in the lifecycle block instead.
   const runStarted = run.status === 'IN_PROGRESS' || run.status === 'AWAITING_SETTLEMENT' || run.status === 'COMPLETED';
   const focusActionable = Boolean(runStarted && focusedStop && ACTIVE_STATUSES.includes(focusedStop.status));
   const focusDelivered = Boolean(focusedStop && DONE_STATUSES.includes(focusedStop.status));
-  const focusOutstanding = focusedStop ? outstandingPaise(focusedStop) : 0;
+  // Two money figures drive this sheet. The day cell (cashDuePaise - collected)
+  // is what complete() will accept: the server requires the exact day figure and
+  // rejects cash when the cell is zero. The reconciled subscription due
+  // (outstandingDuePaise on the stop) is what the rider can actually collect at
+  // the door via record-payment when the day cell is already settled but the
+  // plan still owes — the ledger can be short of day-cell cash, so a "Prepaid"
+  // day can sit on an unpaid subscription (the 2026-10 live ₹899 bug). Caps
+  // follow the server: recordPayment caps per-day only when the cell itself
+  // still owes, else the subscription due is the floor.
+  const focusDayOutstanding = focusedStop ? outstandingPaise(focusedStop) : 0;
+  const focusOutstanding = focusedStop
+    ? (focusDayOutstanding > 0 ? focusDayOutstanding : reconciledDuePaise(focusedStop))
+    : 0;
   const focusCollected = focusedStop ? collectedPaise(focusedStop) : 0;
+  const focusSubCollected = focusedStop ? reconciledCollectedPaise(focusedStop) : 0;
+  const focusShownCollected = focusCollected > 0 ? focusCollected : focusSubCollected;
   const focusExtra = focusedStop ? extraCountFor(focusedStop) : 0;
   const focusSkipped = focusedStop?.status === 'CANCELLED';
   // The server refuses to undo a COD-funded stop (its cash/entitlement
@@ -579,7 +598,8 @@ export const RiderRunConsole = ({
         />
       </View>
 
-      {/* Top glass chrome: identity, progress, and live route stats. */}
+      {/* Top glass chrome: identity and stop progress — the map keeps the
+          space the old progress bar and stats row used to take. */}
       <View style={[styles.topStack, { paddingTop: Math.max(insets.top, 12) + 4 }]} pointerEvents="box-none">
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
@@ -587,26 +607,12 @@ export const RiderRunConsole = ({
               <ArrowLeft size={20} color="#0B1B3A" />
             </TouchableOpacity>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow} numberOfLines={1}>ROUTE {run.routeCode}</Text>
+              <Text style={styles.eyebrow} numberOfLines={1}>{completed} of {total} stops</Text>
               <Text style={styles.headerTitle} numberOfLines={1}>{run.store.name}</Text>
             </View>
             <View style={[styles.statusChip, { backgroundColor: focusTone.bg }]}>
               <Text style={[styles.statusChipText, { color: focusTone.text }]} numberOfLines={1}>{label(run.status)}</Text>
             </View>
-          </View>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressText}>{completed} of {total} stops</Text>
-            <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
-            <Text style={styles.progressPct}>{progress}%</Text>
-          </View>
-          <View style={styles.statRow}>
-            <View style={styles.stat}><MapPin size={13} color="#0F766E" /><Text style={styles.statValue}>{remaining}</Text><Text style={styles.statLabel}>left</Text></View>
-            <View style={styles.statDot} />
-            <View style={styles.stat}><Banknote size={13} color="#A15C00" /><Text style={styles.statValue}>{money(cashHeld)}</Text><Text style={styles.statLabel}>held</Text></View>
-            <View style={styles.statDot} />
-            <View style={styles.stat}><Milk size={13} color="#1D4ED8" /><Text style={styles.statValue}>{money(cashTarget)}</Text><Text style={styles.statLabel}>target</Text></View>
-            <View style={styles.statDot} />
-            <View style={styles.stat}><Users size={13} color="#155E75" /><Text style={styles.statValue}>{mapStops.length}</Text><Text style={styles.statLabel}>pinned</Text></View>
           </View>
           {headerChips}
         </View>
@@ -630,7 +636,7 @@ export const RiderRunConsole = ({
             const isFocused = focusedStop?.id === stop.id;
             const multiSub = duplicateKeys.has(riderStopCustomerKey(stop));
             const paid = collectedPaise(stop);
-            const due = Number(stop.cashDuePaise || 0);
+            const due = Number(stop.outstandingDuePaise || stop.cashDuePaise || 0);
             const part = paid > 0 && paid < due;
             const extra = extraCountFor(stop) > 0;
             return (
@@ -705,18 +711,18 @@ export const RiderRunConsole = ({
             <View style={styles.signalRow}>
               {focusDelivered ? <View style={[styles.signal, styles.signalDone]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalDoneText}>Delivered</Text></View> : null}
               {focusSkipped ? <View style={[styles.signal, styles.signalSkip]}><SkipForward size={12} color="#475569" /><Text style={styles.signalSkipText}>Skipped</Text></View> : null}
-              {focusCollected > 0 ? (
+              {focusShownCollected > 0 ? (
                 <View style={[styles.signal, focusOutstanding > 0 ? styles.signalPartial : styles.signalPaid]}>
                   <Banknote size={12} color={focusOutstanding > 0 ? '#8A4B00' : '#065F46'} />
                   <Text style={focusOutstanding > 0 ? styles.signalPartialText : styles.signalPaidText}>
-                    {money(focusCollected)} {focusOutstanding > 0 ? 'part-paid' : 'paid'}
+                    {money(focusShownCollected)} {focusOutstanding > 0 ? 'part-paid' : 'paid'}
                   </Text>
                 </View>
               ) : null}
               {focusExtra > 0 ? <View style={[styles.signal, styles.signalExtra]}><Milk size={12} color="#1D4ED8" /><Text style={styles.signalExtraText}>+{focusExtra}L extra</Text></View> : null}
-              {focusActionable && focusCollected === 0 ? (
-                Number(focusedStop.cashDuePaise || 0) > 0
-                  ? <View style={[styles.signal, styles.signalDue]}><Banknote size={12} color="#8A4B00" /><Text style={styles.signalPartialText}>{money(focusedStop.cashDuePaise)} due</Text></View>
+              {focusActionable && focusShownCollected === 0 ? (
+                focusOutstanding > 0
+                  ? <View style={[styles.signal, styles.signalDue]}><Banknote size={12} color="#8A4B00" /><Text style={styles.signalPartialText}>{money(focusOutstanding)} due</Text></View>
                   : <View style={[styles.signal, styles.signalPaid]}><CheckCircle2 size={12} color="#065F46" /><Text style={styles.signalPaidText}>Prepaid</Text></View>
               ) : null}
               {focusActionable ? <View style={[styles.signal, styles.signalMeta]}><Layers size={12} color="#475569" /><Text style={styles.signalMetaText}>{proofQuickLabel(focusedStop)}</Text></View> : null}
@@ -985,7 +991,7 @@ export const RiderRunConsole = ({
                 {busy === 'arrive' ? <ActivityIndicator color="#FFFFFF" /> : (
                   <>
                     <Text style={styles.actionPrimaryText}>
-                      {!focusActionable ? 'Not deliverable yet' : focusOutstanding > 0 ? `Deliver · collect ${money(focusOutstanding)}` : 'Deliver'}
+                      {!focusActionable ? 'Not deliverable yet' : focusDayOutstanding > 0 ? `Deliver · collect ${money(focusDayOutstanding)}` : 'Deliver'}
                     </Text>
                     <ChevronRight size={18} color="#FFFFFF" />
                   </>
@@ -1092,16 +1098,6 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#0B1B3A', fontSize: 16, fontWeight: '700', marginTop: 1 },
   statusChip: { borderRadius: 11, paddingHorizontal: 9, paddingVertical: 5, maxWidth: 108 },
   statusChipText: { fontSize: 9, fontWeight: '700', textAlign: 'center' },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 11 },
-  progressText: { color: '#334155', fontSize: 11, fontWeight: '600' },
-  progressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#E4EBE8', overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3, backgroundColor: '#10A36F' },
-  progressPct: { color: '#0F766E', fontSize: 11, fontWeight: '700' },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statValue: { color: '#0B1B3A', fontSize: 12, fontWeight: '700' },
-  statLabel: { color: '#7A8580', fontSize: 10, fontWeight: '500' },
-  statDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#C7D2CE' },
   startButton: {
     marginTop: 10,
     minHeight: 48,
