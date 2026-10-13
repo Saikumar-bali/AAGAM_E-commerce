@@ -22,6 +22,21 @@ describe('rider map console operations', () => {
     expect(service).toContain("paymentMode?: 'CASH' | 'PHONE_PE'");
   });
 
+  it('reads the reconciled subscription due, not the raw day cell', () => {
+    // A day cell can read ₹0 while the plan still owes (ledger drift / a skipped
+    // funding day); the console must show the server-reconciled due
+    // (outstandingDuePaise on the stop) and only call a stop Prepaid when that
+    // collectable figure is zero. The cash pad caps at it (recordPayment's
+    // server contract: per-day cap only when the cell itself still owes, else
+    // the subscription due is the floor), while complete() keeps sending the
+    // exact day figure the server demands.
+    expect(console).toContain('reconciledDuePaise');
+    expect(console).toContain('focusDayOutstanding > 0 ? focusDayOutstanding : reconciledDuePaise(focusedStop)');
+    expect(console).toContain('stop.outstandingDuePaise || stop.cashDuePaise || 0');
+    expect(console).toContain('cashCollectedPaise: outstanding > 0 ? outstanding : undefined');
+    expect(console).toContain('focusDayOutstanding > 0 ? `Deliver · collect ${money(focusDayOutstanding)}` : \'Deliver\'');
+  });
+
   it('attaches extra milk with an idempotency key', () => {
     expect(console).toContain('addExtraMilk(run.id, stop.id');
     expect(console).toContain('console-extra-');
@@ -152,5 +167,17 @@ describe('rider map stop signals', () => {
     expect(html).toContain('extra-milk');
     // The stop-tap message contract the RN layer reads must survive.
     expect(html).toContain("type: 'stop-tap'");
+  });
+
+  it('shows a Google-Maps-style ETA chip whenever a road route is loaded', () => {
+    const html = buildRiderMapHtml({ latitude: 17.69, longitude: 83.0 }, 'Store', null, {
+      stops: [{ latitude: 17.691, longitude: 83.001, sequence: 1, id: 'a', label: 'A', status: 'READY', state: 'current' }],
+    });
+    expect(html).toContain('id="map-eta"');
+    expect(html).toContain('updateEtaChip');
+    // The directions duration/distance were fetched but never surfaced before;
+    // the chip scales them by the remaining route ratio.
+    expect(html).toContain('Number(route.duration)');
+    expect(html).toContain('Number(route.distance)');
   });
 });

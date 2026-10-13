@@ -94,6 +94,10 @@ html,body,#map{height:100%;margin:0;background:#e8f3ef}
 .map-style-toggle:active{transform:scale(.96)}
 .map-nav-banner{position:absolute;top:50px;left:10px;right:10px;z-index:6;display:none;align-items:center;gap:12px;padding:10px 14px;border-radius:16px;background:#0b1b3a;color:#fff;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 6px 18px rgba(2,6,23,.38)}
 .map-nav-banner.show{display:flex}
+/* Google-Maps-style ETA chip: lives top-left (style toggle is top-right) and
+   shows remaining time + distance for the road route whenever one is loaded. */
+.map-eta{position:absolute;top:10px;left:10px;z-index:6;display:none;align-items:center;padding:8px 13px;border-radius:999px;background:#0b1b3a;color:#fff;font:700 13px/1 system-ui,-apple-system,sans-serif;letter-spacing:.2px;box-shadow:0 4px 14px rgba(2,6,23,.34)}
+.map-eta.show{display:flex}
 .map-nav-arrow{flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(255,255,255,.14);font-size:18px}
 .map-nav-copy{flex:1;min-width:0}
 .map-nav-instruction{font:600 14px/1.2 system-ui,-apple-system,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -141,6 +145,7 @@ html,body,#map{height:100%;margin:0;background:#e8f3ef}
 </style>
 </head><body><div id="map"></div>
 <div class="map-progress" id="map-progress" style="display:none"><div class="bar"><i id="map-progress-fill" style="width:0%"></i></div><span id="map-progress-text"></span></div>
+<div class="map-eta" id="map-eta"></div>
 <div class="map-legend" id="map-legend">
   <div class="legend-title">STOP KEY</div>
   <div class="legend-row"><span class="legend-dot pending"></span>To deliver</div>
@@ -190,6 +195,8 @@ var routeInFlight = false;
 var lastRoutedAt = 0;
 var navRequestSeq = 0;
 var navActive = false;
+var routeEtaSeconds = 0;
+var routeEtaMeters = 0;
 
 var destEl = document.createElement('div');
 destEl.className = 'dest-pin';
@@ -388,6 +395,27 @@ function formatDistance(meters) {
   return Math.max(0, Math.round(meters)) + ' m';
 }
 
+function formatEta(seconds) {
+  var mins = Math.max(1, Math.round(seconds / 60));
+  if (mins >= 60) return Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min';
+  return mins + ' min';
+}
+
+// Remaining time + distance chip: scales the live directions duration/distance
+// by how much of the route is still ahead of the rider. Hidden until a road
+// route exists (a straight-line preview has no trustworthy duration).
+function updateEtaChip(splitOverride) {
+  var chip = document.getElementById('map-eta');
+  if (!chip) return;
+  if (!routeEtaSeconds || !fullCoords.length) { chip.classList.remove('show'); chip.textContent = ''; return; }
+  var split = splitOverride || splitAtRider(lastRiderPoint);
+  var totalMeters = stepsTotalMeters() || routeEtaMeters || routeLength(fullCoords);
+  var aheadMeters = routeLength(split.alive.length >= 2 ? split.alive : fullCoords);
+  var ratio = totalMeters > 0 ? Math.max(0, Math.min(1, aheadMeters / totalMeters)) : 1;
+  chip.textContent = '≈ ' + formatEta(routeEtaSeconds * ratio) + ' · ' + formatDistance(totalMeters * ratio);
+  chip.classList.add('show');
+}
+
 function stepsTotalMeters() {
   var t = 0;
   for (var i = 0; i < steps.length; i++) t += steps[i].distanceMeters || 0;
@@ -437,6 +465,7 @@ function renderRouteProgress() {
   var drawn = split.alive.length >= 2 ? split.alive : fullCoords;
   source.setData(routeGeoJSON(drawn, false));
   updateBanner(split);
+  updateEtaChip(split);
 }
 
 // Upcoming stops in route order (done/skipped ones drop out), prefixed with the
@@ -518,11 +547,16 @@ function requestRoute() {
     if (seq !== navRequestSeq) { routeInFlight = false; return; }
     routeInFlight = false;
     if (!json || json.code !== 'Ok' || !json.routes || !json.routes.length) {
+      routeEtaSeconds = 0;
+      routeEtaMeters = 0;
+      updateEtaChip(null);
       if (fullCoords.length < 2) { fullCoords = [lastRiderPoint, destination]; steps = []; ensureRouteLayers(); }
       return;
     }
     var route = json.routes[0];
     fullCoords = route.geometry.coordinates;
+    routeEtaSeconds = Number(route.duration) || 0;
+    routeEtaMeters = Number(route.distance) || routeLength(fullCoords);
     steps = [];
     var legs = route.legs || [];
     for (var i = 0; i < legs.length; i++) {
@@ -538,10 +572,14 @@ function requestRoute() {
       }
     }
     ensureRouteLayers();
+    updateEtaChip(null);
     if (navActive) fitNav(lastRiderPoint, destination);
     else fitOverview(lastRiderPoint, destination);
   }).catch(function () {
     routeInFlight = false;
+    routeEtaSeconds = 0;
+    routeEtaMeters = 0;
+    updateEtaChip(null);
     if (fullCoords.length < 2) { fullCoords = [lastRiderPoint, destination]; ensureRouteLayers(); }
   });
 }
