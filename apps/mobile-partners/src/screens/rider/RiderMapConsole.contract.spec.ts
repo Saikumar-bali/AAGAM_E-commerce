@@ -172,6 +172,7 @@ describe('rider map stop signals', () => {
   it('shows a Google-Maps-style ETA chip whenever a road route is loaded', () => {
     const html = buildRiderMapHtml({ latitude: 17.69, longitude: 83.0 }, 'Store', null, {
       stops: [{ latitude: 17.691, longitude: 83.001, sequence: 1, id: 'a', label: 'A', status: 'READY', state: 'current' }],
+      fallbackOrigin: { latitude: 17.68, longitude: 82.99 },
     });
     expect(html).toContain('id="map-eta"');
     expect(html).toContain('updateEtaChip');
@@ -179,5 +180,14 @@ describe('rider map stop signals', () => {
     // the chip scales them by the remaining route ratio.
     expect(html).toContain('Number(route.duration)');
     expect(html).toContain('Number(route.distance)');
+    // The console passes the run's store as the route origin, so the blue line
+    // + ETA render even before the first GPS tick (single-stop runs used to
+    // show no line at all without a rider fix).
+    expect(html).toContain('var fallbackOrigin = [82.99,17.68]');
+    expect(html).toContain('function routeOrigin()');
+    const consoleSource = read('RiderRunConsole.tsx');
+    expect(consoleSource).toContain('fallbackOrigin={Number.isFinite(run.store?.latitude)');
+    // Navigation mode must accept the fallback origin too, not only a GPS fix.
+    expect(html).toContain('var from = routeOrigin();');
   });
 });

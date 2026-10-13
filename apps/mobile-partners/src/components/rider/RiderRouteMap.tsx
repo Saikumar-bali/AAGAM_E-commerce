@@ -16,6 +16,11 @@ export type RiderRouteMapProps = {
   destinationLabel: string;
   active?: boolean;
   riderLocation?: Coordinate | null;
+  /**
+   * Store (or depot) coordinates used as the route origin until a live GPS fix
+   * arrives, so the blue line + ETA chip render even before the first tick.
+   */
+  fallbackOrigin?: Coordinate | null;
   expanded?: boolean;
   stops?: RiderMapStop[];
   progressDone?: number;
@@ -41,7 +46,7 @@ const validCoordinate = (point?: Coordinate | null): point is Coordinate => Bool
   && Math.abs(point.longitude) <= 180,
 );
 
-export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, expanded = false, stops, progressDone, progressTotal, activeStopId, onStopPress, chromeless = false, controlsBottom }: RiderRouteMapProps) => {
+export const RiderRouteMap = ({ destination, destinationLabel, active = true, riderLocation, fallbackOrigin, expanded = false, stops, progressDone, progressTotal, activeStopId, onStopPress, chromeless = false, controlsBottom }: RiderRouteMapProps) => {
   const webView = useRef<any>(null);
   const stopPressRef = useRef(onStopPress);
   stopPressRef.current = onStopPress;
@@ -51,8 +56,13 @@ export const RiderRouteMap = ({ destination, destinationLabel, active = true, ri
   const hasProgress = Number.isFinite(progressDone) && Number.isFinite(progressTotal) && (progressTotal as number) > 0;
   const stopsKey = (stops || []).map((stop) => `${stop.id}:${stop.sequence}:${stop.slot}:${stop.latitude}:${stop.longitude}:${stop.state}:${stop.status}:${stop.label}:${stop.plan}:${stop.address}:${stop.multiSub ? 1 : 0}:${stop.cashDuePaise}:${stop.cashPaidPaise}:${stop.extraCount}:${stop.skipped ? 1 : 0}`).join('|');
   const html = useMemo(
-    () => validCoordinate(destination) ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN, { stops }) : null,
-    [destination?.latitude, destination?.longitude, destinationLabel, stopsKey],
+    () => validCoordinate(destination)
+      ? buildRiderMapHtml(destination, destinationLabel, EXPO_PUBLIC_MAPBOX_TOKEN, {
+          stops,
+          fallbackOrigin: validCoordinate(fallbackOrigin) ? fallbackOrigin : null,
+        })
+      : null,
+    [destination?.latitude, destination?.longitude, destinationLabel, stopsKey, fallbackOrigin?.latitude, fallbackOrigin?.longitude],
   );
 
   // Keep the live rider dot in sync after the page is ready; before that the
