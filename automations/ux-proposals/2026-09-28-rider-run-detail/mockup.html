@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UX proposal — rider run detail · current vs “Morning manifest”</title>
+<style>
+/* ==========================================================================
+   AAGAM — rider run detail UX proposal mockup.
+   Self-contained: no build step, no dependencies, no webfont request.
+
+   CURRENT palette  = literal hex values copied from
+     apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx
+   PROPOSED palette = the tokens listed in proposal.md §tokens
+
+   The "current" frames reproduce the shipped layout from those literal
+   values. They are a faithful reproduction, not a device screenshot.
+   ========================================================================== */
+
+:root{
+  /* ---------- proposed tokens ---------- */
+  --paper:#FAF6EE;
+  --card:#FFFFFF;
+  --rule:#9E8F73;        /* 3.17:1 on card  — non-text ≥3:1 */
+  --rule-soft:#E4DACA;
+  --ink:#12211B;         /* 16.68:1 */
+  --ink2:#3A4A42;        /*  9.38:1 */
+  --ink3:#5A6B62;        /*  5.65:1 */
+  --signal:#0F766E;      /* fill only, unchanged from COLORS.primary */
+  --signal-ink:#0A4F49;  /*  9.43:1 as text */
+  --signal-bg:#E3F1EC;
+  --cash:#8A4B00; --cash-bg:#FFF2D9; --cash-soft:#FDF7EA;
+  --danger:#A32119; --danger-bg:#FDECEC;
+  --ok:#075E45; --ok-bg:#DFF3E9;
+  --rail:#B9A98C;        /* fill #0A4F49 vs track = 4.09:1 */
+  --focus:#0A4F49;
+
+  /* ---------- current palette (verbatim from source) ---------- */
+  --c-bg:#F3F7F5;
+  --c-border:#E1EAE6;
+  --c-hero:#0F766E;
+  --c-ink:#17211D;
+  --c-muted:#64748B;     /* 4.40:1 on --c-bg  ← fail */
+  --c-faint:#94A3B8;     /* 2.56:1 on white   ← fail */
+  --c-eyebrow:#BAF3DD;   /* 4.42:1 on hero    ← fail */
+  --c-hero2:#D7F8EA;
+  --c-hero3:#CFF7E6;
+  --c-items:#F8FAF9;
+  --c-chipbg:#EEF2F6;
+  --c-neutral:#475569;
+
+  --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:#E8E2D6;
+  background-image:
+    radial-gradient(circle at 10% 6%,rgba(255,255,255,.7),transparent 42%),
+    radial-gradient(circle at 90% 94%,rgba(15,118,110,.08),transparent 48%);
+  color:var(--ink);
+  font:15px/1.55 var(--sans);
+  padding:28px 20px 80px;
+}
+
+/* ======================= page chrome ======================= */
+.wrap{max-width:1500px;margin:0 auto}
+.masthead{border-bottom:3px double var(--rule);padding-bottom:20px;margin-bottom:20px}
+.masthead .kicker{font:600 11px/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--signal-ink)}
+.masthead h1{font:600 40px/1.08 var(--serif);letter-spacing:-.015em;margin:12px 0 10px;max-width:24ch}
+.masthead .lede{max-width:76ch;margin:0;color:var(--ink2)}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px;font:12px/1.5 var(--mono);color:var(--ink3)}
+.meta-row > span{min-width:0;overflow-wrap:anywhere}
+.meta-row b{color:var(--ink);font-weight:600}
+
+.toolbar{
+  position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  background:rgba(232,226,214,.94);border-bottom:1px solid var(--rule-soft);
+  padding:10px 0;margin-bottom:30px;
+}
+.toolbar label{
+  display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 15px;
+  border:1px solid var(--rule);border-radius:999px;background:var(--card);
+  font:600 12.5px/1 var(--sans);color:var(--ink2);cursor:pointer;
+}
+.toolbar label:hover{background:#fffdf8}
+.toolbar input{accent-color:var(--signal-ink);width:18px;height:18px;margin:0;flex:none}
+.toolbar label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border:1px solid var(--rule);border-radius:999px;cursor:pointer;background:var(--card)}
+.toolbar .hint{font:12px/1.4 var(--mono);color:var(--ink3);margin-left:auto}
+
+/* ======================= state sections ======================= */
+section.state{margin:0 0 52px;scroll-margin-top:80px}
+.state-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin-bottom:8px}
+.state-head h2{font:600 24px/1.2 var(--serif);margin:0;letter-spacing:-.01em}
+.state-head .tag{
+  font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+  padding:6px 9px;border-radius:6px;background:var(--signal-bg);color:var(--signal-ink);
+}
+.state-note{max-width:100ch;color:var(--ink2);font-size:14px;margin:0 0 18px}
+.state-note code{font:12.5px var(--mono);background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:1px 5px}
+/* long inline code tokens (e.g. Boolean(selectedStop.subscriptionDelivery)) must
+   not force a horizontal scrollbar at 360px */
+code,.ref{overflow-wrap:anywhere;word-break:break-word}
+.state-note ul{margin:8px 0 0;padding-left:20px}
+.state-note li{margin:3px 0}
+
+.pair{display:grid;grid-template-columns:360px 360px;gap:32px;align-items:start}
+.pair.trio{grid-template-columns:360px 360px minmax(280px,1fr)}
+@media (max-width:1180px){ .pair.trio{grid-template-columns:360px 360px} .pair.trio .notes{grid-column:1/-1} }
+@media (max-width:800px){ .pair,.pair.trio{grid-template-columns:minmax(0,1fr)} }
+
+.frame{width:360px;max-width:100%}
+.frame > .cap{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 9px;
+  font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
+}
+.frame.cur > .cap{color:var(--c-muted)}
+.frame.new > .cap{color:var(--signal-ink)}
+.frame > .cap .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px}
+.frame.cur > .cap .dot{background:var(--c-muted)}
+.frame.new > .cap .dot{background:var(--signal-ink)}
+
+/* phone viewport: 360 x 740 with the real fold marked */
+.phone{
+  position:relative;width:360px;height:740px;max-width:100%;
+  border-radius:22px;overflow:hidden;border:1px solid rgba(0,0,0,.14);
+  box-shadow:0 18px 44px -14px rgba(20,32,26,.4);
+}
+.phone.tall{height:auto;min-height:740px;overflow:visible}
+.fold{
+  position:absolute;left:0;right:0;bottom:0;height:62px;pointer-events:none;z-index:20;
+}
+.fold::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:62px;
+}
+.fold-label{
+  position:absolute;left:0;right:0;bottom:6px;text-align:center;z-index:21;
+  font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+}
+/* the fold is only meaningful on the "current" frames */
+.frame.cur .fold{background:linear-gradient(to bottom,rgba(243,247,245,0),rgba(243,247,245,.97) 62%)}
+.frame.cur .fold-label{color:#9F2D23}
+/* the proposed frame pins its actions, so nothing is below the fold there */
+.frame.new .fold,.frame.new .fold-label{display:none}
+body.no-fold .fold,body.no-fold .fold-label{display:none}
+
+/* ======================= annotation pins ======================= */
+.pin{
+  display:none;align-items:center;justify-content:center;
+  min-width:19px;height:19px;padding:0 4px;border-radius:999px;
+  background:#A32119;color:#fff;font:700 10.5px/1 var(--mono);
+  vertical-align:middle;margin-left:6px;cursor:help;position:relative;z-index:5;
+}
+body.annotate .pin{display:inline-flex}
+.notes{font-size:13.5px;color:var(--ink2)}
+.notes h3{font:600 15px/1.3 var(--serif);margin:0 0 10px;color:var(--ink)}
+.notes ol{margin:0;padding-left:20px}
+.notes li{margin:0 0 9px}
+.notes li b{color:var(--ink)}
+.notes .ref{font:11.5px var(--mono);color:var(--ink3);display:block;margin-top:2px}
+
+/* ==========================================================================
+   CURRENT SCREEN  —  reproduced from literal style values
+   ========================================================================== */
+.cur .scr{background:var(--c-bg);height:100%;overflow:hidden;position:relative;font-size:13px}
+.cur .hero{background:var(--c-hero);padding:52px 18px 21px;border-bottom-left-radius:30px;border-bottom-right-radius:30px}
+.cur .hrow{display:flex;align-items:center}
+.cur .back{width:44px;height:44px;border-radius:16px;background:rgba(255,255,255,.13);display:flex;align-items:center;justify-content:center;flex:none}
+.cur .hcopy{flex:1;margin-left:12px}
+.cur .eyebrow{color:var(--c-eyebrow);font-size:10px;letter-spacing:1.2px;font-weight:600;margin:0}
+.cur .htitle{color:#fff;font-size:22px;font-weight:600;margin:2px 0 0}
+.cur .ricon{width:48px;height:48px;border-radius:16px;background:#ECFFF7;display:flex;align-items:center;justify-content:center;flex:none}
+.cur .addrrow{display:flex;align-items:flex-start;gap:8px;margin-top:14px}
+.cur .addrrow span{flex:1;color:var(--c-hero2);font-size:12px;line-height:18px}
+.cur .phead{display:flex;justify-content:space-between;margin-top:18px}
+.cur .phead .a{color:#fff;font-size:13px;font-weight:600}
+.cur .phead .b{color:var(--c-eyebrow);font-size:13px;font-weight:600}
+.cur .ptrack{height:8px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:8px}
+.cur .ptrack i{display:block;height:8px;border-radius:4px;background:#6EE7B7}
+.cur .stats{display:flex;margin-top:16px;padding:12px 0;border-radius:17px;background:rgba(255,255,255,.11)}
+.cur .stat{flex:1;text-align:center}
+.cur .stat .v{color:#fff;font-size:17px;font-weight:600}
+.cur .stat .l{color:var(--c-hero3);font-size:10px;margin-top:2px}
+.cur .stat + .stat{border-left:1px solid rgba(255,255,255,.2)}
+
+.cur .next{margin:16px;border-radius:20px;background:#fff;border:1px solid #B8DDCE;padding:16px;display:flex;align-items:center;box-shadow:0 5px 10px rgba(15,42,32,.08)}
+.cur .next .ic{width:48px;height:48px;border-radius:16px;background:var(--c-hero);display:flex;align-items:center;justify-content:center;flex:none}
+.cur .next .cp{flex:1;margin:0 12px}
+.cur .next .eb{color:var(--c-hero);font-size:10px;font-weight:600;letter-spacing:1px;margin:0}
+.cur .next .nm{color:var(--c-ink);font-size:16px;font-weight:600;margin:2px 0 0}
+.cur .next .ad{color:var(--c-muted);font-size:11px;margin:2px 0 0}
+
+.cur .shead{margin:23px 16px 11px;display:flex;align-items:center;justify-content:space-between}
+.cur .shead .t{color:var(--c-ink);font-size:19px;font-weight:600}
+.cur .shead .h{color:var(--c-hero);font-size:10px;font-weight:600;background:#E2F5EC;padding:4px 8px;border-radius:10px}
+
+.cur .stop{margin:0 16px 12px;background:#fff;border-radius:20px;padding:16px;border:1px solid var(--c-border)}
+.cur .stop.current{border:2px solid #60C69E}
+.cur .sh{display:flex;align-items:flex-start}
+.cur .seq{width:37px;height:37px;border-radius:19px;background:#EEF3F1;display:flex;align-items:center;justify-content:center;flex:none;color:var(--c-neutral);font-size:14px;font-weight:600}
+.cur .seq.on{background:var(--c-hero);color:#fff}
+.cur .sc{flex:1;margin:0 10px;min-width:0}
+.cur .sc .nm{color:var(--c-ink);font-size:15px;font-weight:600}
+.cur .sc .ad{color:var(--c-muted);font-size:11px;line-height:16px;margin-top:2px}
+.cur .chip{padding:4px 8px;border-radius:10px;font-size:9px;font-weight:600;text-align:center;max-width:105px;flex:none}
+.cur .chip.ok{background:#E5F7EE;color:var(--c-hero)}
+.cur .chip.warn{background:#FFF1D6;color:#8A4B00}
+.cur .chip.neu{background:var(--c-chipbg);color:var(--c-neutral)}
+.cur .chip.dan{background:#FDECEC;color:#B42318}
+.cur .items{margin-top:12px;border-radius:13px;background:var(--c-items);padding:10px;display:flex;flex-direction:column;gap:6px}
+.cur .items div{display:flex;align-items:center;gap:8px;color:var(--c-neutral);font-size:12px;font-weight:600}
+.cur .proof{display:flex;align-items:center;gap:8px;margin-top:11px;color:var(--c-neutral);font-size:11px;font-weight:500}
+.cur .acts{display:flex;align-items:center;margin-top:12px;gap:8px}
+.cur .btn2{min-height:42px;border-radius:13px;border:1px solid #B8DDCE;padding:0 11px;display:flex;align-items:center;gap:4px;color:var(--c-hero);font-size:11px;font-weight:600}
+.cur .arrs{display:flex;gap:4px}
+.cur .arr{width:40px;height:40px;border-radius:12px;background:#F1F5F3;display:flex;align-items:center;justify-content:center;color:var(--c-neutral)}
+.cur .btn1{margin-left:auto;min-height:42px;border-radius:13px;background:var(--c-hero);padding:0 12px;display:flex;align-items:center;gap:4px;color:#fff;font-size:11px;font-weight:600}
+
+/* states */
+.cur .center{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;gap:12px;text-align:center;background:var(--c-bg)}
+.cur .spinner{width:38px;height:38px;border-radius:50%;border:3px solid #CBD5E1;border-top-color:var(--c-hero);animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.cur .lt{color:var(--c-ink);font-size:19px;font-weight:600}
+.cur .ltext{color:var(--c-muted);font-size:13px;line-height:19px}
+.cur .retry{min-height:48px;border-radius:15px;background:var(--c-hero);padding:0 20px;display:flex;align-items:center;gap:8px;color:#fff;font-weight:600;font-size:14px}
+.cur .statecard{min-height:190px;border-radius:20px;background:#fff;border:1px solid var(--c-border);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:25px;gap:10px;margin:0 16px}
+.cur .statecard .t{color:var(--c-ink);font-size:17px;font-weight:600;text-align:center}
+.cur .statecard .x{color:var(--c-muted);font-size:13px;line-height:19px;text-align:center}
+
+/* ==========================================================================
+   PROPOSED — “Morning manifest”
+   ========================================================================== */
+.new .scr{background:var(--paper);height:100%;display:flex;flex-direction:column;position:relative}
+.new .mast{background:var(--paper);padding:14px 16px 0;flex:none}
+.new .mrow{display:flex;align-items:center;gap:11px}
+.new .back{
+  width:44px;height:44px;border-radius:12px;border:1px solid var(--rule);
+  background:var(--card);display:flex;align-items:center;justify-content:center;flex:none;color:var(--ink2);
+}
+.new .mtitle{flex:1;min-width:0}
+.new .mtitle .rc{font:600 19px/1.1 var(--serif);letter-spacing:.01em;margin:0;font-variant-numeric:tabular-nums}
+.new .mtitle .st{color:var(--ink3);font-size:11.5px;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.new .state-chip{
+  font:600 10px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+  padding:7px 9px;border-radius:6px;background:var(--signal-bg);color:var(--signal-ink);flex:none;
+}
+.new .dbl{height:3px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin:12px 0 0}
+
+/* cash strip — the one number the rider is accountable for */
+.new .cashstrip{display:flex;border-bottom:1px solid var(--rule);margin:0 -16px;padding:0}
+.new .cashstrip .cell{flex:1;padding:11px 16px 10px}
+.new .cashstrip .cell + .cell{border-left:1px solid var(--rule-soft)}
+.new .cashstrip .k{font:600 9.5px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+.new .cashstrip .v{font:600 24px/1.15 var(--serif);font-variant-numeric:tabular-nums;margin-top:5px;color:var(--ink)}
+.new .cashstrip .cell.collect .v{color:var(--cash)}
+.new .cashnote{font:11px/1.45 var(--mono);color:var(--ink3);padding:7px 16px;border-bottom:1px solid var(--rule-soft);margin:0 -16px;background:var(--cash-soft)}
+
+/* progress rail */
+.new .prog{padding:12px 16px 11px}
+.new .prog .line{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.new .prog .big{font:600 15px/1 var(--sans);color:var(--ink)}
+.new .prog .big b{font:600 21px/1 var(--serif);font-variant-numeric:tabular-nums}
+.new .prog .pct{font:600 12px/1 var(--mono);color:var(--ink2);font-variant-numeric:tabular-nums}
+.new .prog .rail{height:9px;border-radius:2px;background:var(--rail);margin-top:9px;overflow:hidden;border:1px solid var(--rule)}
+.new .prog .rail i{display:block;height:100%;background:var(--signal-ink)}
+.new .prog .legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:9px;font-size:11.5px;color:var(--ink2)}
+.new .prog .legend span{display:inline-flex;align-items:center;gap:6px}
+.new .prog .legend .sw{width:9px;height:9px;border-radius:2px;flex:none}
+
+/* scrollable manifest body */
+.new .body{flex:1;overflow:hidden;position:relative;padding:0 16px}
+.new .railwrap{position:relative;padding-bottom:84px}
+.new .railwrap::before{content:"";position:absolute;left:21px;top:10px;bottom:26px;width:2px;background:var(--rail)}
+
+.new .row{position:relative;display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--rule-soft)}
+.new .row .g{width:44px;flex:none;display:flex;justify-content:center;padding-top:1px}
+.new .row .g .sq{
+  width:34px;height:34px;border-radius:8px;background:var(--card);border:1px solid var(--rule);
+  display:flex;align-items:center;justify-content:center;
+  font:600 14px/1 var(--mono);color:var(--ink2);font-variant-numeric:tabular-nums;position:relative;z-index:1;
+}
+.new .row .c{flex:1;min-width:0}
+.new .row .top{display:flex;align-items:baseline;gap:8px}
+.new .row .nm{font:600 15.5px/1.25 var(--sans);color:var(--ink);flex:1;min-width:0}
+.new .row .money{font:600 14.5px/1 var(--serif);font-variant-numeric:tabular-nums;white-space:nowrap}
+.new .row .money.due{color:var(--cash)}
+.new .row .money.zero{color:var(--ink3);font-weight:400}
+.new .row .ad{color:var(--ink2);font-size:12px;line-height:1.45;margin-top:3px}
+.new .row .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.new .tag{
+  font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  padding:5px 7px;border-radius:5px;border:1px solid transparent;
+}
+.new .tag.ok{background:var(--ok-bg);color:var(--ok)}
+.new .tag.ready{background:var(--signal-bg);color:var(--signal-ink)}
+.new .tag.cash{background:var(--cash-bg);color:var(--cash)}
+.new .tag.retry{background:var(--danger-bg);color:var(--danger)}
+.new .tag.return{background:var(--cash-bg);color:var(--cash)}
+.new .tag.neu{background:#EDE7DA;color:var(--ink2)}
+.new .tag.proof{background:#fff;border-color:var(--rule);color:var(--ink2)}
+.new .row .items{color:var(--ink3);font-size:11.5px;margin-top:4px}
+
+/* torn-out stub for the current stop */
+.new .stub{
+  position:relative;margin:4px 0 8px;padding:15px 15px 13px;background:var(--card);
+  border:1px solid var(--rule);border-left:4px solid var(--signal);
+  border-radius:0 10px 10px 0;
+  box-shadow:0 10px 22px -12px rgba(20,32,26,.45);
+}
+.new .stub::before,.new .stub::after{
+  content:"";position:absolute;left:-9px;width:14px;height:14px;border-radius:50%;
+  background:var(--paper);border:1px solid var(--rule);border-left-color:transparent;
+}
+.new .stub::before{top:-8px}
+.new .stub::after{bottom:-8px}
+.new .stub .sk{font:600 9.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--signal-ink)}
+.new .stub .snm{font:600 20px/1.15 var(--serif);margin:6px 0 0}
+.new .stub .sad{color:var(--ink2);font-size:12.5px;line-height:1.45;margin-top:4px}
+.new .stub .srow{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.new .stub .due{
+  display:flex;align-items:baseline;gap:7px;background:var(--cash-bg);border:1px solid #E7CFA4;
+  border-radius:7px;padding:8px 10px;
+}
+.new .stub .due .k{font:600 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--cash)}
+.new .stub .due .v{font:600 19px/1 var(--serif);color:var(--cash);font-variant-numeric:tabular-nums}
+.new .stub .req{
+  display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--rule);
+  border-radius:7px;padding:8px 10px;font-size:12px;color:var(--ink2);
+}
+
+/* pinned action bar — the fix for "primary action below the fold" */
+.new .dock{
+  position:absolute;left:0;right:0;bottom:0;z-index:30;
+  background:var(--paper);border-top:3px double var(--rule);
+  padding:11px 16px 13px;display:flex;gap:10px;align-items:stretch;
+}
+.new .dock .prim{
+  flex:1;min-height:52px;border-radius:10px;background:var(--signal);color:#fff;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font:600 15px/1 var(--sans);border:0;
+}
+.new .dock .sec{
+  min-width:52px;min-height:52px;border-radius:10px;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:7px;
+  font:600 13px/1 var(--sans);padding:0 13px;
+}
+
+/* offline banner */
+.new .offbanner{
+  display:flex;gap:10px;align-items:flex-start;background:var(--cash-bg);
+  border:1px solid #E7CFA4;border-radius:8px;padding:11px 12px;margin:10px 0 0;
+}
+.new .offbanner .k{font:600 12.5px/1.3 var(--sans);color:var(--cash)}
+.new .offbanner .x{font-size:11.5px;color:var(--cash);opacity:.92;margin-top:3px;line-height:1.45}
+.new .offbanner .act{
+  margin-left:auto;flex:none;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--cash);
+  background:var(--card);color:var(--cash);font:600 12px/1 var(--sans);display:flex;align-items:center;
+}
+
+/* empty + loading + error */
+.new .empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 26px;text-align:center;gap:11px;
+}
+.new .empty .glyph{
+  width:64px;height:64px;border-radius:12px;border:2px dashed var(--rule);
+  display:flex;align-items:center;justify-content:center;color:var(--ink3);
+}
+.new .empty .t{font:600 21px/1.2 var(--serif);color:var(--ink)}
+.new .empty .x{color:var(--ink2);font-size:13.5px;line-height:1.55;max-width:30ch}
+.new .empty .cta{
+  margin-top:6px;min-height:48px;padding:0 20px;border-radius:10px;background:var(--signal);color:#fff;
+  display:inline-flex;align-items:center;gap:8px;font:600 14px/1 var(--sans);border:0;
+}
+.new .skeleton{padding:14px 16px;display:flex;flex-direction:column;gap:13px}
+.new .sk{
+  height:14px;border-radius:3px;
+  background:linear-gradient(90deg,#EDE6D8 0%,#F7F2E8 42%,#EDE6D8 84%);
+  background-size:220% 100%;animation:shimmer 1500ms ease-in-out infinite;
+}
+@keyframes shimmer{0%{background-position:120% 0}100%{background-position:-40% 0}}
+.new .skrow{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--rule-soft)}
+.new .skrow .sq{width:34px;height:34px;border-radius:8px;background:#EDE6D8;flex:none}
+.new .skrow .cc{flex:1;display:flex;flex-direction:column;gap:8px}
+
+/* stop sheet (proposed) */
+.new .sheet-scrim{
+  position:absolute;inset:0;background:rgba(18,33,27,.44);z-index:40;display:flex;align-items:flex-end;
+}
+.new .sheet{
+  width:100%;max-height:88%;background:var(--card);border-radius:14px 14px 0 0;
+  border-top:3px double var(--rule);display:flex;flex-direction:column;overflow:hidden;
+}
+.new .sheet .handle{width:46px;height:5px;border-radius:3px;background:var(--rule);margin:9px auto 0}
+.new .sheet .shd{display:flex;align-items:center;gap:11px;padding:12px 16px 12px;border-bottom:1px solid var(--rule-soft)}
+.new .sheet .shd .k{font:600 9.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--signal-ink)}
+.new .sheet .shd .t{font:600 19px/1.15 var(--serif);margin:3px 0 0}
+.new .sheet .shd .x{
+  margin-left:auto;width:44px;height:44px;border-radius:9px;border:1px solid var(--rule);background:var(--paper);
+  display:flex;align-items:center;justify-content:center;color:var(--ink2);flex:none;
+}
+.new .sheet .sc{overflow:hidden;padding:14px 16px 16px}
+.new .sheet .addr{color:var(--ink2);font-size:13px;line-height:1.5}
+.new .sheet .lbl{font:600 11.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:16px 0 7px}
+.new .field{
+  width:100%;min-height:48px;border-radius:9px;border:1px solid var(--rule);background:#fff;
+  padding:11px 12px;font:15px/1.35 var(--sans);color:var(--ink);
+}
+.new .field::placeholder{color:var(--ink3);opacity:1}
+.new .hint{font-size:11.5px;color:var(--ink3);margin-top:6px;line-height:1.45}
+.new .phone-btn{
+  display:flex;align-items:center;gap:9px;min-height:48px;padding:0 13px;border-radius:9px;
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);font:600 13.5px/1 var(--sans);width:100%;
+}
+.new details.more{margin-top:16px;border:1px solid var(--rule);border-radius:9px;background:var(--paper);overflow:hidden}
+.new details.more > summary{
+  list-style:none;cursor:pointer;padding:14px 13px;display:flex;align-items:center;gap:9px;
+  font:600 13.5px/1.2 var(--sans);color:var(--ink);min-height:48px;
+}
+.new details.more > summary::-webkit-details-marker{display:none}
+.new details.more > summary .caret{margin-left:auto;transition:transform 140ms ease;color:var(--ink3)}
+.new details.more[open] > summary .caret{transform:rotate(90deg)}
+.new details.more .inner{padding:2px 13px 14px;border-top:1px solid var(--rule-soft)}
+.new .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.new .rchip{
+  min-height:44px;min-width:44px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink2);font:600 12.5px/1 var(--sans);
+  display:inline-flex;align-items:center;gap:7px;
+}
+.new .rchip[aria-checked="true"],.new .rchip[aria-pressed="true"]{
+  background:var(--signal-ink);border-color:var(--signal-ink);color:#fff;
+}
+.new .sheet .danger{
+  margin-top:14px;width:100%;min-height:50px;border-radius:9px;border:1px solid #E2B3AE;
+  background:var(--danger-bg);color:var(--danger);font:600 13.5px/1 var(--sans);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.new .sheet .primary{
+  margin-top:12px;width:100%;min-height:54px;border-radius:10px;background:var(--signal);color:#fff;border:0;
+  font:600 15px/1 var(--sans);display:flex;align-items:center;justify-content:center;gap:9px;
+}
+
+/* focus + motion */
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;
+}
+a,button,summary,input,label,[tabindex]:focus{outline:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.cur :focus-visible{outline-color:#B42318}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+
+/* narrow viewport: render the frame at a true 360px */
+@media (max-width:420px){
+  body{padding:12px 0 44px}
+  .masthead,.toolbar,.state-head,.state-note,.notes{padding-left:14px;padding-right:14px}
+  .frame,.phone{width:100%}
+  .pair{gap:26px}
+}
+</style>
+</head>
+<body class="annotate">
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="kicker">UX proposal · mobile-partners · 2026-09-28</p>
+  <h1>Rider run detail, rebuilt as a morning manifest</h1>
+  <p class="lede">
+    A static comparison of the shipped rider delivery-run screen and a proposed redesign.
+    The left frame in each pair reproduces the current screen from the literal style values in
+    <b>RiderRunDetailScreen.tsx</b>; the right frame is the proposal. Both are drawn at a real
+    360&nbsp;×&nbsp;740 phone viewport so the fold line means something.
+  </p>
+  <div class="meta-row">
+    <span><b>Screen</b> apps/mobile-partners/src/screens/rider/RiderRunDetailScreen.tsx</span>
+    <span><b>Direction</b> “Morning manifest”</span>
+    <span><b>Keeps</b> #0F766E · #0C7659 · spacing + radius scales</span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <label><input type="checkbox" id="t-ann" checked /> Show problem pins</label>
+  <label><input type="checkbox" id="t-fold" checked /> Mark the fold</label>
+  <span class="hint">no dependencies · no webfont · works offline</span>
+</div>
+
+<!-- ============================================================ -->
+<section class="state" id="s-default">
+  <div class="state-head">
+    <h2>1 &middot; Default &mdash; run in progress</h2>
+    <span class="tag">state: IN_PROGRESS</span>
+  </div>
+  <p class="state-note">
+    The common case: the rider has picked up the bags and is working down the route. Five stops
+    remain, one needs a retry, one needs a return leg. Figures used throughout:
+    RT-0421 &middot; 7 stops &middot; 2 complete &middot; &#8377;450 to collect &middot; &#8377;180 in hand.
+    Hover any red pin for the cited problem.
+  </p>
+
+  <div class="pair trio">
+    <!-- ===================== CURRENT ===================== -->
+    <div class="frame cur">
+      <p class="cap"><span><span class="dot"></span>Current</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="hero">
+            <div class="hrow">
+              <div class="back" aria-hidden="true">
+                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </div>
+              <div class="hcopy">
+                <p class="eyebrow">ROUTE RT-0421<span class="pin" title="Hero eyebrow #BAF3DD on #0F766E = 4.42:1 - below the 4.5:1 minimum">4</span></p>
+                <p class="htitle">Aagam Dairy &mdash; Anakapalle</p>
+              </div>
+              <div class="ricon" aria-hidden="true">
+                <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h5a4 4 0 0 0 4-4V9"/></svg>
+              </div>
+            </div>
+            <div class="addrrow">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CFF7E6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/></svg>
+              <span>Main Road, Anakapalle, Visakhapatnam, 531001</span>
+            </div>
+            <div class="phead">
+              <span class="a">2 of 7 stops</span>
+              <span class="b">29%<span class="pin" title="Progress percent #BAF3DD on #0F766E = 4.42:1 - below the 4.5:1 minimum">4</span></span>
+            </div>
+            <div class="ptrack"><i style="width:29%"></i></div>
+            <div class="stats">
+              <div class="stat"><div class="v">5</div><div class="l">remaining<span class="pin" title="Counts only READY / PLANNED / ARRIVED / RETRY_PENDING. A RETURN_REQUIRED stop is counted in neither 'remaining' nor 'retry'.">3</span></div></div>
+              <div class="stat"><div class="v">1</div><div class="l">retry</div></div>
+              <div class="stat"><div class="v">&#8377;180</div><div class="l">cash held<span class="pin" title="Labelled 'cash held' but computed as collected minus deposited. The AWAITING_SETTLEMENT card on the same screen reads riderHoldingPaise instead - two different numbers, one label.">1</span></div></div>
+            </div>
+          </div>
+
+          <div class="next">
+            <div class="ic" aria-hidden="true">
+              <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div class="cp">
+              <p class="eb">NEXT STOP &middot; 3</p>
+              <p class="nm">Lakshmi Devi</p>
+              <p class="ad">12-4 Gandhi Nagar, Anakapalle</p>
+            </div>
+            <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m9 18 6-6-6-6"/></svg>
+          </div>
+
+          <div class="shead">
+            <span class="t">Ordered stops</span>
+            <span class="h">No bulk completion</span>
+          </div>
+
+          <div class="stop">
+            <div class="sh">
+              <div class="seq">1</div>
+              <div class="sc"><div class="nm">Nookalamma</div><div class="ad">3-1 Fishery Road, Anakapalle</div></div>
+              <div class="chip ok">Delivered</div>
+            </div>
+            <div class="items"><div>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+              1 &times; Aagam Toned Milk 1L</div></div>
+            <div class="proof">
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A15C00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+              Collect exactly &#8377;50 with customer OTP
+            </div>
+            <div class="acts">
+              <div class="btn2">
+                <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 22 2l-9 19-2-8-8-2z"/></svg>
+                Navigate
+              </div>
+              <div class="btn1">View
+                <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="stop current">
+            <div class="sh">
+              <div class="seq on">3</div>
+              <div class="sc"><div class="nm">Lakshmi Devi</div><div class="ad">12-4 Gandhi Nagar, Anakapalle</div></div>
+              <div class="chip neu">Arrived</div>
+            </div>
+            <div class="items"><div>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+              1 &times; Aagam Curd 500g &middot; 1 &times; Toned Milk 1L</div></div>
+            <div class="proof">
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A15C00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+              Collect &#8377;130 &middot; Photo proof &amp; GPS (No OTP)
+            </div>
+            <div class="acts">
+              <div class="btn2">
+                <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 22 2l-9 19-2-8-8-2z"/></svg>
+                Navigate
+              </div>
+              <div class="arrs">
+                <div class="arr"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg><span class="pin" title="40 x 40 with no hitSlop - below the 44pt minimum, and it is a reorder control tapped one-handed">5</span></div>
+                <div class="arr"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></div>
+              </div>
+              <div class="btn1">Open stop
+                <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="stop">
+            <div class="sh">
+              <div class="seq">4</div>
+              <div class="sc"><div class="nm">Venkata Rao</div><div class="ad">9-8 Market Road, Anakapalle</div></div>
+              <div class="chip neu">Ready</div>
+            </div>
+            <div class="items"><div>
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+              1 &times; Aagam Toned Milk 1L</div></div>
+          </div>
+        </div>
+        <div class="fold" aria-hidden="true"></div>
+        <p class="fold-label">&uarr; visible &middot; &ldquo;Finish route&rdquo; sits below this line &darr;</p>
+      </div>
+    </div>
+
+    <!-- ===================== PROPOSED ===================== -->
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+
+          <div class="mast">
+            <div class="mrow">
+              <button class="back" aria-label="Back to today's runs">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </button>
+              <div class="mtitle">
+                <p class="rc">Route RT-0421</p>
+                <p class="st">Aagam Dairy &mdash; Anakapalle &middot; 07:00&ndash;09:30</p>
+              </div>
+              <span class="state-chip">In progress</span>
+            </div>
+            <div class="dbl"></div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="cashstrip">
+              <div class="cell collect">
+                <p class="k">To collect today</p>
+                <p class="v">&#8377;450</p>
+              </div>
+              <div class="cell">
+                <p class="k">Cash in hand</p>
+                <p class="v">&#8377;180</p>
+              </div>
+            </div>
+            <p class="cashnote">Reconciles every stop's COD ledger &middot; last synced 07:42</p>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="prog">
+              <div class="line">
+                <span class="big"><b>2</b> of 7 delivered</span>
+                <span class="pct">29%</span>
+              </div>
+              <div class="rail" role="img" aria-label="2 of 7 stops delivered, 29 percent"><i style="width:29%"></i></div>
+              <div class="legend">
+                <span><i class="sw" style="background:var(--signal-ink)"></i>2 done</span>
+                <span><i class="sw" style="background:var(--rail)"></i>3 remaining</span>
+                <span><i class="sw" style="background:var(--cash)"></i>1 retry</span>
+                <span><i class="sw" style="background:var(--cash)"></i>1 return</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="body">
+            <div class="railwrap">
+              <div class="row">
+                <div class="g"><span class="sq">1</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">Nookalamma</span><span class="money zero">&#8377;0</span></div>
+                  <p class="ad">3-1 Fishery Road, Anakapalle</p>
+                  <div class="tags"><span class="tag ok">Delivered 07:12</span><span class="tag proof">OTP verified</span></div>
+                  <p class="items">1 &times; Aagam Toned Milk 1L</p>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="g"><span class="sq">2</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">S. Ramu</span><span class="money zero">&#8377;0</span></div>
+                  <p class="ad">7-2 Bazaar Street, Anakapalle</p>
+                  <div class="tags"><span class="tag ok">Delivered 07:26</span><span class="tag proof">OTP verified</span></div>
+                  <p class="items">2 &times; Aagam Toned Milk 500ml</p>
+                </div>
+              </div>
+
+              <div class="stub">
+                <p class="sk">Stop 3 &middot; current</p>
+                <p class="snm">Lakshmi Devi</p>
+                <p class="sad">12-4 Gandhi Nagar, Anakapalle</p>
+                <div class="srow">
+                  <span class="due"><span class="k">Collect</span><span class="v">&#8377;130</span></span>
+                  <span class="req">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                    Photo proof &amp; GPS &middot; no OTP
+                  </span>
+                </div>
+                <p class="items">1 &times; Aagam Curd 500g &middot; 1 &times; Toned Milk 1L</p>
+              </div>
+
+              <div class="row">
+                <div class="g"><span class="sq">4</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">Venkata Rao</span><span class="money due">&#8377;90</span></div>
+                  <p class="ad">9-8 Market Road, Anakapalle</p>
+                  <div class="tags"><span class="tag ready">Ready</span><span class="tag cash">Collect on delivery</span></div>
+                  <p class="items">1 &times; Aagam Toned Milk 1L</p>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="g"><span class="sq">5</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">P. Anasuya</span><span class="money due">&#8377;230</span></div>
+                  <p class="ad">2-6 Temple Street, Anakapalle</p>
+                  <div class="tags"><span class="tag ready">Ready</span><span class="tag cash">Collect on delivery</span></div>
+                  <p class="items">2 &times; Aagam Curd 500g</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dock">
+            <button class="sec" aria-label="Call Lakshmi Devi">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+            </button>
+            <button class="prim">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              Complete stop 3
+            </button>
+          </div>
+
+        </div>
+        <div class="fold" aria-hidden="true"></div>
+        <p class="fold-label">Everything the rider needs is above this line</p>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>What changed here</h3>
+      <ol>
+        <li><b>One cash figure, correctly labelled.</b> The masthead carried <code>₹180 / cash held</code> computed as collected&nbsp;−&nbsp;deposited; the settlement card further down read a different field. Now <i>To collect today</i> and <i>Cash in hand</i> sit together, both from the accountability record, with the reconciliation note underneath.
+          <span class="ref">RiderRunDetailScreen.tsx:549 &middot; :565 &middot; RiderRunsScreen.tsx:95</span></li>
+        <li><b>The next action is pinned, not scrolled to.</b> <i>Complete stop 3</i> and <i>Call</i> live in a dock outside the scroll area. The old <code>stickyPrimary</code> and <code>finishButton</code> were plain views inside the ScrollView, so a 7-stop run pushed them below the fold.
+          <span class="ref">RiderRunDetailScreen.tsx:555, :557, :563 &middot; styles :785</span></li>
+        <li><b>The next stop is named, not numbered.</b> <i>NEXT STOP · 3</i> becomes the customer and the door, and the money owed is on the same line.
+          <span class="ref">RiderRunDetailScreen.tsx:558</span></li>
+        <li><b>Counts reconcile.</b> <i>2 of 7 delivered</i> with an explicit legend for done / remaining / retry / return, instead of a bare <i>5 remaining · 1 retry</i> that silently drops <code>RETURN_REQUIRED</code>.
+          <span class="ref">RiderRunDetailScreen.tsx:545, :547 &middot; subscriptionOperationsService.ts:16-26</span></li>
+        <li><b>The pictured stop no longer shows conflicting OTP instructions.</b> The current stop card says <i>no OTP</i>, while the current completion sheet says <i>confirm with the customer OTP</i>. The proposed sheet shows the pictured photo/GPS stop with <i>no OTP</i>, so the stop card and the sheet agree.
+          <span class="ref">mockup.html:594, :570, :1266</span></li>
+      </ol>
+    </div>
+
+  </div>
+</section>
+<!-- ============================================================ -->
+<section class="state" id="s-loading">
+  <div class="state-head">
+    <h2>2 &middot; Loading</h2>
+    <span class="tag">state: runQuery.isLoading</span>
+  </div>
+  <p class="state-note">
+    Today the whole screen is replaced by a centred spinner and two lines of copy on
+    <code>#F3F7F5</code> &mdash; the rider loses the masthead, the cash strip and the run identity for the
+    duration. The proposal keeps the manifest chrome and shimmers only the values that are actually
+    unknown, so the screen never changes shape between states.
+    <span class="ref" style="display:block;margin-top:6px">RiderRunDetailScreen.tsx:532 &middot; styles :783 (<code>loadingText</code> #64748B on #F3F7F5 = 4.40:1)</span>
+  </p>
+
+  <div class="pair">
+    <div class="frame cur">
+      <p class="cap"><span><span class="dot"></span>Current</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="center">
+            <div class="spinner" role="status" aria-label="Loading route"></div>
+            <p class="lt">Loading your route&hellip;</p>
+            <p class="ltext">Fetching today's stops and cash position.<br />This should only take a moment.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="mast">
+            <div class="mrow">
+              <button class="back" aria-label="Back to today's runs" aria-disabled="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </button>
+              <div class="mtitle">
+                <p class="rc">Route &hellip;</p>
+                <p class="st">Loading today's manifest</p>
+              </div>
+              <span class="state-chip" style="background:#EDE7DA;color:var(--ink2)">Loading</span>
+            </div>
+            <div class="dbl"></div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="cashstrip">
+              <div class="cell collect">
+                <p class="k">To collect today</p>
+                <p class="v"><span class="sk" style="display:block;width:84px;height:26px;margin-top:2px"></span></p>
+              </div>
+              <div class="cell">
+                <p class="k">Cash in hand</p>
+                <p class="v"><span class="sk" style="display:block;width:84px;height:26px;margin-top:2px"></span></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="prog">
+              <div class="line">
+                <span class="sk" style="width:130px;height:15px"></span>
+                <span class="sk" style="width:44px;height:15px"></span>
+              </div>
+              <div class="rail" role="img" aria-label="Route progress loading"><i style="width:0"></i></div>
+            </div>
+          </div>
+
+          <div class="body">
+            <div class="skeleton" aria-hidden="true">
+              <div class="skrow"><span class="sq"></span><span class="cc"><span class="sk" style="width:62%"></span><span class="sk" style="width:88%"></span></span></div>
+              <div class="skrow"><span class="sq"></span><span class="cc"><span class="sk" style="width:48%"></span><span class="sk" style="width:80%"></span></span></div>
+              <div class="skrow"><span class="sq"></span><span class="cc"><span class="sk" style="width:70%"></span><span class="sk" style="width:92%"></span></span></div>
+              <div class="skrow"><span class="sq"></span><span class="cc"><span class="sk" style="width:55%"></span><span class="sk" style="width:74%"></span></span></div>
+            </div>
+            <p class="sr-only" role="status">Loading your route. Today's stops and cash position are on their way.</p>
+          </div>
+
+          <div class="dock">
+            <button class="prim" aria-disabled="true" aria-busy="true" aria-label="Finish route, unavailable while loading" style="opacity:.55">
+              <span class="sk" style="width:140px;height:16px;background:rgba(255,255,255,.4)"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="state" id="s-empty">
+  <div class="state-head">
+    <h2>3 &middot; Empty &mdash; nothing left on the route</h2>
+    <span class="tag">state: all stops terminal</span>
+  </div>
+  <p class="state-note">
+    The shipped screen has no empty state at all: when every stop is delivered it still renders the
+    <code>Ordered stops</code> heading and a <code>Finish route</code> button, with no explanation of what
+    happens to the cash already collected. The proposal states the outcome and the next step &mdash;
+    which matters most on the last run of the day, when the rider still owes the store.
+  </p>
+
+  <div class="pair">
+    <div class="frame cur">
+      <p class="cap"><span><span class="dot"></span>Current</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="hero" style="padding-bottom:18px">
+            <div class="hrow">
+              <div class="back" aria-hidden="true">
+                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </div>
+              <div class="hcopy">
+                <p class="eyebrow">ROUTE RT-0421</p>
+                <p class="htitle">Aagam Dairy &mdash; Anakapalle</p>
+              </div>
+              <div class="ricon" aria-hidden="true">
+                <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h5a4 4 0 0 0 4-4V9"/></svg>
+              </div>
+            </div>
+            <div class="phead"><span class="a">7 of 7 stops</span><span class="b">100%</span></div>
+            <div class="ptrack"><i style="width:100%"></i></div>
+            <div class="stats">
+              <div class="stat"><div class="v">0</div><div class="l">remaining</div></div>
+              <div class="stat"><div class="v">0</div><div class="l">retry</div></div>
+              <div class="stat"><div class="v">&#8377;450</div><div class="l">cash held</div></div>
+            </div>
+          </div>
+          <div class="shead"><span class="t">Ordered stops</span><span class="h">No bulk completion</span></div>
+          <div class="statecard">
+            <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <p class="t">All 7 stops delivered</p>
+            <p class="x">Finish the route to close out today's run.</p>
+          </div>
+          <div style="margin:16px;min-height:54px;border-radius:17px;background:#243C33;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;font-size:14px;font-weight:600">
+            Finish route
+          </div>
+        </div>
+        <div class="fold" aria-hidden="true"></div>
+        <p class="fold-label">&uarr; visible &middot; nothing explains the &#8377;450 &darr;</p>
+      </div>
+    </div>
+
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="mast">
+            <div class="mrow">
+              <button class="back" aria-label="Back to today's runs">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </button>
+              <div class="mtitle">
+                <p class="rc">Route RT-0421</p>
+                <p class="st">Aagam Dairy &mdash; Anakapalle &middot; 07:00&ndash;09:30</p>
+              </div>
+              <span class="state-chip">Ready to settle</span>
+            </div>
+            <div class="dbl"></div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="cashstrip">
+              <div class="cell collect">
+                <p class="k">Collected today</p>
+                <p class="v">&#8377;450</p>
+              </div>
+              <div class="cell">
+                <p class="k">Hand back to store</p>
+                <p class="v">&#8377;450</p>
+              </div>
+            </div>
+            <p class="cashnote">All 7 COD ledgers reconciled &middot; nothing outstanding</p>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="prog">
+              <div class="line"><span class="big"><b>7</b> of 7 delivered</span><span class="pct">100%</span></div>
+              <div class="rail" role="img" aria-label="All 7 stops delivered"><i style="width:100%"></i></div>
+              <div class="legend">
+                <span><i class="sw" style="background:var(--signal-ink)"></i>7 done</span>
+                <span><i class="sw" style="background:var(--rail)"></i>0 remaining</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="body">
+            <div class="empty">
+              <div class="glyph" aria-hidden="true">
+                <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </div>
+              <p class="t">Route complete</p>
+              <p class="x">All 7 stops delivered by 09:04. Hand &#8377;450 back to the store and the run closes itself.</p>
+              <button class="cta">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                Finish route
+              </button>
+            </div>
+          </div>
+
+          <div class="dock">
+            <button class="sec" aria-label="View today's summary">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15h3M7 11h6M7 7h9"/></svg>
+            </button>
+            <button class="prim">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              Finish route
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================ -->
+<section class="state" id="s-error">
+  <div class="state-head">
+    <h2>4 &middot; Error &amp; offline</h2>
+    <span class="tag">state: runQuery.isError / no network</span>
+  </div>
+  <p class="state-note">
+    <code>:533</code> renders one message &mdash; &ldquo;Route unavailable&rdquo; &mdash; for every failure, and
+    <code>:532</code> a full-screen spinner for every load. The screen already imports
+    <code>RiderRunOfflineQueue</code> and replays queued actions on reconnect
+    (<code>:253-260</code>), but there is no offline state to show for it. The proposal splits the two:
+    a network drop keeps the cached manifest and offers <i>Sync now</i>; a genuine failure explains
+    what failed and what is still safe.
+  </p>
+
+  <div class="pair">
+    <div class="frame cur">
+      <p class="cap"><span><span class="dot"></span>Current &mdash; offline</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="center">
+            <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></svg>
+            <p class="lt">Route unavailable</p>
+            <p class="ltext">We couldn't load this delivery run.<br />Check your connection and try again.</p>
+            <div class="retry">Retry</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed &mdash; offline (queued ops only)</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="mast">
+            <div class="mrow">
+              <button class="back" aria-label="Back to today's runs">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </button>
+              <div class="mtitle">
+                <p class="rc">Route RT-0421</p>
+                <p class="st">Aagam Dairy &mdash; Anakapalle &middot; saved 07:42</p>
+              </div>
+              <span class="state-chip" style="background:var(--cash-bg);color:var(--cash)">Offline</span>
+            </div>
+            <div class="dbl"></div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="offbanner" role="status">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="m2 2 20 20"/></svg>
+              <div>
+                <p class="k">No signal &mdash; working from the saved manifest</p>
+                <p class="x">2 stop updates queued offline. Only queued operations are counted here &mdash; offline proof capture and completion still need a connection. Queued updates upload automatically when you're back in range.</p>
+              </div>
+              <button class="act">Sync now</button>
+            </div>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="cashstrip">
+              <div class="cell collect">
+                <p class="k">To collect today</p>
+                <p class="v">&#8377;450</p>
+              </div>
+              <div class="cell">
+                <p class="k">Cash in hand</p>
+                <p class="v">&#8377;180</p>
+              </div>
+            </div>
+            <p class="cashnote">Last reconciled 07:42 &middot; may be behind by 2 stops</p>
+          </div>
+
+          <div class="mast" style="padding-top:0">
+            <div class="prog">
+              <div class="line"><span class="big"><b>2</b> of 7 delivered</span><span class="pct">29%</span></div>
+              <div class="rail" role="img" aria-label="2 of 7 stops delivered, 29 percent"><i style="width:29%"></i></div>
+            </div>
+          </div>
+
+          <div class="body">
+            <div class="railwrap">
+              <div class="row">
+                <div class="g"><span class="sq">1</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">Nookalamma</span><span class="money zero">&#8377;0</span></div>
+                  <p class="ad">3-1 Fishery Road, Anakapalle</p>
+                  <div class="tags"><span class="tag ok">Delivered 07:12</span></div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="g"><span class="sq">2</span></div>
+                <div class="c">
+                  <div class="top"><span class="nm">S. Ramu</span><span class="money zero">&#8377;0</span></div>
+                  <p class="ad">7-2 Bazaar Street, Anakapalle</p>
+                  <div class="tags"><span class="tag ok">Delivered 07:26</span><span class="tag cash">Queued to upload</span></div>
+                </div>
+              </div>
+              <div class="stub">
+                <p class="sk">Stop 3 &middot; current</p>
+                <p class="snm">Lakshmi Devi</p>
+                <p class="sad">12-4 Gandhi Nagar, Anakapalle</p>
+                <div class="srow">
+                  <span class="due"><span class="k">Collect</span><span class="v">&#8377;130</span></span>
+                  <span class="req">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                    Photo proof &amp; GPS &middot; no OTP
+                  </span>
+                </div>
+                <p class="items">1 &times; Aagam Curd 500g &middot; 1 &times; Toned Milk 1L</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="dock">
+            <button class="sec" aria-label="Call Lakshmi Devi">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+            </button>
+            <button class="prim">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              Complete stop 3
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pair" style="margin-top:34px">
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed &mdash; hard failure</span><span>360 &times; 740</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="mast">
+            <div class="mrow">
+              <button class="back" aria-label="Back to today's runs">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              </button>
+              <div class="mtitle">
+                <p class="rc">Route RT-0421</p>
+                <p class="st">Aagam Dairy &mdash; Anakapalle</p>
+              </div>
+              <span class="state-chip" style="background:var(--danger-bg);color:var(--danger)">Failed</span>
+            </div>
+            <div class="dbl"></div>
+          </div>
+          <div class="body">
+            <div class="empty">
+              <div class="glyph" aria-hidden="true" style="border-color:var(--danger);color:var(--danger)">
+                <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </div>
+              <p class="t">This run wouldn't open</p>
+              <p class="x">The store rejected the request for RT-0421. Nothing has been recorded against your cash &mdash; retry, or ask the store to re-issue the run.</p>
+              <button class="cta">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                Retry
+              </button>
+              <button style="margin-top:2px;min-height:44px;padding:0 16px;border-radius:9px;border:1px solid var(--rule);background:var(--card);color:var(--ink2);font:600 13px/1 var(--sans)">Contact the store</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>Why this split matters</h3>
+      <ol>
+        <li><b>Offline is not an error.</b> The app already has the data and the queue. Showing a dead-end for a tunnel costs a rider a whole stop.
+          <span class="ref">RiderRunDetailScreen.tsx:57, :253-260, :532-533</span></li>
+        <li><b>The queued count is visible.</b> A rider who can see &ldquo;2 stop updates queued offline&rdquo; knows those operations are safe; today only a toast says so, and it disappears. The count covers only operations actually queued, not offline proof capture or completion, which are proposed capabilities still to be implemented and validated on device.
+          <span class="ref">RiderRunDetailScreen.tsx:553</span></li>
+        <li><b>Failure states say what is safe.</b> The proposal names the run, says whether money is at risk, and gives two real routes forward, instead of one &ldquo;Retry&rdquo;.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section class="state" id="s-sheet">
+  <div class="state-head">
+    <h2>5 &middot; The stop sheet &mdash; completing a delivery</h2>
+    <span class="tag">state: sheet open on stop 3</span>
+  </div>
+  <p class="state-note">
+    The sheet is where the run is actually finished, and today it opens with the wrong thing at the top:
+    the header and address, then roughly 140 lines of extra-milk form (quantity chips, rate field, day
+    chips, note, summary), and only then the primary action. Extra milk is the exception; completing the
+    delivery is the rule. The proposal inverts that order and makes the exceptional path a disclosure
+    that is one tap away &mdash; not deleted, just no longer in the way. It also gives every chip a real
+    44pt target and a radio-group role, and replaces placeholder-only inputs with visible labels.
+    <span class="ref" style="display:block;margin-top:6px">RiderRunDetailScreen.tsx:580-725 (form) vs :751 (primary action) &middot; chips :619-626, :662-671 &middot; placeholders :643, :653, :682</span>
+  </p>
+
+  <div class="pair trio">
+    <!-- CURRENT: sheet -->
+    <div class="frame cur">
+      <p class="cap"><span><span class="dot"></span>Current</span><span>sheet at 91%</span></p>
+      <div class="phone">
+        <div class="scr" style="background:#F3F7F5">
+          <div style="position:absolute;inset:0;background:rgba(15,23,42,.46)"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;max-height:91%;background:#fff;border-top-left-radius:28px;border-top-right-radius:28px;padding-top:9px;padding-bottom:24px">
+            <div style="width:44px;height:5px;border-radius:3px;background:#D1D9D5;margin:0 auto"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px 11px;border-bottom:1px solid #EDF1EF">
+              <div>
+                <p style="margin:0;color:#0F766E;font-size:10px;font-weight:600;letter-spacing:1.1px">STOP 3 OF 7</p>
+                <p style="margin:2px 0 0;color:#17211D;font-size:20px;font-weight:600">Lakshmi Devi</p>
+              </div>
+              <div style="width:42px;height:42px;border-radius:14px;background:#F1F5F3;display:flex;align-items:center;justify-content:center">
+                <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </div>
+            </div>
+            <div style="padding:18px">
+              <p style="margin:0;color:#475569;font-size:13px;line-height:19px">12-4 Gandhi Nagar, Anakapalle, Visakhapatnam 531001</p>
+              <div style="margin-top:10px;min-height:43px;align-self:flex-start;display:inline-flex;border-radius:13px;background:#E7F7EF;padding:0 12px;align-items:center;gap:8px;color:#0F766E;font-size:12px;font-weight:600">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+                Call customer
+              </div>
+              <div style="margin-top:14px;border-radius:16px;background:#FFF2D9;border:1px solid #EDD39D;padding:12px;display:flex;align-items:center;gap:10px">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A4B00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                <div style="flex:1">
+                  <p style="margin:0;color:#704000;font-size:14px;font-weight:600">Customer amount due: &#8377;130</p>
+                  <p style="margin:2px 0 0;color:#8A5A14;font-size:11px;line-height:16px">Collect in cash and confirm with the customer OTP.</p>
+                </div>
+              </div>
+
+              <p style="margin:18px 0 0;color:#0F766E;font-size:10px;font-weight:600;letter-spacing:1px">EXTRA MILK / FURTHER ORDERS<span class="pin" title="This whole block sits above the primary action. On a 740pt device the completion button is pushed off-screen.">9</span></p>
+              <p style="margin:8px 0 0;color:#334155;font-size:12px;font-weight:600">Quantity</p>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#0F766E;color:#fff;font-size:12px;font-weight:600">1<span class="pin" title="Roughly 30pt tall - far below the 44pt minimum, and it is the primary control of this form.">5</span></span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:12px;font-weight:600">2</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:12px;font-weight:600">3</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:12px;font-weight:600">4</span>
+              </div>
+              <p style="margin:14px 0 8px;color:#334155;font-size:12px;font-weight:600">Rate per unit (&#8377;)</p>
+              <div style="min-height:50px;border-radius:14px;border:1px solid #D5DEDA;background:#FAFCFB;padding:0 14px;display:flex;align-items:center">
+                <span style="color:#94A3B8;font-size:14px">e.g. 60<span class="pin" title="#94A3B8 placeholder on white = 2.56:1. Seven inputs on this screen rely on placeholder text as their only affordance.">4</span></span>
+              </div>
+              <p style="margin:14px 0 8px;color:#334155;font-size:12px;font-weight:600">Apply to days</p>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:11px;font-weight:600">Mon</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:11px;font-weight:600">Tue</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:11px;font-weight:600">Wed</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:11px;font-weight:600">Thu</span>
+                <span style="min-height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:#F1F5F3;color:#475569;font-size:11px;font-weight:600">Fri</span>
+              </div>
+              <div style="margin-top:15px;min-height:54px;border-radius:16px;background:#E9EEEC;display:flex;align-items:center;justify-content:center;color:#8A9A93;font-size:14px;font-weight:600">
+                Verify and complete this stop
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fold" aria-hidden="true" style="height:120px;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.97) 70%)"></div>
+        <p class="fold-label" style="color:#9F2D23;bottom:70px">&uarr; the complete button is greyed out because it is behind the form &darr;</p>
+      </div>
+    </div>
+
+    <!-- PROPOSED: sheet -->
+    <div class="frame new">
+      <p class="cap"><span><span class="dot"></span>Proposed</span><span>sheet at 88%</span></p>
+      <div class="phone">
+        <div class="scr">
+          <div class="sheet-scrim">
+            <div class="sheet">
+              <div class="handle"></div>
+              <div class="shd">
+                <div>
+                  <p class="k">Stop 3 of 7 &middot; current</p>
+                  <p class="t">Lakshmi Devi</p>
+                </div>
+                <button class="x" aria-label="Close stop details">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div class="sc">
+                <p class="addr">12-4 Gandhi Nagar, Anakapalle, Visakhapatnam 531001</p>
+
+                <div class="srow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:11px">
+                  <span class="due"><span class="k">Collect</span><span class="v">&#8377;130</span></span>
+                  <span class="req">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                    Photo proof &amp; GPS &middot; no OTP
+                  </span>
+                </div>
+
+                <button class="primary">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  Verify and complete this stop
+                </button>
+
+                <div style="margin-top:9px;display:flex;gap:9px">
+                  <button class="phone-btn" style="flex:1">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"/></svg>
+                    Call
+                  </button>
+                  <button class="phone-btn" style="flex:1">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8-8-2z"/></svg>
+                    Navigate
+                  </button>
+                </div>
+
+                <details class="more">
+                  <summary>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                    Add extra milk or change the schedule
+                    <span class="caret" aria-hidden="true">
+                      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </span>
+                  </summary>
+                  <div class="inner">
+                    <p class="lbl">Quantity</p>
+                    <div class="chips" role="radiogroup" aria-label="Extra milk quantity in litres">
+                      <button class="rchip" role="radio" aria-checked="true">1 L</button>
+                      <button class="rchip" role="radio" aria-checked="false">2 L</button>
+                      <button class="rchip" role="radio" aria-checked="false">3 L</button>
+                      <button class="rchip" role="radio" aria-checked="false">4 L</button>
+                    </div>
+                    <p class="lbl" id="rate-lbl">Rate per litre</p>
+                    <input class="field" id="rate" type="text" inputmode="numeric" aria-labelledby="rate-lbl" placeholder="e.g. 60" value="60" />
+                    <p class="hint">Applied to the duration you pick below. Leave the rate as the store default if unsure.</p>
+                    <p class="lbl">Apply for</p>
+                    <div class="chips" role="radiogroup" aria-label="Extra milk schedule duration">
+                      <button class="rchip" role="radio" aria-checked="true">Today (1d)</button>
+                      <button class="rchip" role="radio" aria-checked="false">2 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">3 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">5 Days</button>
+                      <button class="rchip" role="radio" aria-checked="false">7 Days</button>
+                    </div>
+                  </div>
+                </details>
+
+                <p class="lbl" id="note-lbl">Delivery note</p>
+                <input class="field" id="note" type="text" aria-labelledby="note-lbl" placeholder="Anything the store should know" />
+
+                <button class="danger">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  Report a problem with this stop
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>Reordering the sheet</h3>
+      <ol>
+        <li><b>Complete first.</b> The primary action now sits directly under the address and the money, at 54pt, before anything optional. Today it is last, after ~140 lines of form.
+          <span class="ref">RiderRunDetailScreen.tsx:580-725 vs :751</span></li>
+        <li><b>Extra milk is a disclosure, not a wall.</b> Same fields, same order, still reachable in one tap &mdash; but collapsed. Nothing is removed.</li>
+        <li><b>Chips are radios.</b> 44pt minimum, <code>role="radio"</code> inside a labelled <code>radiogroup</code> with <code>aria-checked</code>, so a screen reader announces &ldquo;2 L, radio, 2 of 4&rdquo; rather than &ldquo;2 L, button&rdquo;.
+          <span class="ref">RiderRunDetailScreen.tsx:619-626, :662-671, :762</span></li>
+        <li><b>Inputs have labels, not placeholders.</b> Every field carries a visible label; the placeholder is an example, in <code>#5A6B62</code> at 5.65:1 rather than <code>#94A3B8</code> at 2.56:1.
+          <span class="ref">RiderRunDetailScreen.tsx:557, :643, :653, :682, :747, :750, :763, :772</span></li>
+        <li><b>Failure is separated and worded plainly.</b> &ldquo;Report a problem with this stop&rdquo; sits below the note, visually distinct, so it is never mistaken for the happy path.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<footer style="border-top:3px double var(--rule);margin-top:40px;padding-top:18px;color:var(--ink3);font:12px/1.6 var(--mono)">
+  <p style="margin:0">Static mockup &mdash; no application code changed. Current-screen frames are a reproduction from the literal style values in <b>RiderRunDetailScreen.tsx</b>, not device screenshots.</p>
+  <p style="margin:6px 0 0">Proposed colours verified against WCAG 2.1: ink2 9.38:1 &middot; ink3 5.65:1 &middot; signal-ink 9.43:1 &middot; cash 6.14:1 &middot; ok 6.73:1 &middot; danger 6.59:1 &middot; rule 3.17:1 (non-text).</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var ann = document.getElementById('t-ann');
+  var fold = document.getElementById('t-fold');
+  function sync(){
+    document.body.classList.toggle('annotate', ann.checked);
+    document.body.classList.toggle('no-fold', !fold.checked);
+  }
+  ann.addEventListener('change', sync);
+  fold.addEventListener('change', sync);
+  sync();
+})();
+</script>
+
+</body>
+</html>
+
+
