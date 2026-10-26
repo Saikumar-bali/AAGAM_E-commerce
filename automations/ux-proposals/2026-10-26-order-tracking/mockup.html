@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Order tracking — UX proposal (2026-10-26) · before / after</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Martian+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   Waybill — order tracking redesign
+   Tokens below mirror packages/mobile-shared/src/constants/theme.ts
+   ============================================================ */
+:root{
+  /* brand (unchanged from theme.ts) */
+  --primary:#0F766E; --primary-light:#CCFBF1; --primary-dark:#115E59; --brand-green:#0C7659;
+  --accent:#14B8A6; --success:#10B981; --warning:#F59E0B; --error:#DC2626;
+  --surface:#FFFFFF;
+
+  /* current-screen literal colours, for the "before" frame */
+  --old-bg:#F8FAFC; --old-border:#E2E8F0; --old-text:#0F172A; --old-secondary:#64748B;
+  --old-muted:#94A3B8; --old-body:#475569; --old-hero-label:#99F6E4; --old-hero-note:#CCFBF1;
+
+  /* Waybill surface layer (new) */
+  --paper:#F6F4EF; --paper-rule:#DAD5C9; --rule:#0F766E;
+  --ink:#0E1B1A; --ink-soft:#43524F; --ink-muted:#5C6B68;
+
+  /* status inks */
+  --stamp-live:#0B4F4A; --teal-wash:#E4F3F0;
+  --stamp-wait:#43524F; --slate-wash:#EDEAE3;
+  --stamp-amber:#8A3A0B; --amber-wash:#FDF3E3;
+  --stamp-danger:#9A1B1B; --danger-wash:#FBECEC;
+  --stamp-done:#0B4F4A; --done-wash:#E3F1E9;
+
+  /* money */
+  --money:#0B4F4A; --cash-wash:#FDF3E3; --cash-ink:#7A4A06;
+
+  --shadow-sheet:0 1px 0 rgba(14,27,26,.04), 0 10px 26px -18px rgba(14,27,26,.35);
+  --font-body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Martian Mono","SFMono-Regular",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#E8E4DA;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(15,118,110,.07), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(138,58,11,.06), transparent 46%);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  padding:32px 20px 72px;
+}
+.wrap{max-width:1180px;margin:0 auto}
+
+/* ---------- page masthead ---------- */
+.masthead{border-top:3px solid var(--ink);padding-top:14px;margin-bottom:26px}
+.masthead .kicker{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.masthead h1{
+  margin:10px 0 0;font-size:clamp(26px,4vw,44px);line-height:1.02;font-weight:800;
+  letter-spacing:-.02em;max-width:22ch;
+}
+.masthead .sub{margin:12px 0 0;max-width:70ch;color:var(--ink-soft);font-size:15px;line-height:1.55}
+.masthead .meta{
+  margin-top:16px;display:flex;flex-wrap:wrap;gap:8px 10px;font-family:var(--font-mono);
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
+}
+.masthead .meta span{border:1px solid var(--paper-rule);border-radius:3px;padding:4px 8px;background:#fff}
+
+/* ---------- controls ---------- */
+.controls{
+  position:sticky;top:0;z-index:20;margin:22px 0 26px;padding:12px 14px;
+  background:rgba(246,244,239,.94);backdrop-filter:blur(6px);
+  border:1px solid var(--paper-rule);border-radius:8px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
+}
+.controls .lab{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{
+  font-family:var(--font-body);font-size:13px;font-weight:600;
+  min-height:44px;padding:0 16px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--paper-rule);background:#fff;color:var(--ink);
+  transition:background .15s ease,border-color .15s ease;
+}
+.seg button:hover{border-color:var(--ink-soft)}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.controls .hint{font-size:12px;color:var(--ink-soft);margin-left:auto}
+:where(button,a,input,summary,[tabindex]):focus-visible{
+  outline:3px solid var(--primary);outline-offset:2px;border-radius:4px;
+}
+
+/* ---------- comparison grid ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:start}
+@media (max-width:980px){ .grid{grid-template-columns:1fr;gap:44px} }
+
+.col > header{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:16px;
+}
+.col > header h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.01em}
+.col > header .tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;padding:4px 8px;border-radius:3px;
+}
+.tag.before{background:var(--slate-wash);color:var(--ink-soft)}
+.tag.after{background:var(--teal-wash);color:var(--stamp-live)}
+
+/* ---------- phone chrome ---------- */
+.phone{
+  width:360px;max-width:100%;margin:0 auto;background:#fff;border-radius:26px;
+  border:1px solid #CFC9BC;box-shadow:0 24px 60px -34px rgba(14,27,26,.55);
+  overflow:hidden;
+}
+.phone .statusbar{
+  height:26px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;
+  background:#fff;color:var(--ink-soft);border-bottom:1px solid #EFEDE7;
+}
+.phone .viewport{height:640px;overflow-y:auto;scrollbar-width:thin}
+.phone .viewport::-webkit-scrollbar{width:6px}
+.phone .viewport::-webkit-scrollbar-thumb{background:#D5D0C4;border-radius:99px}
+.screen{min-height:100%;position:relative}
+
+/* ============================================================
+   BEFORE — faithful re-creation of the current screen
+   Colours are the literal hexes in OrderDetailScreen.tsx
+   ============================================================ */
+.b{background:var(--old-bg);min-height:640px;padding:16px 16px 150px}
+.b-hero{border-radius:24px;background:var(--primary);padding:20px}
+.b-orderid{color:var(--old-hero-note);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.b-status{margin-top:8px;color:#fff;font-size:28px;font-weight:600;line-height:1.15}
+.b-meta{margin-top:6px;color:#E6FFFA;font-size:14px}
+.b-amountlabel{margin-top:16px;color:var(--old-hero-label);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px}
+.b-total{margin-top:4px;color:#fff;font-size:30px;font-weight:600}
+.b-heroNote{margin-top:8px;color:var(--old-hero-note);font-size:11px;font-weight:500;line-height:16px}
+.b-schedule{margin-top:12px;border-radius:16px;background:#ECFDF5;border:1px solid #A7F3D0;padding:16px}
+.b-scheduleTitle{color:#047857;font-size:11px;font-weight:600;text-transform:uppercase}
+.b-scheduleValue{margin-top:4px;color:#064E3B;font-size:15px;font-weight:600}
+.b-scheduleHelp{margin-top:4px;color:#047857;font-size:11px;font-weight:500}
+.b-bannerwrap{margin-top:12px}
+.b-banner{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:16px;font-size:13px;font-weight:500;color:var(--old-body)}
+.b-banner .dot{width:8px;height:8px;border-radius:4px;background:var(--old-muted);flex:0 0 auto}
+.b-banner.wait{background:#F1F5F9;border:1px solid var(--old-border)}
+.b-banner.assigned{background:#EFF6FF;border:1px solid #BFDBFE}
+.b-banner.stale{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+.b-banner.done{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46}
+.b-banner.cancel{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
+.b-card{margin-top:16px;border-radius:20px;background:#fff;border:1px solid var(--old-border);padding:16px}
+.b-cardtitle{font-size:18px;font-weight:600;color:var(--old-text);margin:0 0 12px}
+.b-bold{color:var(--old-text);font-weight:600}
+.b-body{margin-top:4px;color:var(--old-body);font-size:14px}
+.b-codecard{margin-top:16px;border-radius:20px;border:1px solid #99F6E4;background:#F0FDFA;padding:16px}
+.b-codehead{display:flex;align-items:center;gap:10px}
+.b-iconbox{width:44px;height:44px;border-radius:14px;background:#CCFBF1;display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--primary)}
+.b-codetitle{color:#134E4A;font-size:17px;font-weight:600}
+.b-codesub{margin-top:4px;color:var(--primary);font-size:12px;line-height:17px;font-weight:500}
+.b-sync{margin-top:12px;color:var(--old-secondary);font-size:11px;font-weight:500}
+.b-primarybtn{min-height:50px;margin-top:16px;border-radius:15px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:600;border:0;width:100%;cursor:pointer;font-family:inherit}
+.b-map{margin:0 0 12px;height:200px;border-radius:12px;overflow:hidden;position:relative;
+  background:
+    repeating-linear-gradient(0deg,transparent 0 23px,rgba(15,23,42,.045) 23px 24px),
+    repeating-linear-gradient(90deg,transparent 0 23px,rgba(15,23,42,.045) 23px 24px),
+    linear-gradient(155deg,#E8EEF2,#DCE6EA 55%,#D3DFE4);}
+.b-map .pin{position:absolute;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.b-map .pin.store{background:#0F766E;left:16%;top:64%}
+.b-map .pin.drop{background:#0F172A;right:14%;top:26%}
+.b-map .pin.rider{background:#3B82F6;left:48%;top:46%}
+.b-map .route{position:absolute;left:20%;top:34%;width:56%;height:34%;border-bottom:3px dashed #3B82F6;border-right:3px solid #3B82F6;border-radius:0 0 40% 0;transform:rotate(-6deg);opacity:.75}
+.b-map .mapnote{position:absolute;left:8px;bottom:8px;background:rgba(255,255,255,.92);border-radius:6px;padding:3px 7px;font-size:10px;font-weight:600;color:var(--old-body)}
+.b-trackinfo{display:flex;justify-content:space-around;padding:8px 0 0;border-top:1px solid #F1F5F9}
+.b-trackitem{text-align:center}
+.b-tracklabel{font-size:10px;font-weight:500;color:var(--old-muted);text-transform:uppercase}
+.b-trackvalue{margin-top:2px;font-size:16px;font-weight:600;color:var(--old-text)}
+.b-riderinfo{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;border-top:1px solid #F1F5F9;margin-top:12px}
+.b-riderlabel{font-size:10px;font-weight:500;color:var(--old-muted);text-transform:uppercase}
+.b-ridername{margin-top:2px;font-size:15px;font-weight:600;color:var(--old-text)}
+.b-callbtn{margin-top:12px;align-self:flex-start;background:var(--primary);border-radius:999px;padding:8px 16px;border:0;color:#fff;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit}
+.b-tl{display:flex;gap:12px;margin-bottom:16px}
+.b-tldot{width:10px;height:10px;border-radius:5px;background:var(--old-border);margin-top:4px;flex:0 0 auto}
+.b-tldot.active{background:var(--primary)}
+.b-tltxt.active{color:var(--primary)}
+.b-row{display:flex;gap:12px;justify-content:space-between;margin-bottom:12px}
+.b-sumrow{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:12px;font-size:14px}
+.b-totalrow{margin-top:8px;padding-top:14px;border-top:1px solid var(--old-border)}
+.b-totallabel{color:var(--old-text);font-size:16px;font-weight:600}
+.b-totalvalue{color:var(--primary);font-size:20px;font-weight:600}
+.b-help{margin-top:12px;color:var(--old-secondary);font-size:11px;line-height:16px;font-weight:600}
+.b-infobox{margin-top:4px;border-radius:14px;background:#F0FDFA;border:1px solid #99F6E4;padding:12px}
+.b-reviewbtn{margin-top:16px;border-radius:16px;background:#0F172A;padding:16px;color:#fff;font-weight:600;text-align:center;border:0;width:100%;cursor:pointer;font-family:inherit}
+.b-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:600px;gap:6px;text-align:center;padding:24px}
+.b-empty .err{color:#B91C1C;font-weight:500;font-size:14px}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid #CBD5E1;border-top-color:var(--primary);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:var(--primary);opacity:.7}}
+
+/* ============================================================
+   AFTER — "Waybill": a parcel manifest printed on warm paper
+   ============================================================ */
+.w{background:var(--paper);min-height:640px;padding:0 0 84px;position:relative}
+.w-topbar{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--paper-rule);background:var(--paper);position:relative;z-index:2;
+}
+.w-back{
+  width:44px;height:44px;min-width:44px;border-radius:8px;border:1px solid var(--paper-rule);
+  background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);
+}
+.w-topbar .who{flex:1;min-width:0}
+.w-topbar .kicker{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-muted)}
+.w-topbar .idline{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--ink);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w-conn{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--amber-wash);
+  border-bottom:1px solid #E8D9BC;color:var(--stamp-amber);font-size:12px;font-weight:600;
+}
+.w-conn .ico{width:8px;height:8px;border-radius:50%;background:var(--stamp-amber);flex:0 0 auto}
+
+/* --- headline: the ETA is the biggest thing on the screen --- */
+.w-head{padding:16px 18px 14px;border-bottom:1px solid var(--paper-rule)}
+.w-head .stamprow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stamp{
+  display:inline-flex;align-items:center;gap:6px;border:1px solid currentColor;
+  box-shadow:inset 0 0 0 2px var(--paper), inset 0 0 0 3px currentColor;
+  border-radius:3px;padding:4px 8px;
+  font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+}
+.stamp.live{color:var(--stamp-live);background:var(--teal-wash)}
+.stamp.wait{color:var(--stamp-wait);background:var(--slate-wash)}
+.stamp.amber{color:var(--stamp-amber);background:var(--amber-wash)}
+.stamp.done{color:var(--stamp-done);background:var(--done-wash)}
+.stamp.danger{color:var(--stamp-danger);background:var(--danger-wash)}
+.w-head .since{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--ink-muted);text-transform:uppercase}
+.w-eta{display:flex;align-items:flex-end;gap:10px;margin-top:12px}
+.w-eta .num{font-family:var(--font-mono);font-size:52px;font-weight:700;line-height:.86;letter-spacing:-.04em;color:var(--ink)}
+.w-eta .unit{font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--ink-soft);padding-bottom:6px;letter-spacing:.02em}
+.w-eta .desc{margin-left:auto;text-align:right;font-size:12px;line-height:1.35;color:var(--ink-soft);max-width:14ch;padding-bottom:4px}
+.w-head .sentence{margin-top:12px;font-size:14.5px;line-height:1.5;color:var(--ink)}
+.w-head .sentence strong{font-weight:700}
+
+/* --- ruled sheet: every card gets the ledger margin --- */
+.sheet{
+  position:relative;background:var(--surface);margin:12px 14px 0;
+  border:1px solid var(--paper-rule);border-radius:14px;
+  box-shadow:var(--shadow-sheet);padding:15px 15px 15px 22px;overflow:hidden;
+}
+.sheet::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rule);opacity:.85}
+.sheet h3{
+  margin:0 0 10px;font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-muted);
+}
+.sheet h3.spaced{margin-bottom:12px}
+.kv{display:flex;justify-content:space-between;gap:14px;padding:5px 0;font-size:13.5px}
+.kv .k{color:var(--ink-soft)}
+.kv .v{color:var(--ink);font-weight:600;text-align:right}
+.kv .v.mono{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.01em}
+.rule{height:1px;background:var(--paper-rule);margin:11px 0}
+
+/* --- money line: a sentence first, the figure second --- */
+.money{
+  margin-top:12px;border:1px solid #E8D9BC;background:var(--cash-wash);
+  border-radius:10px;padding:12px 13px;
+}
+.money.zero{border-color:#CBE3DA;background:var(--done-wash)}
+.money .head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.money .say{font-size:13.5px;line-height:1.45;color:var(--cash-ink);font-weight:600}
+.money.zero .say{color:var(--stamp-live)}
+.money .fig{font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--cash-ink);white-space:nowrap}
+.money.zero .fig{color:var(--stamp-live)}
+.money .note{margin-top:6px;font-size:11.5px;line-height:1.45;color:var(--ink-soft)}
+
+/* --- rider block: one introduction --- */
+.rider{display:flex;align-items:center;gap:12px}
+.avatar{
+  width:48px;height:48px;min-width:48px;border-radius:50%;background:var(--ink);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:16px;font-weight:700;letter-spacing:.02em;
+}
+.rider .who{flex:1;min-width:0}
+.rider .nm{font-size:15px;font-weight:700;color:var(--ink)}
+.rider .sub{margin-top:2px;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-muted);letter-spacing:.01em}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:48px;padding:0 16px;border-radius:10px;border:1px solid var(--ink);
+  background:var(--ink);color:#fff;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;
+}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--paper-rule)}
+.btn.teal{background:var(--primary);border-color:var(--primary)}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+
+/* --- route strip --- */
+.strip{display:flex;align-items:center;gap:10px;font-size:13px}
+.strip .node{width:11px;height:11px;border-radius:50%;flex:0 0 auto;border:2px solid var(--paper)}
+.strip .node.s{background:var(--primary)}
+.strip .node.d{background:var(--ink)}
+.strip .line{flex:1;height:2px;background:repeating-linear-gradient(90deg,var(--paper-rule) 0 5px,transparent 5px 9px)}
+.strip .lbl{font-size:12px;color:var(--ink-soft)}
+.strip .lbl b{color:var(--ink);font-weight:700}
+
+/* --- map (Waybill: inked, ruled) --- */
+.map{
+  position:relative;height:184px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--paper-rule);
+  background:
+    repeating-linear-gradient(0deg,transparent 0 27px,rgba(14,27,26,.05) 27px 28px),
+    repeating-linear-gradient(90deg,transparent 0 27px,rgba(14,27,26,.05) 27px 28px),
+    linear-gradient(160deg,#EFEDE6,#E4E1D7 60%,#DAD6C9);
+}
+.map .mk{position:absolute;width:13px;height:13px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.28)}
+.map .mk.s{background:var(--primary);left:15%;top:66%}
+.map .mk.d{background:var(--ink);right:13%;top:24%}
+.map .mk.r{background:#2563EB;left:47%;top:44%}
+.map .rl{position:absolute;left:19%;top:32%;width:57%;height:36%;border-bottom:3px solid #2563EB;border-right:3px solid #2563EB;border-radius:0 0 42% 0;transform:rotate(-6deg);opacity:.85}
+.map .cap{position:absolute;left:8px;bottom:8px;background:rgba(255,255,255,.94);border-radius:5px;padding:3px 7px;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--ink-soft)}
+.map .scale{position:absolute;right:8px;bottom:8px;font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;color:var(--ink-muted);background:rgba(255,255,255,.9);padding:2px 5px;border-radius:4px}
+
+/* --- timeline --- */
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 14px 20px}
+.tl li:last-child{padding-bottom:0}
+.tl li::before{content:"";position:absolute;left:3px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--paper-rule);border:2px solid var(--surface)}
+.tl li.on::before{background:var(--primary);box-shadow:0 0 0 3px var(--teal-wash)}
+.tl li::after{content:"";position:absolute;left:7px;top:16px;bottom:0;width:1px;background:var(--paper-rule)}
+.tl li:last-child::after{display:none}
+.tl .ev{font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.01em}
+.tl li.on .ev{color:var(--stamp-live)}
+.tl .ts{margin-top:2px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-muted)}
+.tl .nt{margin-top:3px;font-size:12px;color:var(--ink-soft)}
+.empty-note{
+  border:1px dashed var(--paper-rule);border-radius:9px;padding:14px;text-align:center;
+  font-size:12.5px;color:var(--ink-soft);background:#FBFAF7;
+}
+.tl-empty{
+  display:flex;align-items:center;gap:9px;border:1px dashed var(--paper-rule);
+  border-radius:9px;padding:13px;background:#FBFAF7;font-size:12.5px;color:var(--ink-soft);
+}
+.tl-empty-mark{font-size:15px;line-height:1;color:var(--ink-muted)}
+
+/* --- code reveal --- */
+.code-reveal{border:1px solid var(--paper-rule);border-radius:10px;padding:13px;background:#FBFAF7}
+.code-reveal .ask{font-size:13px;line-height:1.5;color:var(--ink)}
+.code-reveal .ask b{font-weight:700}
+.code-panel{margin-top:11px;border:1px dashed #9CC9C2;border-radius:9px;background:var(--teal-wash);padding:13px;text-align:center}
+.code-panel .cap{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--stamp-live)}
+.code-panel .code{margin-top:6px;font-family:var(--font-mono);font-size:31px;font-weight:700;letter-spacing:.22em;color:var(--ink)}
+.code-panel .exp{margin-top:6px;font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--stamp-amber)}
+.code-err{margin-top:10px;font-size:12px;line-height:1.5;color:var(--stamp-danger);font-weight:600}
+
+/* --- sticky action bar (P2) --- */
+.w-actionbar{
+  position:sticky;bottom:0;left:0;right:0;z-index:5;display:flex;gap:10px;
+  padding:12px 14px;background:rgba(246,244,239,.97);border-top:1px solid var(--paper-rule);
+  backdrop-filter:blur(6px);
+}
+.w-actionbar .btn{flex:1}
+
+/* --- skeleton + error + empty for the redesign --- */
+.sk{background:linear-gradient(90deg,#EFECE4 25%,#E4E0D5 37%,#EFECE4 63%);background-size:400% 100%;border-radius:6px;animation:sk 1.4s ease-in-out infinite}
+@keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none;background:#EAE6DC}}
+.sk.h1{height:46px;width:64%}
+.sk.h2{height:13px;width:44%;margin-top:12px}
+.sk.h3{height:13px;width:76%;margin-top:8px}
+.sk.b{height:12px;width:100%;margin-top:9px}
+.sk.b.short{width:58%}
+.w-state{padding:22px 18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
+.w-state .glyph{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--paper-rule);background:#fff;color:var(--ink-soft);font-family:var(--font-mono);font-size:20px;font-weight:700}
+.w-state .ttl{font-size:17px;font-weight:700;color:var(--ink)}
+.w-state .msg{font-size:13.5px;line-height:1.5;color:var(--ink-soft);max-width:32ch}
+.w-state .btn{margin-top:6px}
+.w-state.err .glyph{border-color:#E7C6C6;background:var(--danger-wash);color:var(--stamp-danger)}
+
+/* ---------- legend ---------- */
+.legend{margin-top:46px;border-top:3px solid var(--ink);padding-top:16px}
+.legend h2{margin:0 0 6px;font-size:19px;font-weight:800}
+.legend p{margin:0 0 14px;color:var(--ink-soft);font-size:13.5px;max-width:80ch;line-height:1.5}
+.legend ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px 20px}
+.legend li{display:flex;gap:10px;font-size:13px;line-height:1.5;padding:8px 0;border-top:1px solid var(--paper-rule)}
+.legend .pid{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.06em;
+  background:var(--ink);color:#fff;border-radius:3px;padding:3px 6px;height:fit-content;flex:0 0 auto;
+}
+.legend .fix{color:var(--ink-soft)}
+.legend .fix b{color:var(--ink)}
+
+@media (prefers-reduced-motion:no-preference){
+  .reveal{animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+  .reveal:nth-child(2){animation-delay:.05s}
+  .reveal:nth-child(3){animation-delay:.1s}
+  .reveal:nth-child(4){animation-delay:.15s}
+  .reveal:nth-child(5){animation-delay:.2s}
+  .reveal:nth-child(6){animation-delay:.25s}
+  .reveal:nth-child(7){animation-delay:.3s}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  .pulse{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(15,118,110,.35)}50%{box-shadow:0 0 0 5px rgba(15,118,110,0)}}
+}
+@media print{ .controls{display:none} }
+</style>
+</head>
+<body data-state="live">
+<style>
+  /* annotation flags used in the "before" frame */
+  .flag{
+    display:inline-flex;align-items:center;gap:5px;background:#9A1B1B;color:#fff;
+    font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.1em;
+    border-radius:3px;padding:3px 6px;text-transform:uppercase;
+  }
+  .flagrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+  .anno{
+    margin:10px 0 0;border-left:3px solid #9A1B1B;background:#FBECEC;
+    padding:8px 10px;border-radius:0 6px 6px 0;font-size:11.5px;line-height:1.45;color:#7A1A1A;
+  }
+  .anno b{font-weight:700}
+  .ok{color:var(--stamp-live);font-weight:700}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="kicker">AAGAM · UX proposal 2026-10-26 · mobile-customer</div>
+    <h1>Order tracking, re-cut as a waybill</h1>
+    <p class="sub">
+      <strong>Before / after for <code>OrderDetailScreen.tsx</code>.</strong> The current screen (left) is
+      re-created from the real implementation — same section order, same literal hex values, same copy.
+      The redesign (right) is the same data as a parcel manifest: a status stamp, the arrival estimate as
+      the headline, one rider block, and a money line written as a sentence.
+      This is a static mockup. It changes no application code.
+    </p>
+    <div class="meta">
+      <span>360px wide</span><span>4 states</span><span>no build step</span>
+      <span>16 problems cited</span><span>all ratios &ge; 4.5:1</span>
+    </div>
+  </header>
+
+  <div class="controls" role="group" aria-label="Preview state">
+    <span class="lab">State</span>
+    <div class="seg" role="group" aria-label="Choose which state to preview">
+      <button type="button" data-set="live" aria-pressed="true">Live</button>
+      <button type="button" data-set="delivered" aria-pressed="false">Delivered</button>
+      <button type="button" data-set="stale" aria-pressed="false">Stale</button>
+      <button type="button" data-set="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-set="empty" aria-pressed="false">Empty</button>
+      <button type="button" data-set="error" aria-pressed="false">Error</button>
+    </div>
+    <span class="hint">Both frames switch together. Scroll inside a phone to see the full page.</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- ===================== BEFORE ===================== -->
+    <section class="col" aria-labelledby="before-h">
+      <header>
+        <h2 id="before-h">Current screen</h2>
+        <span class="tag before">before · shipped</span>
+      </header>
+
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>AAGAM · customer</span><span>100%</span></div>
+        <div class="viewport">
+
+          <!-- BEFORE / LIVE -->
+          <div class="state-panel state-live">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">OUT FOR DELIVERY</div>
+                <div class="b-meta">10/26/2026, 9:14:02 AM</div>
+                <div class="b-amountlabel">Cash due</div>
+                <div class="b-total">₹130</div>
+                <div class="b-heroNote">This payment funds your subscription. No extra charge.</div>
+              </div>
+
+              <div class="b-schedule">
+                <div class="b-scheduleTitle">Scheduled delivery</div>
+                <div class="b-scheduleValue">Mon, 26 Oct 2026 · 7:00 AM–9:00 AM</div>
+                <div class="b-scheduleHelp">Your store prepares this order within the scheduled delivery window.</div>
+              </div>
+
+              <div class="b-bannerwrap" style="min-height:42px;border:1px dashed #E7C6C6;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#FFF7F7">
+                <span class="flag">P1 · no banner renders here</span>
+              </div>
+              <p class="anno"><b>The bug.</b> <code>trackingState</code> is <code>LIVE</code>, which the map panel
+              accepts at line&nbsp;388 but the banner's <code>switch</code> has no case for (lines&nbsp;87–144, falling to
+              <code>default: return null</code> at&nbsp;142). The rider is moving and there is no status sentence.</p>
+
+              <div class="b-codecard">
+                <div class="b-codehead">
+                  <div class="b-iconbox" aria-hidden="true">⌘</div>
+                  <div>
+                    <div class="b-codetitle">Delivery verification code</div>
+                    <div class="b-codesub">Share it only after checking and receiving the parcel.</div>
+                  </div>
+                </div>
+                <div class="b-sync">Checking rider arrival…</div>
+                <button type="button" class="b-primarybtn">⌘ Show delivery code</button>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Live Tracking</h3>
+                <div class="b-map">
+                  <div class="route"></div>
+                  <div class="pin store"></div><div class="pin rider"></div><div class="pin drop"></div>
+                  <div class="mapnote">Mapbox · 3 pins</div>
+                </div>
+                <div class="b-trackinfo">
+                  <div class="b-trackitem"><div class="b-tracklabel">ETA</div><div class="b-trackvalue">12 min</div></div>
+                  <div class="b-trackitem"><div class="b-tracklabel">Distance</div><div class="b-trackvalue">3.4 km</div></div>
+                  <div class="b-trackitem"><div class="b-tracklabel">Last Update</div><div class="b-trackvalue">8s ago</div></div>
+                </div>
+                <div class="b-riderinfo">
+                  <div>
+                    <div class="b-riderlabel">Rider</div>
+                    <div class="b-ridername">Sai Kumar</div>
+                  </div>
+                  <button type="button" class="b-callbtn">Call Rider</button>
+                </div>
+                <div class="flagrow"><span class="flag">P3 · 32pt tap target</span><span class="flag">P4 · number not shown</span><span class="flag">P6 · labels 2.56:1</span><span class="flag">P5 · “Rider” twice</span></div>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Timeline</h3>
+                <div class="b-tl"><div class="b-tldot"></div><div><div class="b-bold">ORDER PLACED</div><div class="b-body">10/26/2026, 9:14:02 AM</div></div></div>
+                <div class="b-tl"><div class="b-tldot active"></div><div><div class="b-bold b-tltxt active">OUT FOR DELIVERY</div><div class="b-body">10/26/2026, 9:31:47 AM</div></div></div>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Delivery Address</h3>
+                <div class="b-bold">Lakshmi Devi</div>
+                <div class="b-body">+91 90000 00001</div>
+                <div class="b-body">2-14 Main Road, Gandhinagar</div>
+                <div class="b-body">Anakapalle, Andhra Pradesh - 531001</div>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Items</h3>
+                <div class="b-row">
+                  <div><div class="b-bold">AAGAM Full Cream Milk 500ml</div><div class="b-body">1 × subscription delivery</div></div>
+                  <div class="b-bold">Included</div>
+                </div>
+                <div class="b-infobox">
+                  <div class="b-help" style="margin-top:0;color:#115E59;font-size:11px;text-transform:uppercase">Subscription pricing</div>
+                  <div class="b-body" style="color:#0F766E;font-weight:600;font-size:11px">The item above is part of your recurring plan. Your payable amount for this delivery is shown in Cash due, not as a separate item charge.</div>
+                </div>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Bill Summary</h3>
+                <div class="b-sumrow"><span class="b-body" style="margin:0">Subscription delivery</span><span class="b-bold">Included in plan</span></div>
+                <div class="b-sumrow"><span class="b-body" style="margin:0">Delivery fee</span><span class="b-bold">FREE</span></div>
+                <div class="b-sumrow b-totalrow"><span class="b-totallabel">Cash due</span><span class="b-totalvalue">₹130</span></div>
+                <div class="b-help">This is the amount to collect for the subscription funding event.</div>
+              </div>
+
+              <div class="b-card">
+                <h3 class="b-cardtitle">Payment</h3>
+                <div class="b-body">Method: CASH</div>
+                <div class="b-body">Status: PENDING_COD</div>
+                <div class="b-body" style="color:#0F766E;font-weight:600">Cash due: ₹130</div>
+                <div class="b-body">Store: AAGAM Anakapalle Hub</div>
+                <div class="flagrow"><span class="flag">P10 · raw enum</span><span class="flag">P11 · device locale</span></div>
+              </div>
+
+              <div class="anno" style="margin:16px 0 0"><b>P2.</b> “Review order” would render here, after the
+              live-map card and before the Timeline (line&nbsp;437, before cards at 447–594). On a 360×640 device it is three screens down.
+              In this state <code>canReview</code> is false (line&nbsp;323) so the button is absent entirely —
+              the customer is never told why.</div>
+            </div>
+          </div>
+
+          <!-- BEFORE / DELIVERED -->
+          <div class="state-panel state-delivered">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">DELIVERED</div>
+                <div class="b-meta">10/26/2026, 9:53:11 AM</div>
+                <div class="b-amountlabel">Funded delivery</div>
+                <div class="b-total">₹0</div>
+              </div>
+              <div class="b-bannerwrap">
+                <div class="b-banner done"><span class="dot" style="background:#10B981"></span>Order delivered.</div>
+              </div>
+              <button type="button" class="b-primarybtn" style="margin-top:16px">Review order</button>
+              <div class="anno" style="margin:16px 0 0"><b>P2.</b> The delivered order is reviewable
+              (<code>canReview</code>, line&nbsp;323), so “Review order” renders at line&nbsp;437 — after the
+              hero and the tracking banner, and before Timeline, Delivery Address, Items, Bill Summary and
+              Payment (447–594). No live-map card renders in this state (the map is gated to
+              <code>LIVE</code>/<code>STALE</code>/<code>ASSIGNED_NO_LOCATION</code>, line&nbsp;388). On a
+              360×640 device the button is three to four screens down, so the review is lost.</div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Timeline</h3>
+                <div class="b-row"><div><div class="b-bold">Delivered</div><div class="b-body">10/26/2026, 9:53:11 AM</div></div></div>
+                <div class="b-row"><div><div class="b-bold">Out for delivery</div><div class="b-body">10/26/2026, 9:31:02 AM</div></div></div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Delivery Address</h3>
+                <div class="b-body">2-14 Main Road, Gandhinagar, Anakapalle, AP 531001</div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Items</h3>
+                <div class="b-row">
+                  <div><div class="b-bold">AAGAM Full Cream Milk 500ml</div><div class="b-body">1 × subscription delivery</div></div>
+                  <div class="b-bold">Included</div>
+                </div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Bill Summary</h3>
+                <div class="b-sumrow"><span class="b-body" style="margin:0">Delivery fee</span><span class="b-bold">FREE</span></div>
+                <div class="b-sumrow b-totalrow"><span class="b-totallabel">Funded delivery</span><span class="b-totalvalue">₹0</span></div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Payment</h3>
+                <div class="b-body">Method: SUBSCRIPTION</div>
+                <div class="b-body">Status: SUBSCRIPTION_FUNDED</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BEFORE / STALE -->
+          <div class="state-panel state-stale">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">OUT FOR DELIVERY</div>
+                <div class="b-meta">10/26/2026, 9:31:02 AM</div>
+                <div class="b-amountlabel">Cash due</div>
+                <div class="b-total">₹130</div>
+              </div>
+              <div class="b-bannerwrap" style="min-height:42px;border:1px dashed #E7C6C6;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#FFF7F7">
+                <span class="flag">P1 · no banner renders here</span>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Live Tracking</h3>
+                <div class="b-body">Last Update: 42m ago</div>
+                <div class="b-help">The counter keeps climbing; nothing tells the customer the connection is down.</div>
+                <div class="flagrow" style="margin:8px 0 0"><span class="flag">P15 · no offline handling</span></div>
+              </div>
+              <div class="anno" style="margin:16px 0 0"><b>P15.</b> <code>@react-native-community/netinfo</code> is
+              not imported anywhere in the app, so when the socket drops the “Last Update” counter just climbs
+              (lines&nbsp;267–275). There is no ribbon, no age-of-last-update explanation and no distinction
+              between “stale” and “still live”.</div>
+            </div>
+          </div>
+
+          <!-- BEFORE / LOADING -->
+          <div class="state-panel state-loading">
+            <div class="screen b">
+              <div class="b-empty" style="min-height:640px">
+                <div class="spin" aria-hidden="true"></div>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px;background:var(--old-bg)">
+              <div class="anno"><b>P14.</b> The entire loading state is this spinner, centred in a flex box
+              (lines 277–283). No skeleton, no label, no sense of what is loading. On a slow connection the
+              customer cannot tell the app apart from a hang.</div>
+            </div>
+          </div>
+
+          <!-- BEFORE / EMPTY -->
+          <div class="state-panel state-empty">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">CANCELLED</div>
+                <div class="b-meta">10/26/2026, 9:14:02 AM</div>
+                <div class="b-amountlabel">Order total</div>
+                <div class="b-total">₹0</div>
+              </div>
+              <div class="b-bannerwrap">
+                <div class="b-banner cancel"><span class="dot" style="background:#EF4444"></span>Order was cancelled</div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Timeline</h3>
+                <div class="flagrow" style="margin:0"><span class="flag">P12 · titled, empty card</span></div>
+                <div class="anno"><b>P12.</b> <code>(trackingPayload.timeline || []).map(…)</code> at line&nbsp;449
+                renders nothing when the array is empty, leaving a card titled “Timeline” with no body.
+                It reads as a failed load.</div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Payment</h3>
+                <div class="b-body">Method: N/A</div>
+                <div class="b-body">Status: N/A</div>
+                <div class="b-body">Store: Assigned Store</div>
+                <div class="flagrow"><span class="flag">P10 · “N/A” is a dead end</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BEFORE / ERROR -->
+          <div class="state-panel state-error">
+            <div class="screen b">
+              <div class="b-empty" style="min-height:640px">
+                <div class="err">Unable to load order details.</div>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px;background:var(--old-bg)">
+              <div class="anno"><b>P13.</b> The whole error branch is one red sentence (lines 284–290) with no
+              <b>Try again</b>, no offline hint, no support link — even though the query already exposes
+              <code>refetch</code> (line&nbsp;156). The customer's only recovery is to kill the app.</div>
+            </div>
+          </div>
+
+        </div><!-- /viewport -->
+      </div><!-- /phone -->
+
+      <div class="anno" style="margin-top:14px">
+        <b>Read the left column top to bottom.</b> Hero → schedule → (missing banner) → code → map →
+        <b>Review order</b> → timeline → address → items → bill → payment. In the delivered state the button
+        follows the banner directly, still before the timeline. Either way “Review order” lands below the
+        fold. The warm-paper column on the right keeps every one of these facts and re-orders them around
+        the one question the customer opened the screen to answer.
+      </div>
+    </section>
+
+    <!-- ===================== AFTER ===================== -->
+    <section class="col" aria-labelledby="after-h">
+      <header>
+        <h2 id="after-h">Waybill redesign</h2>
+        <span class="tag after">after · proposal</span>
+      </header>
+
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>AAGAM · customer</span><span>100%</span></div>
+        <div class="viewport">
+
+          <!-- AFTER / LIVE -->
+          <div class="state-panel state-live">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+                <span class="stamp live pulse" style="align-self:center">Live</span>
+              </div>
+
+              <div class="w-head reveal">
+                <div class="stamprow">
+                  <span class="stamp live">Out for delivery</span>
+                  <span class="since">updated 8s ago</span>
+                </div>
+                <div class="w-eta">
+                  <span class="num">12</span>
+                  <span class="unit">min</span>
+                  <span class="desc">Sai is 3.4&nbsp;km away, heading to you</span>
+                </div>
+                <p class="sentence">
+                  Your milk is with <strong>Sai Kumar</strong> and should reach you by
+                  <strong>9:53 AM</strong>. Have <strong>₹130</strong> ready in cash.
+                </p>
+              </div>
+
+              <section class="sheet reveal" aria-labelledby="a-money">
+                <h3 id="a-money">To pay on arrival</h3>
+                <div class="money">
+                  <div class="head">
+                    <span class="say">Have ₹130 ready in cash.</span>
+                    <span class="fig">₹130</span>
+                  </div>
+                  <p class="note">Cash on delivery. Your subscription plan covers the milk; this is the
+                  balance collected at the door.</p>
+                </div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-rider">
+                <h3 id="a-rider">Your rider</h3>
+                <div class="rider">
+                  <div class="avatar" aria-hidden="true">SK</div>
+                  <div class="who">
+                    <div class="nm">Sai Kumar</div>
+                    <div class="sub">+91 90000 00002 · EV scooter</div>
+                  </div>
+                </div>
+                <div class="rule"></div>
+                <div style="display:flex;gap:10px">
+                  <a class="btn teal" href="tel:+919000000002" style="flex:1">Call Sai</a>
+                  <a class="btn ghost" href="sms:+919000000002" style="flex:1">Message</a>
+                </div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-route">
+                <h3 id="a-route">Route</h3>
+                <div class="strip">
+                  <span class="node s"></span>
+                  <span class="lbl"><b>AAGAM Anakapalle Hub</b></span>
+                  <span class="line"></span>
+                  <span class="lbl">3.4 km</span>
+                  <span class="line"></span>
+                  <span class="node d"></span>
+                  <span class="lbl"><b>You</b></span>
+                </div>
+                <div class="map" style="margin-top:12px" role="img" aria-label="Map showing the rider 3.4 km from your address, about 12 minutes away">
+                  <div class="rl"></div>
+                  <div class="mk s"></div><div class="mk r"></div><div class="mk d"></div>
+                  <div class="cap">Sai · 3.4 km · ETA 12 min</div>
+                  <div class="scale">500 m</div>
+                </div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-code">
+                <h3 id="a-code">Delivery verification code</h3>
+                <div class="code-reveal">
+                  <button type="button" class="btn teal wide">Reveal code</button>
+                  <p class="ask" style="margin-top:11px">Check the parcel, then reveal the code and read it out to
+                  <b>Sai</b>. The code is the handover proof — share it only after you have the milk in hand.</p>
+                </div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-sched">
+                <h3 id="a-sched">Delivery window</h3>
+                <div class="kv"><span class="k">Scheduled</span><span class="v mono">Mon 26 Oct · 7:00–9:00 AM</span></div>
+                <div class="kv"><span class="k">Store</span><span class="v">AAGAM Anakapalle Hub</span></div>
+                <div class="kv"><span class="k">Prepared by</span><span class="v">Store team</span></div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-tl">
+                <h3 id="a-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Out for delivery</div><div class="ts">26 Oct · 9:31 AM</div></li>
+                  <li><div class="ev">Packed at store</div><div class="ts">26 Oct · 9:22 AM</div></li>
+                  <li><div class="ev">Order placed</div><div class="ts">26 Oct · 9:14 AM</div></li>
+                </ol>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-drop">
+                <h3 id="a-drop">Delivering to</h3>
+                <div class="kv"><span class="k">Recipient</span><span class="v">Lakshmi Devi</span></div>
+                <div class="kv"><span class="k">Phone</span><span class="v mono">+91 90000 00001</span></div>
+                <div class="kv"><span class="k">Address</span><span class="v" style="max-width:19ch">2-14 Main Road, Gandhinagar, Anakapalle, AP 531001</span></div>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="a-items">
+                <h3 id="a-items">In this delivery</h3>
+                <div class="kv"><span class="k">AAGAM Full Cream Milk 500ml</span><span class="v">1 × 500 ml</span></div>
+                <div class="kv"><span class="k">Plan</span><span class="v">Monthly · 30 days</span></div>
+                <div class="kv"><span class="k">Item charge</span><span class="v">Included in plan</span></div>
+                <div class="kv"><span class="k">Delivery fee</span><span class="v">Free</span></div>
+              </section>
+
+              <div class="w-actionbar">
+                <button type="button" class="btn ghost" style="flex:0 0 auto">Help</button>
+                <button type="button" class="btn" style="flex:1" aria-describedby="review-hint">Track live</button>
+              </div>
+              <p id="review-hint" style="position:absolute;left:-9999px">Opens the live map view.</p>
+            </div>
+          </div>
+
+          <!-- AFTER / DELIVERED — reviewable order, sticky review action (P2) -->
+          <div class="state-panel state-delivered">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+                <span class="stamp done" style="align-self:center">Delivered</span>
+              </div>
+
+              <div class="w-head reveal">
+                <div class="stamprow">
+                  <span class="stamp done">Delivered</span>
+                  <span class="since">26 Oct · 9:53 AM</span>
+                </div>
+                <div class="w-eta">
+                  <span class="num">&#10003;</span>
+                  <span class="desc">Handed over to <strong>Lakshmi Devi</strong></span>
+                </div>
+                <p class="sentence">
+                  Your milk was delivered by <strong>Sai Kumar</strong> at <strong>9:53 AM</strong>.
+                  Nothing is left to pay.
+                </p>
+              </div>
+
+              <section class="sheet reveal" aria-labelledby="d-tl">
+                <h3 id="d-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Delivered</div><div class="ts">26 Oct · 9:53 AM</div></li>
+                  <li><div class="ev">Out for delivery</div><div class="ts">26 Oct · 9:31 AM</div></li>
+                  <li><div class="ev">Packed at store</div><div class="ts">26 Oct · 9:20 AM</div></li>
+                </ol>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="d-items">
+                <h3 id="d-items">In this delivery</h3>
+                <div class="kv"><span class="k">AAGAM Full Cream Milk 500ml</span><span class="v">1 × 500 ml</span></div>
+                <div class="kv"><span class="k">Plan</span><span class="v">Monthly · 30 days</span></div>
+              </section>
+
+              <div class="w-actionbar">
+                <button type="button" class="btn ghost" style="flex:0 0 auto">Help</button>
+                <button type="button" class="btn teal" style="flex:1">Review order</button>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px">
+              <div class="anno"><b>P2.</b> For a reviewable order (<code>canReview</code>, line 323) the sticky
+              action bar carries <b>Review order</b> as the primary action. Orders still in transit keep
+              <b>Track live</b> in the same slot, so the bar always shows the one action that applies to the
+              current status.</div>
+            </div>
+          </div>
+
+          <!-- AFTER / STALE — loaded but disconnected (P15) -->
+          <div class="state-panel state-stale">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+                <span class="stamp amber" style="align-self:center">Stale</span>
+              </div>
+
+              <div class="w-conn">
+                <span class="ico" aria-hidden="true"></span>
+                <span>Connection lost — last update 42 min ago. We will resume automatically.</span>
+              </div>
+
+              <div class="w-head reveal">
+                <div class="stamprow">
+                  <span class="stamp amber">Out for delivery</span>
+                  <span class="since">last update 42m ago</span>
+                </div>
+                <p class="sentence">
+                  We have not heard from <strong>Sai Kumar</strong> since <strong>9:31 AM</strong>. The last
+                  status we received was out for delivery; nothing is lost, and this page will refresh itself.
+                </p>
+              </div>
+
+              <section class="sheet reveal" aria-labelledby="s-tl">
+                <h3 id="s-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Out for delivery</div><div class="ts">26 Oct · 9:31 AM</div></li>
+                  <li><div class="ev">Packed at store</div><div class="ts">26 Oct · 9:20 AM</div></li>
+                </ol>
+              </section>
+
+              <div class="w-actionbar">
+                <button type="button" class="btn ghost" style="flex:0 0 auto">Help</button>
+                <button type="button" class="btn" style="flex:1">Track live</button>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px">
+              <div class="anno"><b>P15.</b> When updates stop arriving the header shows the
+              <code>.w-conn</code> connection ribbon with the age of the last successful update, and the
+              headline says what is unknown. This is a loaded-but-disconnected state, distinct from the
+              order-load error state.</div>
+            </div>
+          </div>
+
+
+          <!-- AFTER / LOADING -->
+          <div class="state-panel state-loading">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">Loading…</div>
+                </div>
+                <span class="stamp wait" style="align-self:center">Loading</span>
+              </div>
+              <div class="w-head" role="status" aria-live="polite">
+                <span class="sr" style="position:absolute;left:-9999px">Loading your order</span>
+                <div class="sk h1"></div>
+                <div class="sk h2"></div>
+                <div class="sk h3"></div>
+              </div>
+              <section class="sheet"><div class="sk b"></div><div class="sk b short"></div><div class="sk b"></div></section>
+              <section class="sheet"><div class="sk b"></div><div class="sk b"></div><div class="sk b short"></div></section>
+              <section class="sheet"><div class="sk h3" style="margin-top:0"></div><div class="sk b"></div><div class="sk b short"></div></section>
+            </div>
+          </div>
+
+          <!-- AFTER / EMPTY -->
+          <div class="state-panel state-empty">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+              </div>
+              <div class="w-head">
+                <div class="stamprow"><span class="stamp danger">Cancelled</span><span class="since">26 Oct · 9:20 AM</span></div>
+                <div class="w-eta"><span class="num" style="font-size:30px;letter-spacing:-.01em">—</span></div>
+                <p class="sentence">This order was cancelled and nothing was charged. Your subscription
+                continues on its normal schedule.</p>
+              </div>
+              <section class="sheet" aria-labelledby="e-tl">
+                <h3 id="e-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Cancelled</div><div class="ts">26 Oct · 9:20 AM</div></li>
+                  <li><div class="ev">Order placed</div><div class="ts">26 Oct · 9:14 AM</div></li>
+                </ol>
+              </section>
+              <section class="sheet" aria-labelledby="e-tl0">
+                <h3 id="e-tl0">Journey — before any update</h3>
+                <div class="tl-empty" role="status">
+                  <span class="tl-empty-mark" aria-hidden="true">◌</span>
+                  <span>No updates yet — the first scan will appear here.</span>
+                </div>
+                <p class="empty-note" style="margin-top:9px">This is the P12 fix: when the timeline array is
+                empty the card says so instead of rendering an empty body under a heading.</p>
+              </section>
+              <section class="sheet" aria-labelledby="e-more">
+                <h3 id="e-more">Nothing else to do</h3>
+                <p class="empty-note">No further updates will appear for this order.
+                If you did not expect this cancellation, contact support and we will sort it out.</p>
+                <div style="display:flex;gap:10px;margin-top:12px">
+                  <button type="button" class="btn ghost" style="flex:1">Contact support</button>
+                  <button type="button" class="btn teal" style="flex:1">Back to orders</button>
+                </div>
+              </section>
+              <div class="w-actionbar">
+                <button type="button" class="btn" style="flex:1">Back to orders</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- AFTER / ERROR -->
+          <div class="state-panel state-error">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">Could not load</div>
+                </div>
+              </div>
+              <div class="w-state err" role="alert" style="padding-top:56px">
+                <div class="glyph" aria-hidden="true">!</div>
+                <div class="ttl">We could not load this order</div>
+                <div class="msg">You appear to be offline, or the connection dropped. We could not confirm
+                the latest status — nothing has been lost, and the last update we received is below.</div>
+                <button type="button" class="btn teal">Try again</button>
+                <button type="button" class="btn ghost">Contact support</button>
+              </div>
+              <section class="sheet" aria-labelledby="x-last">
+                <h3 id="x-last">Last known status</h3>
+                <div class="kv"><span class="k">Order</span><span class="v mono">#A1B2C3D4</span></div>
+                <div class="kv"><span class="k">Seen at</span><span class="v mono">26 Oct · 9:31 AM</span></div>
+                <div class="kv"><span class="k">Then</span><span class="v">Out for delivery</span></div>
+                <p class="empty-note" style="margin-top:11px;text-align:left">This is the last information we
+                received before the connection dropped, so you still have something to go on.</p>
+              </section>
+            </div>
+          </div>
+
+        </div><!-- /viewport -->
+      </div><!-- /phone -->
+
+      <div class="anno" style="margin-top:14px;border-left-color:var(--primary);background:var(--teal-wash);color:var(--stamp-live)">
+        <b>Note the state switcher above.</b> All six states were designed, not just the happy path.
+        Loading is a skeleton that mirrors the real layout; empty says there is nothing more to wait for;
+        delivered carries the review action; stale is a loaded-but-disconnected screen with the connection
+        ribbon; error keeps the last known status on screen and offers a real way back.
+      </div>
+    </section>
+
+  </div><!-- /grid -->
+
+  <section class="legend">
+    <h2>What changed, and why</h2>
+    <p>
+      Each entry is one diagnosis from <code>proposal.md</code> and the change that answers it.
+      Line numbers refer to <code>apps/mobile-customer/src/screens/customer/OrderDetailScreen.tsx</code>.
+      Contrast ratios were computed from the literal hex values; the full table is in §7 of the proposal.
+    </p>
+    <ul>
+      <li><span class="pid">P1</span><span class="fix"><b>Live state had no banner.</b> The map panel accepted <code>LIVE</code> (line 388) but the banner <code>switch</code> had no case for it (87–144 → <code>default: null</code>). One state vocabulary now drives both the stamp and the map.</span></li>
+      <li><span class="pid">P2</span><span class="fix"><b>Primary action below the fold.</b> "Review order" sat after the live-map card and before the other cards (437, before 447–594). It now lives in a sticky bottom bar, visible without scrolling.</span></li>
+      <li><span class="pid">P3</span><span class="fix"><b>Tap targets under 44pt.</b> <code>callBtn</code> was ~32pt (<code>paddingVertical: 8</code>, line 703). Every control is now ≥ 48pt.</span></li>
+      <li><span class="pid">P4</span><span class="fix"><b>The rider's number was never shown.</b> It was used only to build a <code>tel:</code> URL (427). The number is now printed as text beside the call action.</span></li>
+      <li><span class="pid">P5</span><span class="fix"><b>"Rider" appeared twice.</b> Once as the map's <code>riderLabel</code> (418) and once in the banner (103). There is now one rider block.</span></li>
+      <li><span class="pid">P6</span><span class="fix"><b>Labels failed contrast.</b> <code>#94A3B8</code> is 2.56:1 on white (716, 736). The muted token is now <code>#5C6B68</code> — 5.08:1 on paper, 5.59:1 on white.</span></li>
+      <li><span class="pid">P7</span><span class="fix"><b>Hero label missed AA.</b> <code>#99F6E4</code> on <code>#0F766E</code> is 4.34:1 (619, used 337). The hero is re-cut to ink on paper: 7.47:1 and 16.05:1.</span></li>
+      <li><span class="pid">P8</span><span class="fix"><b>Money was ambiguous.</b> "Funded delivery ₹0" (337–338, <code>orderPresentation.ts:47</code>) is now a sentence: "Have ₹130 ready in cash." / "Nothing to pay."</span></li>
+      <li><span class="pid">P9</span><span class="fix"><b>Future-tense copy on delivered orders.</b> The schedule card always said "Your store prepares this order…" (348–354). Copy is now status-aware.</span></li>
+      <li><span class="pid">P10</span><span class="fix"><b>Raw enums and "N/A".</b> <code>PENDING_COD</code> (580–585) now reads "Cash on delivery"; <code>N/A</code> is replaced by a sentence with a next step.</span></li>
+      <li><span class="pid">P11</span><span class="fix"><b>Timestamps used the device locale.</b> <code>toLocaleString()</code> at 336 and 467 vs the deliberate <code>en-IN</code>/<code>Asia/Kolkata</code> formatting in <code>deliveryWindow</code> (32–47). One formatter now.</span></li>
+      <li><span class="pid">P12</span><span class="fix"><b>Empty timeline rendered an empty card.</b> <code>timeline || []</code> (449) produced a titled card with no body. It now has a real empty state.</span></li>
+      <li><span class="pid">P13</span><span class="fix"><b>Error was a dead end.</b> One sentence, no retry (284–290), despite <code>refetch</code> existing (156). Now: Try again, an offline explanation and the last known status.</span></li>
+      <li><span class="pid">P14</span><span class="fix"><b>Loading was a bare spinner.</b> (277–283). Now a skeleton that mirrors the real layout, with an announced status.</span></li>
+      <li><span class="pid">P15</span><span class="fix"><b>No offline handling.</b> <code>NetInfo</code> is absent from the app entirely. A connection ribbon now shows when updates stop arriving, with the age of the last one.</span></li>
+      <li><span class="pid">P16</span><span class="fix"><b>The code's instruction was above its action.</b> Copy at line 99 sat above the reveal button at 128. The instruction now sits with the control, and the code panel is labelled.</span></li>
+    </ul>
+  </section>
+
+  <section class="legend">
+    <h2>What is deliberately unchanged</h2>
+    <p>
+      The redesign keeps the brand teal (<code>#0F766E</code>) and every existing token name. Teal is
+      demoted from full-bleed background to ink — that is the whole move. The whole
+      <code>DeliveryCodeCard</code> is reused as-is, including its 44pt+ buttons and expiry countdown.
+      Socket wiring, the 10s polling backstop, the <code>testID</code>s and the <code>en-IN</code> money
+      formatting are all preserved.
+    </p>
+  </section>
+
+  <section class="legend">
+    <h2>Not verified</h2>
+    <p>
+      This is a mockup, so nothing here has been through a device. Before shipping I would confirm: that the
+      gateway actually emits a <code>LIVE</code> tracking state (I inferred it from line 388); contrast
+      measured on a real panel rather than from hex; VoiceOver/TalkBack traversal and focus order, since
+      native reads <code>accessibilityLabel</code> rather than DOM semantics; behaviour at 200% text size;
+      and the real payloads for live, delivered and cancelled orders. The full list is §5 of the proposal.
+    </p>
+  </section>
+
+</div><!-- /wrap -->
+
+<style>
+  /* state switching — no JS required for the default (live) view */
+  .state-panel{display:none}
+  body[data-state="live"] .state-live,
+  body[data-state="delivered"] .state-delivered,
+  body[data-state="stale"] .state-stale,
+  body[data-state="loading"] .state-loading,
+  body[data-state="empty"] .state-empty,
+  body[data-state="error"] .state-error{display:block}
+  .sr{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  @media (max-width:980px){ .masthead h1{max-width:none} }
+</style>
+
+<script>
+  (function () {
+    var body = document.body;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('.seg button'));
+    function set(state) {
+      body.setAttribute('data-state', state);
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === state));
+      });
+      Array.prototype.slice.call(document.querySelectorAll('.phone .viewport'))
+        .forEach(function (v) { v.scrollTop = 0; });
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { set(b.getAttribute('data-set')); });
+    });
+    set('live');
+  })();
+</script>
+</body>
+</html>
