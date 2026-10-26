@@ -588,6 +588,12 @@ body{
                 <div class="b-banner done"><span class="dot" style="background:#10B981"></span>Order delivered.</div>
               </div>
               <button type="button" class="b-primarybtn" style="margin-top:16px">Review order</button>
+              <div class="anno" style="margin:16px 0 0"><b>P2.</b> The delivered order is reviewable
+              (<code>canReview</code>, line&nbsp;323), so “Review order” renders at line&nbsp;437 — after the
+              hero and the tracking banner, and before Timeline, Delivery Address, Items, Bill Summary and
+              Payment (447–594). No live-map card renders in this state (the map is gated to
+              <code>LIVE</code>/<code>STALE</code>/<code>ASSIGNED_NO_LOCATION</code>, line&nbsp;388). On a
+              360×640 device the button is three to four screens down, so the review is lost.</div>
               <div class="b-card">
                 <h3 class="b-cardtitle">Timeline</h3>
                 <div class="b-row"><div><div class="b-bold">Delivered</div><div class="b-body">10/26/2026, 9:53:11 AM</div></div></div>
@@ -614,11 +620,6 @@ body{
                 <div class="b-body">Method: SUBSCRIPTION</div>
                 <div class="b-body">Status: SUBSCRIPTION_FUNDED</div>
               </div>
-              <div class="anno" style="margin:16px 0 0"><b>P2.</b> The delivered order is reviewable
-              (<code>canReview</code>, line&nbsp;323), so “Review order” renders at line&nbsp;437 — after the
-              hero, tracking banner and live-map card, but before Timeline, Delivery Address, Items,
-              Bill Summary and Payment (447–594). On a 360×640 device it is three to four screens down,
-              so the review is lost.</div>
             </div>
           </div>
 
