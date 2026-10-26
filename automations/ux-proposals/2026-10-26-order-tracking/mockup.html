@@ -443,6 +443,8 @@ body{
     <span class="lab">State</span>
     <div class="seg" role="group" aria-label="Choose which state to preview">
       <button type="button" data-set="live" aria-pressed="true">Live</button>
+      <button type="button" data-set="delivered" aria-pressed="false">Delivered</button>
+      <button type="button" data-set="stale" aria-pressed="false">Stale</button>
       <button type="button" data-set="loading" aria-pressed="false">Loading</button>
       <button type="button" data-set="empty" aria-pressed="false">Empty</button>
       <button type="button" data-set="error" aria-pressed="false">Error</button>
@@ -565,10 +567,83 @@ body{
                 <div class="flagrow"><span class="flag">P10 · raw enum</span><span class="flag">P11 · device locale</span></div>
               </div>
 
-              <div class="anno" style="margin:16px 0 0"><b>P2.</b> “Review order” would render here, after six cards
-              (line&nbsp;437, following cards at 447–594). On a 360×640 device it is three screens down.
+              <div class="anno" style="margin:16px 0 0"><b>P2.</b> “Review order” would render here, after the
+              live-map card and before the Timeline (line&nbsp;437, before cards at 447–594). On a 360×640 device it is three screens down.
               In this state <code>canReview</code> is false (line&nbsp;323) so the button is absent entirely —
               the customer is never told why.</div>
+            </div>
+          </div>
+
+          <!-- BEFORE / DELIVERED -->
+          <div class="state-panel state-delivered">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">DELIVERED</div>
+                <div class="b-meta">10/26/2026, 9:53:11 AM</div>
+                <div class="b-amountlabel">Funded delivery</div>
+                <div class="b-total">₹0</div>
+              </div>
+              <div class="b-bannerwrap">
+                <div class="b-banner done"><span class="dot" style="background:#10B981"></span>Order delivered.</div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Timeline</h3>
+                <div class="b-row"><div><div class="b-bold">Delivered</div><div class="b-body">10/26/2026, 9:53:11 AM</div></div></div>
+                <div class="b-row"><div><div class="b-bold">Out for delivery</div><div class="b-body">10/26/2026, 9:31:02 AM</div></div></div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Delivery Address</h3>
+                <div class="b-body">2-14 Main Road, Gandhinagar, Anakapalle, AP 531001</div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Items</h3>
+                <div class="b-row">
+                  <div><div class="b-bold">AAGAM Full Cream Milk 500ml</div><div class="b-body">1 × subscription delivery</div></div>
+                  <div class="b-bold">Included</div>
+                </div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Bill Summary</h3>
+                <div class="b-sumrow"><span class="b-body" style="margin:0">Delivery fee</span><span class="b-bold">FREE</span></div>
+                <div class="b-sumrow b-totalrow"><span class="b-totallabel">Funded delivery</span><span class="b-totalvalue">₹0</span></div>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Payment</h3>
+                <div class="b-body">Method: SUBSCRIPTION</div>
+                <div class="b-body">Status: SUBSCRIPTION_FUNDED</div>
+              </div>
+              <button type="button" class="b-primarybtn" style="margin-top:16px">Review order</button>
+              <div class="anno" style="margin:16px 0 0"><b>P2.</b> The delivered order is reviewable
+              (<code>canReview</code>, line&nbsp;323), so “Review order” renders at line&nbsp;437 — after the
+              hero, tracking banner, Timeline, Delivery Address, Items, Bill Summary and Payment
+              (447–594). On a 360×640 device it is three to four screens down, so the review is lost.</div>
+            </div>
+          </div>
+
+          <!-- BEFORE / STALE -->
+          <div class="state-panel state-stale">
+            <div class="screen b">
+              <div class="b-hero">
+                <div class="b-orderid">Order #A1B2C3D4</div>
+                <div class="b-status">OUT FOR DELIVERY</div>
+                <div class="b-meta">10/26/2026, 9:31:02 AM</div>
+                <div class="b-amountlabel">Cash due</div>
+                <div class="b-total">₹130</div>
+              </div>
+              <div class="b-bannerwrap" style="min-height:42px;border:1px dashed #E7C6C6;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#FFF7F7">
+                <span class="flag">P1 · no banner renders here</span>
+              </div>
+              <div class="b-card">
+                <h3 class="b-cardtitle">Live Tracking</h3>
+                <div class="b-body">Last Update: 42m ago</div>
+                <div class="b-help">The counter keeps climbing; nothing tells the customer the connection is down.</div>
+                <div class="flagrow" style="margin:8px 0 0"><span class="flag">P15 · no offline handling</span></div>
+              </div>
+              <div class="anno" style="margin:16px 0 0"><b>P15.</b> <code>@react-native-community/netinfo</code> is
+              not imported anywhere in the app, so when the socket drops the “Last Update” counter just climbs
+              (lines&nbsp;267–275). There is no ribbon, no age-of-last-update explanation and no distinction
+              between “stale” and “still live”.</div>
             </div>
           </div>
 
@@ -730,9 +805,9 @@ body{
               <section class="sheet reveal" aria-labelledby="a-code">
                 <h3 id="a-code">Delivery verification code</h3>
                 <div class="code-reveal">
-                  <p class="ask">Check the parcel, then reveal the code and read it out to
+                  <button type="button" class="btn teal wide">Reveal code</button>
+                  <p class="ask" style="margin-top:11px">Check the parcel, then reveal the code and read it out to
                   <b>Sai</b>. The code is the handover proof — share it only after you have the milk in hand.</p>
-                  <button type="button" class="btn teal wide" style="margin-top:11px">Reveal code</button>
                 </div>
               </section>
 
@@ -774,6 +849,111 @@ body{
               <p id="review-hint" style="position:absolute;left:-9999px">Opens the live map view.</p>
             </div>
           </div>
+
+          <!-- AFTER / DELIVERED — reviewable order, sticky review action (P2) -->
+          <div class="state-panel state-delivered">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+                <span class="stamp done" style="align-self:center">Delivered</span>
+              </div>
+
+              <div class="w-head reveal">
+                <div class="stamprow">
+                  <span class="stamp done">Delivered</span>
+                  <span class="since">26 Oct · 9:53 AM</span>
+                </div>
+                <div class="w-eta">
+                  <span class="num">&#10003;</span>
+                  <span class="desc">Handed over to <strong>Lakshmi Devi</strong></span>
+                </div>
+                <p class="sentence">
+                  Your milk was delivered by <strong>Sai Kumar</strong> at <strong>9:53 AM</strong>.
+                  Nothing is left to pay.
+                </p>
+              </div>
+
+              <section class="sheet reveal" aria-labelledby="d-tl">
+                <h3 id="d-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Delivered</div><div class="ts">26 Oct · 9:53 AM</div></li>
+                  <li><div class="ev">Out for delivery</div><div class="ts">26 Oct · 9:31 AM</div></li>
+                  <li><div class="ev">Packed at store</div><div class="ts">26 Oct · 9:20 AM</div></li>
+                </ol>
+              </section>
+
+              <section class="sheet reveal" aria-labelledby="d-items">
+                <h3 id="d-items">In this delivery</h3>
+                <div class="kv"><span class="k">AAGAM Full Cream Milk 500ml</span><span class="v">1 × 500 ml</span></div>
+                <div class="kv"><span class="k">Plan</span><span class="v">Monthly · 30 days</span></div>
+              </section>
+
+              <div class="w-actionbar">
+                <button type="button" class="btn ghost" style="flex:0 0 auto">Help</button>
+                <button type="button" class="btn teal" style="flex:1">Review order</button>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px">
+              <div class="anno"><b>P2.</b> For a reviewable order (<code>canReview</code>, line 323) the sticky
+              action bar carries <b>Review order</b> as the primary action. Orders still in transit keep
+              <b>Track live</b> in the same slot, so the bar always shows the one action that applies to the
+              current status.</div>
+            </div>
+          </div>
+
+          <!-- AFTER / STALE — loaded but disconnected (P15) -->
+          <div class="state-panel state-stale">
+            <div class="screen w">
+              <div class="w-topbar">
+                <button type="button" class="w-back" aria-label="Go back to My Orders">&#8592;</button>
+                <div class="who">
+                  <div class="kicker">Order manifest</div>
+                  <div class="idline">#A1B2C3D4</div>
+                </div>
+                <span class="stamp amber" style="align-self:center">Stale</span>
+              </div>
+
+              <div class="w-conn">
+                <span class="ico" aria-hidden="true"></span>
+                <span>Connection lost — last update 42 min ago. We will resume automatically.</span>
+              </div>
+
+              <div class="w-head reveal">
+                <div class="stamprow">
+                  <span class="stamp amber">Out for delivery</span>
+                  <span class="since">last update 42m ago</span>
+                </div>
+                <p class="sentence">
+                  We have not heard from <strong>Sai Kumar</strong> since <strong>9:31 AM</strong>. The last
+                  status we received was out for delivery; nothing is lost, and this page will refresh itself.
+                </p>
+              </div>
+
+              <section class="sheet reveal" aria-labelledby="s-tl">
+                <h3 id="s-tl">Journey</h3>
+                <ol class="tl">
+                  <li class="on"><div class="ev">Out for delivery</div><div class="ts">26 Oct · 9:31 AM</div></li>
+                  <li><div class="ev">Packed at store</div><div class="ts">26 Oct · 9:20 AM</div></li>
+                </ol>
+              </section>
+
+              <div class="w-actionbar">
+                <button type="button" class="btn ghost" style="flex:0 0 auto">Help</button>
+                <button type="button" class="btn" style="flex:1">Track live</button>
+              </div>
+            </div>
+            <div style="padding:0 16px 16px">
+              <div class="anno"><b>P15.</b> When updates stop arriving the header shows the
+              <code>.w-conn</code> connection ribbon with the age of the last successful update, and the
+              headline says what is unknown. This is a loaded-but-disconnected state, distinct from the
+              order-load error state.</div>
+            </div>
+          </div>
+
 
           <!-- AFTER / LOADING -->
           <div class="state-panel state-loading">
@@ -858,8 +1038,8 @@ body{
               <div class="w-state err" role="alert" style="padding-top:56px">
                 <div class="glyph" aria-hidden="true">!</div>
                 <div class="ttl">We could not load this order</div>
-                <div class="msg">You appear to be offline, or the connection dropped. Your order is
-                still being prepared — nothing has been lost.</div>
+                <div class="msg">You appear to be offline, or the connection dropped. We could not confirm
+                the latest status — nothing has been lost, and the last update we received is below.</div>
                 <button type="button" class="btn teal">Try again</button>
                 <button type="button" class="btn ghost">Contact support</button>
               </div>
@@ -878,9 +1058,10 @@ body{
       </div><!-- /phone -->
 
       <div class="anno" style="margin-top:14px;border-left-color:var(--primary);background:var(--teal-wash);color:var(--stamp-live)">
-        <b>Note the state switcher above.</b> All four states were designed, not just the happy path.
+        <b>Note the state switcher above.</b> All six states were designed, not just the happy path.
         Loading is a skeleton that mirrors the real layout; empty says there is nothing more to wait for;
-        error keeps the last known status on screen and offers a real way back.
+        delivered carries the review action; stale is a loaded-but-disconnected screen with the connection
+        ribbon; error keeps the last known status on screen and offers a real way back.
       </div>
     </section>
 
@@ -895,7 +1076,7 @@ body{
     </p>
     <ul>
       <li><span class="pid">P1</span><span class="fix"><b>Live state had no banner.</b> The map panel accepted <code>LIVE</code> (line 388) but the banner <code>switch</code> had no case for it (87–144 → <code>default: null</code>). One state vocabulary now drives both the stamp and the map.</span></li>
-      <li><span class="pid">P2</span><span class="fix"><b>Primary action below the fold.</b> "Review order" sat after six cards (437, following 447–594). It now lives in a sticky bottom bar, visible without scrolling.</span></li>
+      <li><span class="pid">P2</span><span class="fix"><b>Primary action below the fold.</b> "Review order" sat after the live-map card and before the other cards (437, before 447–594). It now lives in a sticky bottom bar, visible without scrolling.</span></li>
       <li><span class="pid">P3</span><span class="fix"><b>Tap targets under 44pt.</b> <code>callBtn</code> was ~32pt (<code>paddingVertical: 8</code>, line 703). Every control is now ≥ 48pt.</span></li>
       <li><span class="pid">P4</span><span class="fix"><b>The rider's number was never shown.</b> It was used only to build a <code>tel:</code> URL (427). The number is now printed as text beside the call action.</span></li>
       <li><span class="pid">P5</span><span class="fix"><b>"Rider" appeared twice.</b> Once as the map's <code>riderLabel</code> (418) and once in the banner (103). There is now one rider block.</span></li>
@@ -941,6 +1122,8 @@ body{
   /* state switching — no JS required for the default (live) view */
   .state-panel{display:none}
   body[data-state="live"] .state-live,
+  body[data-state="delivered"] .state-delivered,
+  body[data-state="stale"] .state-stale,
   body[data-state="loading"] .state-loading,
   body[data-state="empty"] .state-empty,
   body[data-state="error"] .state-error{display:block}

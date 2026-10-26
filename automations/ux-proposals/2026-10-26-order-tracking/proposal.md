@@ -20,7 +20,7 @@ screen a customer opens after checkout, from the "My Orders" list
   ETA, a rider contact and a delivery verification code, so it concentrates
   the app's most important "is this working?" signals into one place.
 - It has real, citable UX problems — not cosmetic drift. The most serious one
-  is a **state-name bug that produces a permanently blank live-tracking panel**
+  is a **state-name bug that leaves a moving order with no status sentence above the map**
   (P1 below); the rest are below-the-fold actions, sub-44pt tap targets,
   colour-only signalling, dead-end states and ambiguous money.
 
@@ -35,8 +35,8 @@ values in the file with the WCAG relative-luminance formula; the working is in
 
 | # | Problem | Evidence (file:line) | Why it hurts |
 |---|---------|----------------------|--------------|
-| **P1** | **The live-tracking panel never renders for a moving order — a state-name mismatch.** The panel is gated on `["LIVE", "STALE", "ASSIGNED_NO_LOCATION"]`, but the banner component's `switch` has **no `LIVE` case** and falls through to `default: return null`. A live order is therefore in a state the map panel accepts and the status banner silently drops. | gate `388`; `switch` cases `87`–`144`, `default` at `142`; state sourced at `207` (`tracking?.trackingState \|\| "NOT_ASSIGNED"`) | This is the screen's core failure. While the rider is moving — the only time the map matters — the customer gets **no status sentence above the map** and only a bare map. They cannot tell live from stale from "we lost the rider". |
-| **P2** | **Primary action ("Review order") sits after ~6 cards.** It is rendered at `437`–`445`, after hero → scheduled-delivery → tracking banner → delivery-code → store-delivery → live map → **Timeline** → **Delivery Address** → **Items** → **Bill Summary** → **Payment** (`447`–`594`). Container padding is `paddingBottom: 150` (`601`). | `content` at `601`; button at `437`; cards at `447`–`594` | On a 360×640 dp device the "Review order" affordance is 3–4 screens down, so it is effectively invisible. Post-delivery reviews are lost. |
+| **P1** | **A moving order gets no status sentence above the map — a state-name mismatch.** The map panel is gated on `["LIVE", "STALE", "ASSIGNED_NO_LOCATION"]`, but the banner component's `switch` has **no `LIVE` case** and falls through to `default: return null`. For a live order the map renders while the banner returns `null`, so the map panel is not blank but its status sentence is missing. | gate `388`; `switch` cases `87`–`144`, `default` at `142`; state sourced at `207` (`tracking?.trackingState \|\| "NOT_ASSIGNED"`) | This is the screen's core failure. While the rider is moving — the only time the map matters — the customer gets **no status sentence above the map** and only a bare map. They cannot tell live from stale from "we lost the rider". |
+| **P2** | **Primary action ("Review order") sits after ~6 cards.** It is rendered at `437`–`445`, after hero → scheduled-delivery → tracking banner → delivery-code → store-delivery → live map, and before **Timeline** → **Delivery Address** → **Items** → **Bill Summary** → **Payment** (`447`–`594`). Container padding is `paddingBottom: 150` (`601`). | `content` at `601`; button at `437`; cards at `447`–`594` | On a 360×640 dp device the "Review order" affordance is 3–4 screens down, so it is effectively invisible. Post-delivery reviews are lost. |
 | **P3** | **The tap-to-call buttons are ~32pt tall, below the 44pt floor.** `callBtn` has `paddingVertical: 8` (`703`) plus a 12px text line (`705`) and no `minHeight`; there are two of them ("Call Store Partner" `379`–`383`, "Call Rider" `424`–`430`). | style `697`–`705`; used `379`, `426` | "Call the rider" is the one action a waiting customer reaches for, and it is the smallest target on the screen. |
 | **P4** | **The rider's phone number is never shown — only an icon-sized button.** `trackingPayload.rider.phone` is used solely to build a `tel:` URL (`427`); the number is not rendered as text. The same is true for the store phone (`380`). | `423`–`431`; store `377`–`384` | A customer who wants to save the number, or whose dialer fails, has nothing to read. The call is the only affordance. |
 | **P5** | **Two "Rider" labels on one screen.** The live map's `riderLabel` is `"Rider"` (`418`, styled `736`–`741`) and the tracking banner names the rider separately (`103`–`105`). Combined with the section title "Live Tracking" (`390`) the same person is introduced twice with different emphasis. | `390`, `415`–`421`, `103` | Redundant labelling wastes the single most valuable line — "who is coming" — and splits attention. |
@@ -116,8 +116,8 @@ full-bleed background.
 
 | # | Problem (evidence) | Change in the redesign | Expected effect |
 |---|--------------------|------------------------|-----------------|
-| P1 | Live panel gated on `LIVE` (`388`) but banner `switch` has no `LIVE` case (`87`–`144`) | **One** status vocabulary: the redesign defines the six states `NOT_ASSIGNED`, `ASSIGNED`, `LIVE`, `STALE`, `DELIVERED`, `CANCELLED` and renders the stamp **and** the map panel from the same lookup, so a state can never be accepted by one and dropped by the other | The moving-rider state now has a status sentence. The class of bug is removed, not patched. |
-| P2 | "Review order" at `437`, 6+ cards down | Primary action promoted into a **sticky action bar** pinned to the bottom of the viewport, visible without scrolling | Review becomes reachable in every state where it applies. |
+| P1 | Live panel gated on `LIVE` (`388`) but banner `switch` has no `LIVE` case (`87`–`144`) | **One** status vocabulary: the redesign defines `NOT_ASSIGNED`, `ASSIGNED_NO_LOCATION`, `ASSIGNED`, `LIVE`, `STALE`, `STORE_DELIVERING`, `DELIVERED`, `STOPPED`, `CANCELLED` and renders the stamp **and** the map panel from the same lookup, so a state can never be accepted by one and dropped by the other. The existing `TrackingStateBanner` already handles `ASSIGNED_NO_LOCATION` (`97`), `STORE_DELIVERING` (`61`), `STOPPED` (`126`) and the store-delivery `NOT_ASSIGNED` variant (`74`); the map gate accepts `ASSIGNED_NO_LOCATION`, so every one of these must survive the redesign. The same vocabulary must be reconciled with the gateway payload and the corresponding order/delivery status consumers on the store/admin and rider surfaces before implementation. | The moving-rider state now has a status sentence. The class of bug is removed, not patched, and no existing state loses its presentation. |
+| P2 | "Review order" at `437`, after the live-map card and before the Timeline and the cards at `447`–`594` | Primary action promoted into a **sticky action bar** pinned to the bottom of the viewport, visible without scrolling | Review becomes reachable in every state where it applies. |
 | P3 | `callBtn` ~32pt (`703`) | Every interactive control gets `min-height: 48px` / `min-width: 48px`; the call buttons become full-width 48px rows | Meets Apple HIG / Material 44pt. |
 | P4 | Phone shown only as a `tel:` target (`427`) | The number is **printed as text** next to the call button, in mono, with the rider's name | The customer can read and save the number. |
 | P5 | "Rider" labelled twice (`418`, `103`) | A single **rider block**: name, vehicle, number and the call action grouped once | One introduction, one place to look. |
@@ -320,9 +320,10 @@ Google-Fonts link for Archivo and Martian Mono with a system fallback.
   side by side in two phone frames, with a problem-index legend underneath so a
   reviewer can trace each diagnosis to the pixel it fixes.
 - **Narrow (≤ 640px):** the two frames stack, current above redesign.
-- **Four states, switchable:** *Live*, *Loading*, *Empty* (no updates yet /
-  cancelled) and *Error*. The same four states render for the current design so
-  the comparison is like-for-like.
+- **Six states, switchable:** *Live*, *Delivered* (reviewable, with the sticky
+  review action), *Stale* (loaded but disconnected, with the connection ribbon),
+  *Loading*, *Empty* (no updates yet / cancelled) and *Error*. The same six
+  states render for the current design so the comparison is like-for-like.
 - Both frames are **360px wide** inside their chrome, which is the width the
   brief asks for.
 - The whole document renders correctly with JavaScript disabled: the state
