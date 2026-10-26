@@ -587,6 +587,7 @@ body{
               <div class="b-bannerwrap">
                 <div class="b-banner done"><span class="dot" style="background:#10B981"></span>Order delivered.</div>
               </div>
+              <button type="button" class="b-primarybtn" style="margin-top:16px">Review order</button>
               <div class="b-card">
                 <h3 class="b-cardtitle">Timeline</h3>
                 <div class="b-row"><div><div class="b-bold">Delivered</div><div class="b-body">10/26/2026, 9:53:11 AM</div></div></div>
@@ -613,11 +614,11 @@ body{
                 <div class="b-body">Method: SUBSCRIPTION</div>
                 <div class="b-body">Status: SUBSCRIPTION_FUNDED</div>
               </div>
-              <button type="button" class="b-primarybtn" style="margin-top:16px">Review order</button>
               <div class="anno" style="margin:16px 0 0"><b>P2.</b> The delivered order is reviewable
               (<code>canReview</code>, line&nbsp;323), so “Review order” renders at line&nbsp;437 — after the
-              hero, tracking banner, Timeline, Delivery Address, Items, Bill Summary and Payment
-              (447–594). On a 360×640 device it is three to four screens down, so the review is lost.</div>
+              hero, tracking banner and live-map card, but before Timeline, Delivery Address, Items,
+              Bill Summary and Payment (447–594). On a 360×640 device it is three to four screens down,
+              so the review is lost.</div>
             </div>
           </div>
 
@@ -709,10 +710,11 @@ body{
       </div><!-- /phone -->
 
       <div class="anno" style="margin-top:14px">
-        <b>Read the left column top to bottom.</b> Hero → schedule → (missing banner) → code → map → timeline →
-        address → items → bill → payment. “Review order” lands after all of it. The warm-paper column on the
-        right keeps every one of these facts and re-orders them around the one question the customer opened
-        the screen to answer.
+        <b>Read the left column top to bottom.</b> Hero → schedule → (missing banner) → code → map →
+        <b>Review order</b> → timeline → address → items → bill → payment. In the delivered state the button
+        follows the banner directly, still before the timeline. Either way “Review order” lands below the
+        fold. The warm-paper column on the right keeps every one of these facts and re-orders them around
+        the one question the customer opened the screen to answer.
       </div>
     </section>
 
