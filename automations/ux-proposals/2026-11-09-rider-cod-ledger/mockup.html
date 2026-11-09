@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rider COD ledger — UX proposal (2026-11-09) · before / after</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   Cash Book — rider COD ledger redesign
+   Tokens below mirror the proposal's §6 additions to
+   packages/mobile-shared/src/constants/theme.ts (LEDGER) and
+   apps/mobile-partners/src/design/tokens.ts.
+   Every figure/label pair is AA-checked; the arithmetic is in §7.
+   ============================================================ */
+:root{
+  /* brand, unchanged from the shipped theme */
+  --teal900:#0B3B36; --teal800:#0F5148; --teal700:#0F766E; --teal600:#12897F;
+  --teal100:#CCFBF1; --teal050:#F0FDFA;
+  --amber700:#B45309; --amber500:#F59E0B; --amber100:#FEF3C7;
+  --rose700:#B91C1C; --green700:#15803D;
+
+  /* Cash Book surface layer (new) */
+  --paper:#FBFAF7; --paperRule:#E6E1D6; --paperSink:#F4F1E9;
+  --ink:#0B1F1B; --inkSoft:#3F5751; --inkMuted:#5B6B77;
+  --onTeal:#D7F7EE;
+
+  /* variance tones — one meaning, one token pair */
+  --short:#9A3412;    --shortWash:#FBECEC;
+  --over:#7A4A06;     --overWash:#FDF3E3;
+  --balanced:#0B4F4A; --balancedWash:#E3F1E9;
+  --heldFg:#3F5751;   --heldWash:#EDEAE3;
+
+  --tap:44px;
+  --radius:14px; --radiusSm:10px;
+
+  --font-display:"Fraunces",Georgia,"Times New Roman",serif;
+  --font-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --font-figure:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+
+  /* shipped-screen literals, for the "before" frames */
+  --oldBg:#F8FAFC; --oldBorder:#E2E8F0; --oldText:#0F172A; --oldSec:#64748B;
+  --oldMuted:#94A3B8; --oldHero:#0F172A; --oldHeroLabel:#A7F3D0; --oldHeroNote:#CBD5E1;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#EDE9E0;
+  background-image:
+    radial-gradient(circle at 10% 6%, rgba(15,118,110,.08), transparent 40%),
+    radial-gradient(circle at 90% 94%, rgba(154,52,18,.06), transparent 44%);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  padding:30px 18px 80px;
+}
+.wrap{max-width:1240px;margin:0 auto}
+
+/* ---------- masthead ---------- */
+.masthead{border-top:3px solid var(--ink);padding-top:14px;margin-bottom:22px}
+.kicker{font-family:var(--font-figure);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--teal700);margin:0}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(26px,4.4vw,40px);line-height:1.06;letter-spacing:-.01em;margin:8px 0 6px}
+.dek{max-width:74ch;color:var(--inkSoft);font-size:15px;line-height:1.6;margin:0}
+.meta{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--font-figure);font-size:11px;font-weight:600;letter-spacing:.04em;padding:5px 10px;border:1px solid var(--paperRule);border-radius:999px;background:var(--paper);color:var(--inkSoft)}
+.chip b{color:var(--ink)}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0 4px}
+.toolbar button{
+  font-family:var(--font-body);font-size:13px;font-weight:600;min-height:40px;padding:0 14px;
+  border-radius:999px;border:1px solid var(--paperRule);background:var(--paper);color:var(--ink);cursor:pointer;
+}
+.toolbar button[aria-pressed="true"]{background:var(--teal700);border-color:var(--teal700);color:#fff}
+.toolbar .hint{font-size:12px;color:var(--inkMuted)}
+
+/* ---------- section headers ---------- */
+.sec{margin-top:34px}
+.sec > h2{font-family:var(--font-display);font-size:20px;font-weight:600;margin:0 0 4px}
+.sec > p{margin:0 0 16px;color:var(--inkMuted);font-size:13px}
+
+/* ---------- phone grid ---------- */
+.grid{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
+.grid.two{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+
+.frame{display:flex;flex-direction:column;gap:9px;min-width:0}
+.frame > header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.frame h3{font-family:var(--font-body);font-size:13px;font-weight:700;margin:0;letter-spacing:.01em}
+.frame .tag{font-family:var(--font-figure);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px}
+.tag.old{background:#E7E5E0;color:#57534E}
+.tag.new{background:var(--teal100);color:var(--teal800)}
+.frame .note{font-size:12px;color:var(--inkMuted);line-height:1.5;margin:0}
+
+/* phone shell: 360px, scales down gracefully */
+.phone{
+  width:360px;max-width:100%;border-radius:26px;overflow:hidden;background:#fff;
+  border:1px solid #D8D3C8;box-shadow:0 14px 30px -20px rgba(11,31,27,.5),0 1px 0 rgba(11,31,27,.05);
+}
+.phone .statusbar{height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-family:var(--font-figure);font-size:11px;font-weight:600;color:#fff;background:var(--teal900)}
+.phone .body{max-height:660px;overflow:auto;scrollbar-width:thin}
+.phone.old .body{background:var(--oldBg)}
+.phone.new .body{background:var(--paper)}
+
+/* ============================================================
+   BEFORE — the shipped screen, reproduced from RiderCodScreen.tsx
+   ============================================================ */
+.oldhead{display:flex;align-items:center;gap:12px;padding:14px 16px 18px;
+  background:linear-gradient(135deg,#0B3B36 0%,#0F766E 55%,#12897F 100%)}
+.oldhead .ib{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.14);display:grid;place-items:center;color:#fff}
+.oldhead .tt{flex:1;min-width:0}
+.oldhead .eyebrow{color:var(--oldHeroLabel);font-size:9px;font-weight:600;letter-spacing:1px}
+.oldhead .ttl{color:#fff;font-size:24px;font-weight:600;line-height:1.15}
+.oldbody{padding:14px}
+.oldhero{display:flex;align-items:center;gap:13px;background:var(--oldHero);border-radius:20px;padding:18px}
+.oldhero .hi{width:54px;height:54px;border-radius:17px;background:#059669;display:grid;place-items:center;color:#fff;flex:none}
+.oldhero .hl{color:var(--oldHeroLabel);font-size:10px;font-weight:600}
+.oldhero .ha{color:#fff;font-size:27px;font-weight:600;margin-top:2px;font-family:var(--font-body)}
+.oldhero .ht{color:var(--oldHeroNote);font-size:10px;line-height:15px;margin-top:4px}
+.oldsum{display:flex;gap:8px;margin-top:10px}
+.oldsum .c{flex:1;border-radius:15px;background:#fff;border:1px solid var(--oldBorder);padding:12px}
+.oldsum .l{color:var(--oldSec);font-size:9px;font-weight:600}
+.oldsum .v{color:var(--oldText);font-size:13px;font-weight:600;margin-top:4px}
+.oldsum .v.warn{color:var(--rose700)}
+.oldfilters{display:flex;gap:8px;padding:12px 0;overflow:auto}
+.oldfilters .f{min-height:38px;display:flex;align-items:center;border-radius:12px;background:#fff;border:1px solid #CBD5E1;padding:0 12px;color:#475569;font-size:10px;font-weight:600;white-space:nowrap}
+.oldfilters .f.on{background:var(--teal700);border-color:var(--teal700);color:#fff}
+.oldsec{color:var(--oldText);font-size:16px;font-weight:600;margin:0 0 8px}
+.oldcard{border-radius:18px;background:#fff;border:1px solid var(--oldBorder);padding:16px;margin-bottom:11px}
+.oldcard.attn{border-color:#FCD34D;background:#FFFBEB}
+.oldcard .h{display:flex;align-items:center;gap:8px}
+.oldcard .oc{color:var(--oldText);font-size:13px;font-weight:600}
+.oldcard .st{color:var(--teal700);font-size:10px;font-weight:600;margin-top:4px}
+.oldgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.oldgrid .cell{width:47%;border-radius:12px;background:var(--oldBg);padding:12px}
+.oldgrid .cl{color:var(--oldSec);font-size:9px;font-weight:600}
+.oldgrid .cv{color:var(--oldText);font-size:14px;font-weight:600;margin-top:4px}
+.oldgrid .cv.strong{color:var(--amber700)}
+.oldfact{padding:8px 0;border-bottom:1px solid var(--oldBorder)}
+.oldfact .fl{color:var(--oldSec);font-size:9px;font-weight:600}
+.oldfact .fv{color:var(--oldText);font-size:12px;line-height:18px;font-weight:500;margin-top:4px}
+.oldfact .fv.danger{color:var(--rose700)}
+.oldaudit{color:var(--oldText);font-size:13px;font-weight:600;margin-top:12px}
+.oldarow{display:flex;gap:8px;padding:8px 0}
+.oldarow .dot{width:8px;height:8px;border-radius:4px;background:var(--teal700);margin-top:4px;flex:none}
+.oldarow .at{color:var(--oldText);font-size:11px;font-weight:600}
+.oldarow .am{color:var(--oldSec);font-size:9px;line-height:14px;margin-top:2px}
+.oldacts{display:flex;gap:8px;margin-top:11px}
+.oldacts .a{flex:1;min-height:45px;border-radius:12px;border:1px solid #99D8C8;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--teal700);font-size:11px;font-weight:600}
+.oldnote{border-radius:12px;background:var(--amber100);padding:12px;margin-top:8px;color:#92400E;font-size:10px;line-height:15px}
+.oldstate{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center}
+.oldstate .stt{color:var(--oldText);font-size:18px;font-weight:600;margin-top:10px}
+.oldstate .stx{color:var(--oldSec);font-size:12px;line-height:18px;margin-top:6px}
+.oldspin{width:34px;height:34px;border-radius:50%;border:3px solid #D6E3DD;border-top-color:var(--teal700);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============================================================
+   AFTER — Cash Book
+   ============================================================ */
+.cbhead{display:flex;align-items:center;gap:12px;padding:14px 16px 16px;
+  background:linear-gradient(135deg,#0B3B36 0%,#0F766E 55%,#12897F 100%)}
+.cbhead .ib{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.16);display:grid;place-items:center;color:#fff;flex:none;border:1px solid rgba(255,255,255,.22)}
+.cbhead .tt{flex:1;min-width:0}
+.cbhead .eyebrow{color:var(--onTeal);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.cbhead .ttl{color:#fff;font-family:var(--font-display);font-size:24px;font-weight:600;line-height:1.12;letter-spacing:-.01em}
+.cbwrap{padding:14px}
+
+/* ruled statement panel */
+.stmt{background:var(--paper);border:1px solid var(--paperRule);border-radius:var(--radius);padding:16px 16px 14px;position:relative}
+.stmt::after{content:"";position:absolute;left:16px;right:16px;bottom:10px;border-top:1px dashed var(--paperRule)}
+.stmt .cap{font-family:var(--font-figure);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--inkMuted)}
+.balance{font-family:var(--font-figure);font-size:34px;font-weight:700;letter-spacing:-.02em;color:var(--ink);margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.balance .cur{font-size:22px;font-weight:600;color:var(--inkSoft);margin-right:2px}
+.stmt .sub{font-size:13px;line-height:1.55;color:var(--inkSoft);margin:0}
+.stmt .cta{display:flex;gap:10px;margin-top:14px}
+.btn{min-height:var(--tap);border-radius:var(--radiusSm);font-family:var(--font-body);font-size:14px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;cursor:pointer;border:1px solid transparent}
+.btn.primary{background:var(--teal700);color:#fff}
+.btn.ghost{background:#fff;border-color:var(--paperRule);color:var(--ink)}
+.btn.block{flex:1}
+
+/* summary tiles */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.tile{background:#fff;border:1px solid var(--paperRule);border-radius:var(--radiusSm);padding:12px}
+.tile .l{font-size:12px;font-weight:600;color:var(--inkSoft)}
+.tile .v{font-family:var(--font-figure);font-size:16px;font-weight:700;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums}
+.tile .v.short{color:var(--short)}
+.tile .v.over{color:var(--over)}
+.tile .v.balanced{color:var(--balanced)}
+
+/* filters */
+.filters{display:flex;gap:8px;overflow:auto;padding:14px 0 4px}
+.fbtn{min-height:var(--tap);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  border-radius:999px;border:1px solid var(--paperRule);background:#fff;color:var(--inkSoft);
+  font-family:var(--font-body);font-size:13px;font-weight:600;padding:0 14px;cursor:pointer}
+.fbtn[aria-pressed="true"]{background:var(--teal700);border-color:var(--teal700);color:#fff}
+.fbtn .n{font-family:var(--font-figure);font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--paperSink);color:var(--inkSoft)}
+.fbtn[aria-pressed="true"] .n{background:rgba(255,255,255,.22);color:#fff}
+.fbtn .warnDot{width:7px;height:7px;border-radius:50%;background:var(--short)}
+
+/* ledger entry */
+.entry{background:#fff;border:1px solid var(--paperRule);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.entry.attn{border-left:4px solid var(--amber500);background:#FFFDF7}
+.entry .top{display:flex;align-items:center;gap:10px}
+.entry .oid{font-family:var(--font-figure);font-size:12px;font-weight:600;color:var(--inkMuted);letter-spacing:.04em}
+.entry .amt{font-family:var(--font-figure);font-size:19px;font-weight:700;color:var(--ink);margin-left:auto;font-variant-numeric:tabular-nums}
+.stamp{font-family:var(--font-figure);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:6px}
+.stamp.settled{background:var(--balancedWash);color:var(--balanced)}
+.stamp.held{background:var(--heldWash);color:var(--heldFg)}
+.stamp.partial{background:var(--overWash);color:var(--over)}
+.stamp.dispute{background:var(--shortWash);color:var(--short)}
+
+.rows{margin-top:10px;border-top:1px solid var(--paperRule)}
+.row{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--paperRule)}
+.row:last-child{border-bottom:0}
+.row .rl{font-size:12px;font-weight:600;color:var(--inkSoft);flex:none;min-width:118px}
+.row .rv{font-family:var(--font-figure);font-size:14px;font-weight:600;color:var(--ink);margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+.row .rv.short{color:var(--short)}
+.row .rv.over{color:var(--over)}
+.row .rv.balanced{color:var(--balanced)}
+.vline{display:flex;align-items:center;gap:10px;margin-top:10px;border-radius:var(--radiusSm);padding:10px 12px;font-size:13px;font-weight:600}
+.vline.short{background:var(--shortWash);color:var(--short)}
+.vline.over{background:var(--overWash);color:var(--over)}
+.vline.balanced{background:var(--balancedWash);color:var(--balanced)}
+.vline .sign{font-family:var(--font-figure);font-size:16px;font-weight:700}
+
+.audit{list-style:none;margin:12px 0 0;padding:0}
+.audit li{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--paperRule)}
+.audit li:last-child{border-bottom:0}
+.audit .mk{width:8px;height:8px;border-radius:50%;background:var(--teal700);margin-top:5px;flex:none}
+.audit .t{font-size:13px;font-weight:600;color:var(--ink)}
+.audit .m{font-family:var(--font-figure);font-size:12px;color:var(--inkMuted);margin-top:3px;line-height:1.5}
+
+.refbox{display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--paperSink);border:1px dashed var(--paperRule);border-radius:var(--radiusSm);padding:10px 12px}
+.refbox .lab{font-size:12px;font-weight:600;color:var(--inkSoft)}
+.refbox code{font-family:var(--font-figure);font-size:13px;font-weight:600;color:var(--ink);margin-left:auto;letter-spacing:.04em}
+.refbox .copy{min-height:36px;padding:0 12px;border-radius:8px;border:1px solid var(--paperRule);background:#fff;font-size:12px;font-weight:600;color:var(--teal700);cursor:pointer}
+
+.actions{display:flex;gap:10px;margin-top:12px}
+.actions .btn{flex:1;font-size:13px}
+
+/* offline banner */
+.offline{display:flex;align-items:center;gap:10px;background:var(--overWash);border:1px solid #E8D6AE;border-radius:var(--radiusSm);
+  padding:10px 12px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--over)}
+.stale{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--over);margin-top:6px}
+
+/* empty / error states */
+.state{display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 24px}
+.state .glyph{width:64px;height:64px;border-radius:50%;background:var(--paperSink);display:grid;place-items:center;color:var(--inkMuted);font-size:28px}
+.state h4{font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--ink);margin:14px 0 6px}
+.state p{font-size:13px;line-height:1.6;color:var(--inkSoft);margin:0 0 16px;max-width:34ch}
+.state .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+/* skeletons */
+.sk{background:linear-gradient(90deg,#EFEBE2 25%,#E4DFD3 37%,#EFEBE2 63%);background-size:400% 100%;animation:sh 1.4s ease-in-out infinite;border-radius:8px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+.sk.bal{height:36px;width:180px;margin:8px 0}
+.sk.line{height:12px;border-radius:6px}
+.sk.row{height:16px;width:100%}
+.skchip{height:var(--tap);width:104px;border-radius:999px}
+
+/* annotations */
+.pin{display:inline-block;font-family:var(--font-figure);font-size:10px;font-weight:700;line-height:1;
+  background:var(--short);color:#fff;border-radius:4px;padding:3px 5px;margin-left:6px;vertical-align:2px;letter-spacing:.04em}
+.pin.alt{background:var(--teal700)}
+body.hide-pins .pin{display:none}
+.key{margin-top:26px;background:var(--paper);border:1px solid var(--paperRule);border-radius:var(--radius);padding:16px 18px}
+.key h3{font-family:var(--font-display);font-size:17px;margin:0 0 10px}
+.key ol{margin:0;padding-left:20px}
+.key li{font-size:13px;line-height:1.6;color:var(--inkSoft);margin-bottom:6px}
+.key b{color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){
+  .oldspin{animation:none;border-top-color:var(--teal700);opacity:.7}
+  .sk{animation:none;background:#EFEBE2}
+}
+@media (max-width:760px){
+  body{padding:20px 12px 60px}
+  .phone{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">AAGAM · mobile-partners · rider workspace</p>
+    <h1>Rider COD ledger — Cash Book</h1>
+    <p class="dek">A redesign of <b>RiderCodScreen.tsx</b>, the rider's cash-accountability
+    ledger. Same data contract (<code>GET /riders/portal/cod</code>), same behaviour,
+    different presentation: a ruled petty-cash book instead of floating cards. Every
+    number sits in a column, every status is a stamp, and variance is a signed figure
+    with a plain-language meaning.</p>
+    <div class="meta">
+      <span class="chip"><b>13</b> diagnosed problems · P1–P13</span>
+      <span class="chip"><b>4</b> states + offline</span>
+      <span class="chip">360px &amp; desktop</span>
+      <span class="chip">mockup only · no app code changed</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button id="pintoggle" aria-pressed="true" type="button">Problem markers: on</button>
+    <span class="hint">Toggle the <span class="pin">P#</span> pins to read the screen clean.</span>
+  </div>
+
+  <!-- ============ SECTION 1: default, side by side ============ -->
+  <section class="sec">
+    <h2>1 · Default state — before / after</h2>
+    <p>Left is the shipped screen reproduced from <code>RiderCodScreen.tsx</code>; right is the Cash Book redesign.</p>
+    <div class="grid two">
+
+      <!-- BEFORE -->
+      <div class="frame">
+        <header><h3>Before — as shipped</h3><span class="tag old">current</span></header>
+        <div class="phone old">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="oldhead">
+              <span class="ib">←</span>
+              <div class="tt">
+                <div class="eyebrow">RIDER CASH ACCOUNTABILITY<span class="pin">P2</span></div>
+                <div class="ttl">COD ledger</div>
+              </div>
+              <span class="ib">⟳</span>
+            </div>
+            <div class="oldbody">
+              <div class="oldhero">
+                <span class="hi">₹</span>
+                <div>
+                  <div class="hl">CASH CURRENTLY HELD<span class="pin">P2</span></div>
+                  <div class="ha">₹2,450.00</div>
+                  <div class="ht">Deposit only against a recorded settlement reference.</div>
+                </div>
+              </div>
+              <div class="oldsum">
+                <div class="c"><div class="l">Collected<span class="pin">P1</span></div><div class="v">₹5,200.00</div></div>
+                <div class="c"><div class="l">Deposited<span class="pin">P1</span></div><div class="v">₹2,750.00</div></div>
+                <div class="c"><div class="l">Variance<span class="pin">P3</span></div><div class="v warn">₹250.00</div></div>
+              </div>
+              <div class="oldfilters">
+                <span class="f on">All</span><span class="f">Held</span><span class="f">Partial<span class="pin">P8</span></span><span class="f">Settled</span><span class="f">Variance</span>
+              </div>
+              <p class="oldsec">3 ledgers</p>
+              <div class="oldcard attn">
+                <div class="h">
+                  <div style="flex:1">
+                    <div class="oc">ORDER #A1B2C3D4</div>
+                    <div class="st">VARIANCE REVIEW<span class="pin">P8</span></div>
+                  </div>
+                  <span style="color:#B45309">⚠</span>
+                </div>
+                <div class="oldgrid">
+                  <div class="cell"><div class="cl">Expected<span class="pin">P1</span></div><div class="cv">₹1,200.00</div></div>
+                  <div class="cell"><div class="cl">Collected<span class="pin">P1</span></div><div class="cv">₹950.00</div></div>
+                  <div class="cell"><div class="cl">Deposited<span class="pin">P1</span></div><div class="cv">₹0.00</div></div>
+                  <div class="cell"><div class="cl">Holding<span class="pin">P1</span></div><div class="cv strong">₹950.00</div></div>
+                </div>
+                <div class="oldfact"><div class="fl">Settlement reference<span class="pin">P13</span></div><div class="fv">Not assigned</div></div>
+                <div class="oldfact"><div class="fl">Variance<span class="pin">P3</span></div><div class="fv danger">₹250.00</div></div>
+                <div class="oldaudit">Deposit and settlement history</div>
+                <div class="oldarow"><span class="dot"></span><div><div class="at">CASH_COLLECTED</div><div class="am">₹950.00 · 8 Nov 2026, 6:42 pm<span class="pin">P1</span></div><div class="am">Holding after: ₹950.00 · deposited after: ₹0.00</div></div></div>
+                <div class="oldacts"><span class="a">▤ Receipt</span><span class="a">⚑ Dispute variance</span></div>
+                <div class="oldnote">Cash settlement is completed by the store or admin. Keep the physical deposit receipt and use Support if the reference, partial amount, or variance is incorrect.<span class="pin">P12</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Reproduces the shipped layout: 9px labels (P1), a <code>#A7F3D0</code> label on the teal header (P2), an unsigned "Variance ₹250.00" (P3), enum chip labels (P8), and the policy paragraph below the buttons (P12).</p>
+      </div>
+
+      <!-- AFTER -->
+      <div class="frame">
+        <header><h3>After — Cash Book</h3><span class="tag new">proposed</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead">
+              <span class="ib">←</span>
+              <div class="tt">
+                <div class="eyebrow">Cash accountability</div>
+                <div class="ttl">COD ledger</div>
+              </div>
+              <span class="ib">⟳</span>
+            </div>
+            <div class="cbwrap">
+
+              <section class="stmt" aria-label="Cash currently held">
+                <div class="cap">Cash with me now</div>
+                <div class="balance"><span class="cur">₹</span>2,450.00</div>
+                <p class="sub">You are holding <b>₹2,450</b> from 3 orders. Hand it over at the
+                store against the reference below.</p>
+                <div class="cta">
+                  <button class="btn primary block" type="button">Deposit cash</button>
+                  <button class="btn ghost block" type="button">Statement</button>
+                </div>
+              </section>
+
+              <div class="tiles">
+                <div class="tile"><div class="l">Collected</div><div class="v">₹5,200.00</div></div>
+                <div class="tile"><div class="l">Deposited</div><div class="v">₹2,750.00</div></div>
+                <div class="tile"><div class="l">Net variance</div><div class="v short">−₹250.00</div></div>
+              </div>
+
+              <div class="filters" role="group" aria-label="Filter entries">
+                <button class="fbtn" aria-pressed="true" type="button">All <span class="n">3</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">With me <span class="n">2</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">Partly deposited <span class="n">1</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">Settled <span class="n">1</span></button>
+                <button class="fbtn" aria-pressed="false" type="button"><span class="warnDot" aria-hidden="true"></span>In dispute <span class="n">1</span></button>
+              </div>
+
+              <article class="entry attn" aria-label="Order A1B2C3D4, in dispute">
+                <div class="top">
+                  <span class="oid">ORDER ·A1B2C3D4</span>
+                  <span class="stamp dispute">In dispute</span>
+                  <span class="amt">₹950.00</span>
+                </div>
+
+                <div class="rows">
+                  <div class="row"><span class="rl">Expected at door</span><span class="rv">₹1,200.00</span></div>
+                  <div class="row"><span class="rl">Collected from customer</span><span class="rv">₹950.00</span></div>
+                  <div class="row"><span class="rl">Handed over to store</span><span class="rv">₹0.00</span></div>
+                  <div class="row"><span class="rl">Still with you</span><span class="rv">₹950.00</span></div>
+                </div>
+
+                <div class="vline short">
+                  <span class="sign">−</span>
+                  <span>Short by <b>₹250.00</b> — the customer paid less than expected. Record the reason so it is not counted against you.</span>
+                </div>
+
+                <div class="refbox">
+                  <span class="lab">Settlement reference</span>
+                  <code>Not assigned yet</code>
+                  <button class="copy" type="button">Copy</button>
+                </div>
+
+                <div class="actions">
+                  <button class="btn primary" type="button">Deposit ₹950</button>
+                  <button class="btn ghost" type="button">Dispute</button>
+                </div>
+
+                <h5 style="font-family:var(--font-display);font-size:15px;margin:14px 0 0;color:var(--ink)">Deposit &amp; settlement history</h5>
+                <ul class="audit">
+                  <li><span class="mk"></span><div><div class="t">Cash collected from customer</div><div class="m">₹950.00 · 8 Nov 2026, 6:42 pm · ref CSH-8842</div></div></li>
+                  <li><span class="mk"></span><div><div class="t">Entry created</div><div class="m">Expected ₹1,200.00 · holding after ₹950.00</div></div></li>
+                </ul>
+              </article>
+
+              <article class="entry" aria-label="Order E5F6G7H8, with rider">
+                <div class="top">
+                  <span class="oid">ORDER ·E5F6G7H8</span>
+                  <span class="stamp held">With me</span>
+                  <span class="amt">₹1,500.00</span>
+                </div>
+                <div class="rows">
+                  <div class="row"><span class="rl">Expected at door</span><span class="rv">₹1,500.00</span></div>
+                  <div class="row"><span class="rl">Collected from customer</span><span class="rv">₹1,500.00</span></div>
+                  <div class="row"><span class="rl">Still with you</span><span class="rv">₹1,500.00</span></div>
+                </div>
+                <div class="vline balanced"><span class="sign">✓</span><span>Balanced — full amount collected and accounted for.</span></div>
+                <div class="actions">
+                  <button class="btn primary" type="button">Deposit ₹1,500</button>
+                  <button class="btn ghost" type="button">Receipt</button>
+                </div>
+              </article>
+
+              <article class="entry" aria-label="Order J9K0L1M2, settled">
+                <div class="top">
+                  <span class="oid">ORDER ·J9K0L1M2</span>
+                  <span class="stamp settled">Settled</span>
+                  <span class="amt">₹0.00</span>
+                </div>
+                <div class="rows">
+                  <div class="row"><span class="rl">Collected from customer</span><span class="rv">₹2,750.00</span></div>
+                  <div class="row"><span class="rl">Handed over to store</span><span class="rv">₹2,750.00</span></div>
+                </div>
+                <div class="vline balanced"><span class="sign">✓</span><span>Settled on 7 Nov 2026 · ref STL-2291.</span></div>
+                <div class="actions">
+                  <button class="btn ghost" type="button">Receipt</button>
+                  <button class="btn ghost" type="button">Support</button>
+                </div>
+              </article>
+
+            </div>
+          </div>
+        </div>
+        <p class="note">Labels at 12px, figures in a monospaced column, a signed variance line that says what happened in words, a real "Deposit cash" action, and 44pt chips and buttons.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2: states ============ -->
+  <section class="sec">
+    <h2>2 · States — loading, empty, error, offline</h2>
+    <p>The redesign must never show a false <code>₹0.00</code> balance (P9), must separate a genuinely empty ledger from an empty filter (P10), must offer a real retry (P4), and must warn when the figure may be stale (P6).</p>
+    <div class="grid">
+
+      <!-- LOADING (before + after) -->
+      <div class="frame">
+        <header><h3>Loading — before</h3><span class="tag old">false zero</span></header>
+        <div class="phone old">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="oldhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">RIDER CASH ACCOUNTABILITY</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="oldbody">
+              <div class="oldhero">
+                <span class="hi">₹</span>
+                <div>
+                  <div class="hl">CASH CURRENTLY HELD</div>
+                  <div class="ha">₹0.00<span class="pin">P9</span></div>
+                  <div class="ht">Deposit only against a recorded settlement reference.</div>
+                </div>
+              </div>
+              <div class="oldsum">
+                <div class="c"><div class="l">Collected</div><div class="v">₹0.00</div></div>
+                <div class="c"><div class="l">Deposited</div><div class="v">₹0.00</div></div>
+                <div class="c"><div class="l">Variance</div><div class="v">₹0.00</div></div>
+              </div>
+              <div class="oldstate"><div class="oldspin"></div><div class="stx" style="margin-top:12px">Loading COD account…</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">While loading, the hero prints <b>₹0.00</b> because <code>data</code> is <code>{}</code> (line 51) and <code>money(undefined)</code> is <code>₹0.00</code> (lines 26–31). A rider glancing at this reads a false balance of zero.</p>
+      </div>
+
+      <div class="frame">
+        <header><h3>Loading — after</h3><span class="tag new">skeleton</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">Cash accountability</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="cbwrap" role="status" aria-live="polite" aria-label="Loading COD ledger">
+              <section class="stmt">
+                <div class="cap">Cash with me now</div>
+                <div class="sk bal"></div>
+                <div class="sk line" style="width:78%;margin-top:10px"></div>
+                <div class="sk line" style="width:54%;margin-top:8px"></div>
+                <div class="cta">
+                  <div class="sk" style="height:44px;flex:1;border-radius:10px"></div>
+                  <div class="sk" style="height:44px;flex:1;border-radius:10px"></div>
+                </div>
+              </section>
+              <div class="tiles">
+                <div class="tile"><div class="sk line" style="width:70%"></div><div class="sk line" style="width:90%;height:18px;margin-top:8px"></div></div>
+                <div class="tile"><div class="sk line" style="width:70%"></div><div class="sk line" style="width:90%;height:18px;margin-top:8px"></div></div>
+                <div class="tile"><div class="sk line" style="width:70%"></div><div class="sk line" style="width:90%;height:18px;margin-top:8px"></div></div>
+              </div>
+              <div class="filters"><div class="sk skchip"></div><div class="sk skchip"></div><div class="sk skchip"></div></div>
+              <div class="entry"><div class="sk line" style="width:46%;height:14px"></div><div class="sk line" style="width:100%;height:14px;margin-top:14px"></div><div class="sk line" style="width:88%;height:14px;margin-top:10px"></div><div class="sk line" style="width:92%;height:14px;margin-top:10px"></div></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">The amount is a skeleton bar until real data arrives, so no figure is ever fabricated. The skeleton occupies the final layout, so nothing jumps when it resolves.</p>
+      </div>
+
+      <!-- EMPTY -->
+      <div class="frame">
+        <header><h3>Empty — genuinely no entries</h3><span class="tag new">new state</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">Cash accountability</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="cbwrap">
+              <section class="stmt">
+                <div class="cap">Cash with me now</div>
+                <div class="balance"><span class="cur">₹</span>0.00</div>
+                <p class="sub">Nothing to hand over. You have no cash-on-delivery orders yet.</p>
+              </section>
+              <div class="state">
+                <span class="glyph" aria-hidden="true">▤</span>
+                <h4>No cash entries yet</h4>
+                <p>COD entries appear here after you collect cash on a delivery. Nothing is owed right now.</p>
+                <div class="btns">
+                  <button class="btn primary" type="button">Back to my runs</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Separated from the filter-empty case (P10). A new rider is told the account is genuinely clear, not that a filter is hiding something.</p>
+      </div>
+
+      <!-- EMPTY BY FILTER -->
+      <div class="frame">
+        <header><h3>Empty — filtered out</h3><span class="tag new">new state</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">Cash accountability</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="cbwrap">
+              <div class="filters" role="group" aria-label="Filter entries">
+                <button class="fbtn" aria-pressed="false" type="button">All <span class="n">3</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">With me <span class="n">2</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">Partly deposited <span class="n">0</span></button>
+                <button class="fbtn" aria-pressed="true" type="button">Settled <span class="n">0</span></button>
+                <button class="fbtn" aria-pressed="false" type="button">In dispute <span class="n">1</span></button>
+              </div>
+              <div class="state">
+                <span class="glyph" aria-hidden="true">⌕</span>
+                <h4>Nothing settled yet</h4>
+                <p>No entries match "Settled". Your 3 entries are under the other filters.</p>
+                <div class="btns">
+                  <button class="btn primary" type="button">Show all 3</button>
+                  <button class="btn ghost" type="button">Clear filter</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Names the filter and offers the escape (P10, P8). Chips carry live counts so the rider can see where the money is before tapping.</p>
+      </div>
+
+      <!-- ERROR -->
+      <div class="frame">
+        <header><h3>Error — retryable</h3><span class="tag new">new state</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">Cash accountability</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="cbwrap">
+              <div class="state">
+                <span class="glyph" aria-hidden="true">!</span>
+                <h4>Couldn't load your ledger</h4>
+                <p>We couldn't reach the server. Your cash records are safe — try again, or contact the store if it keeps failing.</p>
+                <div class="btns">
+                  <button class="btn primary" type="button">Try again</button>
+                  <button class="btn ghost" type="button">Contact support</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">A real 44pt retry button (P4) and fixed plain language — no raw exception text (P5).</p>
+      </div>
+
+      <!-- OFFLINE -->
+      <div class="frame">
+        <header><h3>Offline — stale figure</h3><span class="tag new">new state</span></header>
+        <div class="phone new">
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 84%</span></div>
+          <div class="body">
+            <div class="cbhead"><span class="ib">←</span><div class="tt"><div class="eyebrow">Cash accountability</div><div class="ttl">COD ledger</div></div><span class="ib">⟳</span></div>
+            <div class="cbwrap">
+              <div class="offline" role="status">
+                <span aria-hidden="true">⌁</span>
+                <span>You're offline — showing the last saved figures.</span>
+              </div>
+              <section class="stmt">
+                <div class="cap">Cash with me now</div>
+                <div class="balance"><span class="cur">₹</span>2,450.00</div>
+                <div class="stale"><span aria-hidden="true">⟳</span> Last updated 9:12 am</div>
+                <p class="sub">Check with the store before handing over cash — this figure may be out of date.</p>
+              </section>
+              <div class="tiles">
+                <div class="tile"><div class="l">Collected</div><div class="v">₹5,200.00</div></div>
+                <div class="tile"><div class="l">Deposited</div><div class="v">₹2,750.00</div></div>
+                <div class="tile"><div class="l">Net variance</div><div class="v short">−₹250.00</div></div>
+              </div>
+              <div class="entry attn">
+                <div class="top"><span class="oid">ORDER ·A1B2C3D4</span><span class="stamp dispute">In dispute</span><span class="amt">₹950.00</span></div>
+                <div class="vline short"><span class="sign">−</span><span>Short by <b>₹250.00</b> — record the reason when you're back online.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">The held-cash figure is explicitly marked stale before the rider hands over money (P6).</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="key">
+    <h3>Problem key</h3>
+    <ol>
+      <li><b>P1</b> Labels set at 9–10px (five uses of <code>fontSize: 9</code>) — below a legible floor.</li>
+      <li><b>P2</b> <code>#A7F3D0</code> on <code>#0F766E</code> = 4.27:1 — header and hero labels fail AA.</li>
+      <li><b>P3</b> Variance printed as an unsigned figure with no meaning or next step.</li>
+      <li><b>P4</b> Error state has no retry button, only "pull down".</li>
+      <li><b>P5</b> Raw exception message leaked into the UI.</li>
+      <li><b>P6</b> No offline handling; <code>NetInfo</code> is not even a dependency.</li>
+      <li><b>P7</b> Filter chips <code>minHeight: 38</code> — under the 44pt touch floor.</li>
+      <li><b>P8</b> Chips are raw enum labels ("HELD", "PARTIAL") the rider must translate.</li>
+      <li><b>P9</b> Loading shows a bare spinner and a <b>false ₹0.00</b> held-cash balance.</li>
+      <li><b>P10</b> Empty state assumes a filter is active; a new rider sees the wrong message.</li>
+      <li><b>P11</b> Variance colour duplicated; the <code>warning</code> prop renders <code>danger</code>.</li>
+      <li><b>P12</b> Policy paragraph sits below the buttons it describes.</li>
+      <li><b>P13</b> The deposit task is stated but has no action, and no reference to copy.</li>
+    </ol>
+  </section>
+
+  <p style="margin-top:26px;font-size:12px;color:var(--inkMuted);line-height:1.6">
+    Static mockup, no build step, no dependencies beyond one Google Fonts link. Shipped
+    application code is unchanged; see <code>proposal.md</code> for the evidence table,
+    the token diff and the pre-ship verification list.
+  </p>
+
+</div>
+
+<script>
+  // Progressive enhancement only: the mockup is complete and readable with JS off.
+  (function () {
+    var btn = document.getElementById('pintoggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var hidden = document.body.classList.toggle('hide-pins');
+      btn.setAttribute('aria-pressed', String(!hidden));
+      btn.textContent = 'Problem markers: ' + (hidden ? 'off' : 'on');
+    });
+  })();
+</script>
+</body>
+</html>
