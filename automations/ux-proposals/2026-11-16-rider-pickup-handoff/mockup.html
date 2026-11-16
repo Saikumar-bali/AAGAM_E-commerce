@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rider store-handoff / pickup — UX proposal (2026-11-16) · before / after</title>
+<style>
+/* ============================================================
+   Ops Manifest - rider store-handoff redesign.
+   Tokens mirror section 6 of proposal.md (the OPS block added to
+   packages/mobile-shared/src/constants/theme.ts).
+   Every foreground/wash pair is >= 6:1 (ratios in the key below).
+   ============================================================ */
+:root{
+  --primary:#0F766E; --primaryDark:#115E59;
+  --teal600:#12897F; --teal100:#CCFBF1; --teal050:#F0FDFA;
+  --amber700:#B45309; --amber100:#FEF3C7;
+  --rose700:#B91C1C;
+  --green700:#15803D; --green100:#DCFCE7; --green050:#F0FDF4;
+  --slate900:#0F172A; --slate700:#334155; --slate600:#475569; --slate500:#64748B;
+  --slate400:#94A3B8; --slate300:#CBD5E1; --slate200:#E2E8F0; --slate100:#F1F5F9; --slate050:#F8FAFC;
+  /* Ops Manifest layer (proposed) */
+  --ink:#08322E; --onInk:#E6F5F1; --onInkMuted:#B9D8D2;
+  --manifest:#FBFAF7; --manifestRule:#DCE7E3; --manifestSink:#F4F1E9;
+  --matchFg:#0B4F4A; --matchWash:#E3F1E9;
+  --shortFg:#8A2E0B; --shortWash:#FBEAE4;
+  --overFg:#6B4703;  --overWash:#FBF0DC;
+  --pendingFg:#3F5751; --pendingWash:#EDEAE3;
+  --tap:48px;
+  --font-body:"Inter","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+code{font-family:var(--font-mono);font-size:.88em;overflow-wrap:anywhere;word-break:break-word}
+body{background:#EEF2F5;color:var(--slate900);font-family:var(--font-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.page{max-width:1360px;margin:0 auto;padding:32px 20px 72px}
+.masthead{border-left:5px solid var(--primary);padding:2px 0 2px 18px;margin-bottom:10px}
+.masthead h1{font-size:27px;line-height:1.2;margin:0 0 6px;letter-spacing:-.3px}
+.masthead p{margin:0;color:var(--slate600);max-width:76ch}
+.kicker{font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--primary);margin:0 0 8px}
+.rule{height:1px;background:var(--slate200);margin:26px 0}
+h2.section{font-size:19px;margin:38px 0 4px;letter-spacing:-.2px}
+.sectionNote{color:var(--slate600);margin:0 0 20px;max-width:82ch;font-size:14px}
+.compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:30px;align-items:start;min-width:0}
+.panel{background:#fff;border:1px solid var(--slate200);border-radius:18px;padding:16px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.panel>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.panel h3{font-size:15px;margin:0;letter-spacing:-.1px}
+.tag{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.tag.old{background:var(--slate100);color:var(--slate600)}
+.tag.new{background:var(--matchWash);color:var(--matchFg)}
+.device{width:100%;max-width:360px;margin:0 auto;background:var(--slate050);border:1px solid var(--slate300);border-radius:26px;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:10px;font-weight:600;color:var(--slate500);background:#fff;flex:none}
+.statusbar.on-ink{background:var(--ink);color:var(--onInkMuted)}
+.statusbar.on-grad{background:var(--teal600);color:#E2E8F0}
+.hero{padding:18px 16px 16px;display:flex;align-items:flex-start;gap:12px;flex:none}
+.hero.grad{background:linear-gradient(120deg,#0B3B36,#0F766E 55%,#12897F)}
+.hero.ink{background:var(--ink)}
+.iconbtn{width:40px;height:40px;border-radius:13px;border:0;background:rgba(255,255,255,.15);color:#fff;display:grid;place-items:center;flex:none;cursor:pointer;padding:0}
+.iconbtn.t48{width:48px;height:48px;border-radius:15px}
+.iconbtn svg{width:20px;height:20px;display:block}
+.hero .eyebrow{font-size:9px;font-weight:700;letter-spacing:1.2px;color:#A7F3D0;margin:0}
+.hero.ink .eyebrow{font-size:11px;color:var(--onInkMuted)}
+.hero h4{margin:3px 0 0;font-size:23px;font-weight:600;color:#fff;letter-spacing:-.2px;line-height:1.15}
+.hero.ink h4{font-size:22px}
+.hero .sub{margin:5px 0 0;font-size:11px;color:#CBD5E1;line-height:1.45}
+.hero.ink .sub{font-size:13px;color:var(--onInk)}
+
+/* ============ BEFORE (shipped) ============ */
+.b-card{margin:14px;border:1px solid var(--slate200);background:#fff;border-radius:18px;padding:16px}
+.b-title{font-size:16px;font-weight:600;margin:0}
+.b-text{font-size:10px;color:var(--slate500);margin:4px 0 0;line-height:1.5}
+.b-rowhead{display:flex;align-items:center;gap:8px}
+.b-ico{width:20px;height:20px;color:var(--primary);flex:none}
+.b-summary{margin:14px;margin-bottom:0;border:1px solid var(--slate200);background:#fff;border-radius:18px;padding:16px;display:flex;align-items:center;gap:10px}
+.b-code{font-size:10px;font-weight:600;color:var(--primary);margin:0}
+.b-store{font-size:17px;font-weight:600;margin:4px 0 0}
+.b-summarytext{font-size:10px;color:var(--slate500);margin:4px 0 0}
+.b-badge{border-radius:11px;padding:8px 10px;font-size:10px;font-weight:600;color:var(--slate900);white-space:nowrap}
+.b-badge.ready{background:var(--green100)}
+.b-badge.pend{background:var(--amber100)}
+.b-item{min-height:72px;border:1px solid var(--slate200);background:var(--slate050);border-radius:14px;padding:12px;margin-top:10px;display:flex;align-items:center;gap:8px}
+.b-item.matched{background:var(--green050);border-color:#86EFAC}
+.b-item .name{font-size:12px;font-weight:600}
+.b-item .meta{font-size:10px;font-weight:600;color:var(--green700);margin:4px 0 0}
+.b-item .meta.bad{color:var(--amber700)}
+.b-counter{display:flex;align-items:center;gap:8px;margin-left:auto}
+.b-step{width:38px;height:38px;border-radius:12px;border:0;background:var(--teal100);color:var(--primary);display:grid;place-items:center;cursor:pointer;padding:0}
+.b-step svg{width:18px;height:18px;display:block}
+.b-count{min-width:28px;text-align:center;font-size:17px;font-weight:600}
+.b-input{min-height:50px;width:100%;border:1px solid var(--slate300);background:var(--slate050);border-radius:13px;padding:0 12px;color:var(--slate900);margin-top:10px;font-family:inherit;font-size:14px}
+.b-primary{min-height:50px;width:100%;border:0;border-radius:14px;background:var(--primary);color:#fff;font-weight:600;font-size:14px;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-family:inherit}
+.b-primary[disabled]{opacity:.45;cursor:not-allowed}
+.b-problem{margin:14px;border:1px solid #FECACA;background:#fff;border-radius:18px;overflow:hidden}
+.b-problemhead{min-height:72px;padding:14px;display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;text-align:left;cursor:pointer;font-family:inherit}
+.b-problemtitle{font-size:13px;font-weight:600;color:#991B1B;margin:0}
+.b-problemtext{font-size:10px;color:#7F1D1D;margin:4px 0 0}
+.b-problemlink{font-size:11px;font-weight:600;color:#B91C1C;margin-left:auto}
+.b-state{min-height:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center}
+.b-state svg{width:48px;height:48px;color:var(--slate400)}
+.b-stitle{font-size:19px;font-weight:600;margin:12px 0 0}
+.b-stext{font-size:12px;color:var(--slate500);line-height:1.5;margin:6px 0 0;max-width:32ch}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--slate200);border-top-color:var(--primary);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============ AFTER (Ops Manifest) ============ */
+.steps{display:flex;gap:8px;padding:12px 16px 0;flex:none;background:var(--manifest)}
+.steps li{list-style:none;flex:1;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1px solid var(--manifestRule);background:#fff}
+.steps li[aria-current="step"]{background:var(--matchWash);border-color:#9CC9BD}
+.steps .num{width:22px;height:22px;border-radius:50%;background:var(--pendingWash);color:var(--pendingFg);font:700 11px/22px var(--font-mono);text-align:center;flex:none}
+.steps li[aria-current="step"] .num{background:var(--matchFg);color:#fff}
+.steps .lbl{font-size:11px;font-weight:600;color:var(--pendingFg);line-height:1.2}
+.steps li[aria-current="step"] .lbl{color:var(--matchFg)}
+.manifest{background:var(--manifest);padding:12px 16px 14px;flex:1}
+.m-card{border:1px solid var(--manifestRule);background:#fff;border-radius:16px;overflow:hidden}
+.m-head{padding:13px 14px;border-bottom:1px solid var(--manifestRule);display:flex;align-items:center;gap:10px}
+.m-head h5{margin:0;font-size:13px;font-weight:700;letter-spacing:.2px}
+.m-head p{margin:2px 0 0;font-size:12px;color:var(--slate600);line-height:1.4}
+.m-rows{list-style:none;margin:0;padding:0}
+.m-rows li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--manifestRule)}
+.m-rows li:last-child{border-bottom:0}
+.m-rows li.st-short{background:var(--shortWash)}
+.m-rows li.st-over{background:var(--overWash)}
+.m-rows li.st-pending{background:var(--pendingWash)}
+.m-name{font-size:14px;font-weight:600;margin:0}
+.m-tie{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--slate600);margin:3px 0 0;display:flex;align-items:center;gap:6px}
+.m-flag{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:2px 7px;border-radius:6px}
+.st-short .m-flag{background:var(--shortFg);color:#fff}
+.st-over .m-flag{background:var(--overFg);color:#fff}
+.m-step{display:flex;align-items:center;gap:6px}
+.m-btn{width:var(--tap);height:var(--tap);border-radius:14px;border:1px solid var(--manifestRule);background:#fff;color:var(--primary);display:grid;place-items:center;cursor:pointer;padding:0;font-family:inherit}
+.m-btn:hover{background:var(--teal050)}
+.m-btn svg{width:20px;height:20px;display:block}
+.m-btn[disabled]{opacity:.4;cursor:not-allowed}
+.m-num{min-width:38px;text-align:center;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:19px;font-weight:700}
+.st-short .m-num{color:var(--shortFg)}
+.st-over .m-num{color:var(--overFg)}
+.m-label{display:block;font-size:12px;font-weight:600;color:var(--slate700);margin:0 0 5px}
+.m-input{min-height:var(--tap);width:100%;border:1px solid var(--slate300);background:#fff;border-radius:12px;padding:0 13px;color:var(--slate900);font-family:inherit;font-size:15px}
+.m-help{font-size:12px;color:var(--slate600);margin:6px 0 0;line-height:1.45}
+.m-field{padding:12px 14px;border-top:1px solid var(--manifestRule)}
+.m-wrong{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;border:1px solid #F0C9C3;background:var(--shortWash);border-radius:14px;padding:0 14px;cursor:pointer;font-family:inherit;text-align:left;margin-top:12px}
+.m-wrong .t{font-size:13px;font-weight:700;color:var(--shortFg)}
+.m-wrong .s{font-size:11px;color:var(--slate600);margin:2px 0 0}
+.m-wrong svg{width:20px;height:20px;color:var(--shortFg);flex:none}
+.m-wrong .go{margin-left:auto;font-size:12px;font-weight:700;color:var(--shortFg)}
+.tiebar{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--manifestSink);border-top:1px solid var(--manifestRule);flex:none}
+.tiebar .big{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:700}
+.tiebar .cap{font-size:11px;color:var(--slate600);letter-spacing:.4px;text-transform:uppercase;font-weight:700}
+.tiechip{margin-left:auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
+.tiechip.ok{background:var(--matchFg);color:#fff}
+.tiechip.short{background:var(--shortFg);color:#fff}
+.footbar{padding:12px 16px;background:#fff;border-top:1px solid var(--manifestRule);flex:none}
+.cta{min-height:54px;width:100%;border:0;border-radius:15px;background:var(--primary);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;font-family:inherit}
+.cta[disabled]{background:var(--pendingWash);color:var(--pendingFg);cursor:not-allowed}
+.cta svg{width:19px;height:19px}
+.ctaNote{text-align:center;font-size:11px;color:var(--slate600);margin:8px 0 0}
+.offline{display:flex;align-items:center;gap:9px;padding:10px 16px;background:var(--amber100);border-bottom:1px solid #F2D08A;flex:none}
+.offline svg{width:17px;height:17px;color:var(--amber700);flex:none}
+.offline .t{font-size:12px;font-weight:600;color:#7A4A06}
+.offline .r{margin-left:auto;font-size:12px;font-weight:700;color:var(--amber700);text-decoration:underline}
+.skel{background:linear-gradient(90deg,var(--manifestRule),#EEF3F1,var(--manifestRule));background-size:200% 100%;animation:sh 1.4s ease-in-out infinite;border-radius:8px}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.emptyArt{width:96px;height:96px;border-radius:24px;background:var(--matchWash);display:grid;place-items:center;margin:0 auto 4px}
+.emptyArt svg{width:44px;height:44px;color:var(--matchFg)}
+.errStrip{background:var(--shortWash);border-bottom:1px solid #F0C9C3;padding:11px 16px;display:flex;gap:9px;align-items:flex-start;flex:none}
+.errStrip svg{width:17px;height:17px;color:var(--shortFg);flex:none;margin-top:2px}
+.errStrip .t{font-size:12px;font-weight:700;color:var(--shortFg)}
+.errStrip .s{font-size:12px;color:var(--slate600);margin:2px 0 0}
+.btnRow{display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap}
+.btn2{min-height:48px;padding:0 20px;border-radius:14px;border:1px solid var(--manifestRule);background:#fff;color:var(--primary);font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-family:inherit}
+.btn2.solid{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn2 svg{width:18px;height:18px}
+.annot{font-size:11px;color:var(--slate500);margin:12px 2px 0;display:flex;gap:7px;align-items:flex-start}
+.annot b{font-family:var(--font-mono);color:var(--primary);flex:none}
+.keybox{background:#fff;border:1px solid var(--slate200);border-radius:18px;padding:18px 20px;margin-top:34px}
+.keybox h3{margin:0 0 12px;font-size:15px}
+.keygrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:8px 26px}
+.keygrid div{font-size:13px;color:var(--slate700);display:flex;gap:9px;align-items:flex-start;padding:5px 0;border-bottom:1px dashed var(--slate200)}
+.keygrid b{font-family:var(--font-mono);color:var(--primary);flex:none;min-width:34px}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.sw{font-size:11px;border:1px solid var(--slate200);border-radius:10px;overflow:hidden;min-width:150px}
+.sw .chip{height:38px}
+.sw .cap{padding:7px 9px;font-family:var(--font-mono);line-height:1.35;color:var(--slate600)}
+:focus-visible{outline:3px solid #0EA5A0;outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+@media (max-width:760px){
+  .page{padding:20px 12px 56px}
+  .masthead h1{font-size:22px}
+  .panel{padding:12px}
+  .device{border-radius:20px}
+  .m-rows li{grid-template-columns:1fr;gap:10px}
+  .m-step{justify-content:flex-start}
+}
+@media (max-width:400px){
+  .compare{gap:20px}
+  .m-rows li{padding:11px 12px}
+  .steps{gap:6px;padding:10px 12px 0}
+  .steps li{padding:8px;gap:6px}
+  .steps .lbl{font-size:10px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <p class="kicker">AAGAM · UX proposal · 2026-11-16</p>
+  <h1>Rider store-handoff / pickup verification</h1>
+  <p><code>apps/mobile-partners/src/screens/rider/RiderPickupOperationsScreen.tsx</code> — the gate on every rider-delivered
+  subscription day and delivered store order. Left is what ships today; right is <b>Ops Manifest</b>: the hand-off drawn
+  as the ruled document it actually is — counted rows, a sticky tie-out total, and one signature line (the store PIN).
+  Every panel is annotated with the problem key (P1…P10) from <code>proposal.md</code> §2.</p>
+</header>
+
+<div class="rule"></div>
+
+<!-- ============ 1 · DEFAULT ============ -->
+<h2 class="section">1 · Default state — mid-count, 4 lines, 2 of 4 tied out</h2>
+<p class="sectionNote">Same task, same data. Before: the verify button is the last child of the checklist card, below
+every row; the running total lives in a badge that scrolls away; the hero subtitle is 2.88:1 on the light gradient stop.
+After: a two-step rail names the sequence, the tie-out bar is pinned, the primary action is a sticky footer.</p>
+
+<div class="compare">
+
+  <!-- BEFORE -->
+  <section class="panel">
+    <header><h3>Before — as shipped</h3><span class="tag old">current</span></header>
+    <div class="device before">
+      <div class="statusbar on-grad"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+      <div class="hero grad">
+        <button class="iconbtn" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1">
+          <p class="eyebrow">RIDER PICKUP</p>
+          <h4>Verify exact handoff</h4>
+          <p class="sub">Count every unit, then verify the owning store.</p>
+        </div>
+        <button class="iconbtn" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+      </div>
+      <div class="scroll">
+        <div class="b-summary">
+          <div style="flex:1">
+            <p class="b-code">ORDER #A1B2C3D4</p>
+            <p class="b-store">Anakapalle Hub</p>
+            <p class="b-summarytext">4 lines · expected 12 · received 6</p>
+          </div>
+          <span class="b-badge pend">6/12</span>
+        </div>
+        <div class="b-card">
+          <div class="b-rowhead">
+            <svg class="b-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+            <div style="flex:1">
+              <p class="b-title">Exact item quantities</p>
+              <p class="b-text">Use + and − to record what is physically received.</p>
+            </div>
+          </div>
+          <div class="b-item matched"><div style="flex:1"><p class="name">Aagaam Toned Milk 500 ml</p><p class="meta">Expected 4 / received 4</p></div>
+            <div class="b-counter"><button class="b-step" aria-label="Decrease received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="b-count">4</span><button class="b-step" aria-label="Increase received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          </div>
+          <div class="b-item matched"><div style="flex:1"><p class="name">Aagaam Curd 400 g</p><p class="meta">Expected 2 / received 2</p></div>
+            <div class="b-counter"><button class="b-step" aria-label="Decrease received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="b-count">2</span><button class="b-step" aria-label="Increase received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          </div>
+          <div class="b-item"><div style="flex:1"><p class="name">Aagaam Paneer 200 g</p><p class="meta bad">Expected 4 / received 0</p></div>
+            <div class="b-counter"><button class="b-step" aria-label="Decrease received quantity for Aagaam Paneer 200 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="b-count">0</span><button class="b-step" aria-label="Increase received quantity for Aagaam Paneer 200 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          </div>
+          <div class="b-item"><div style="flex:1"><p class="name">Aagaam Ghee 100 ml</p><p class="meta bad">Expected 2 / received 0</p></div>
+            <div class="b-counter"><button class="b-step" aria-label="Decrease received quantity for Aagaam Ghee 100 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="b-count">0</span><button class="b-step" aria-label="Increase received quantity for Aagaam Ghee 100 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          </div>
+          <input class="b-input" placeholder="Optional parcel or seal code" aria-label="Optional parcel or seal code" />
+          <button class="b-primary" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>Verify exact checklist</button>
+        </div>
+        <div class="b-problem">
+          <button class="b-problemhead">
+            <svg class="b-ico" style="color:#B91C1C" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+            <div style="flex:1"><p class="b-problemtitle">Quantity or parcel mismatch?</p><p class="b-problemtext">Attach image or PDF evidence before pickup.</p></div>
+            <span class="b-problemlink">Report</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <p class="annot"><b>P5</b><span>The verify button sits after 4 × 82pt rows + a 60pt input — ~690pt down, below the fold on a 640pt device.</span></p>
+    <p class="annot"><b>P6</b><span>The only running total is the <code>6/12</code> badge in the summary card, which scrolls away.</span></p>
+    <p class="annot"><b>P2</b><span>“Count every unit…” is <code>#CBD5E1</code> on the light gradient stop <code>#12897F</code> → <b>2.88:1</b>.</span></p>
+    <p class="annot"><b>P1</b><span>− / + steppers are 38×38 (<code>:343</code>), under the 44pt floor.</span></p>
+    <p class="annot"><b>P4</b><span>Nothing says there is a second step; the handoff card is only rendered once <code>checklistVerified</code>.</span></p>
+  </section>
+
+  <!-- AFTER -->
+  <section class="panel">
+    <header><h3>After — Ops Manifest</h3><span class="tag new">proposed</span></header>
+    <div class="device">
+      <div class="statusbar on-ink"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+      <div class="hero ink">
+        <button class="iconbtn t48" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <div style="flex:1">
+          <p class="eyebrow">Rider pickup · Order #A1B2C3D4</p>
+          <h4>Anakapalle Hub</h4>
+          <p class="sub">Count what the store hands you, then sign for it.</p>
+        </div>
+        <button class="iconbtn t48" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+      </div>
+      <ol class="steps" aria-label="Pickup steps">
+        <li aria-current="step"><span class="num">1</span><span class="lbl">Count the parcel</span></li>
+        <li><span class="num">2</span><span class="lbl">Sign the hand-off</span></li>
+      </ol>
+      <div class="manifest">
+        <div class="m-card">
+          <div class="m-head">
+            <svg class="b-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+            <div style="flex:1">
+              <h5>Count the parcel</h5>
+              <p>Record what is physically received. Rows tie out one at a time.</p>
+            </div>
+          </div>
+          <ul class="m-rows">
+            <li>
+              <div><p class="m-name">Aagaam Toned Milk 500 ml</p><p class="m-tie">expected 4 · received 4 <span class="m-flag" style="background:var(--matchFg);color:#fff">Tied</span></p></div>
+              <div class="m-step"><button class="m-btn" aria-label="Decrease received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">4</span><button class="m-btn" aria-label="Increase received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+            </li>
+            <li>
+              <div><p class="m-name">Aagaam Curd 400 g</p><p class="m-tie">expected 2 · received 2 <span class="m-flag" style="background:var(--matchFg);color:#fff">Tied</span></p></div>
+              <div class="m-step"><button class="m-btn" aria-label="Decrease received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">2</span><button class="m-btn" aria-label="Increase received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+            </li>
+            <li class="st-short">
+              <div><p class="m-name">Aagaam Paneer 200 g</p><p class="m-tie" style="color:var(--shortFg)">expected 4 · received 0 <span class="m-flag">Short 4</span></p></div>
+              <div class="m-step"><button class="m-btn" aria-label="Decrease received quantity for Aagaam Paneer 200 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">0</span><button class="m-btn" aria-label="Increase received quantity for Aagaam Paneer 200 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+            </li>
+            <li class="st-pending">
+              <div><p class="m-name">Aagaam Ghee 100 ml</p><p class="m-tie">expected 2 · received 0 <span class="m-flag" style="background:var(--pendingFg);color:#fff">Not counted</span></p></div>
+              <div class="m-step"><button class="m-btn" aria-label="Decrease received quantity for Aagaam Ghee 100 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">0</span><button class="m-btn" aria-label="Increase received quantity for Aagaam Ghee 100 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+            </li>
+          </ul>
+          <div class="m-field">
+            <label class="m-label" for="seal">Parcel or seal code <span style="font-weight:500;color:var(--slate500)">(optional)</span></label>
+            <input class="m-input" id="seal" placeholder="e.g. BAG-2 / SEAL-7731" />
+            <p class="m-help">Only if the store wrote a bag or seal number on the parcel.</p>
+          </div>
+          <div style="padding:0 14px 14px">
+            <button class="m-wrong" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+              <span><span class="t">Something is wrong with this parcel</span><span class="s" style="display:block">Short, over, damaged or unsealed — attach evidence</span></span>
+              <span class="go">Open</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="tiebar" role="status" aria-live="polite">
+        <span class="cap">Tie-out</span>
+        <span class="big">6 of 12 counted</span>
+        <span class="tiechip short">4 short</span>
+      </div>
+      <div class="footbar">
+        <button class="cta" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>Verify 12 of 12 to continue</button>
+        <p class="ctaNote">Ties out when every row matches the store's manifest.</p>
+      </div>
+    </div>
+    <p class="annot"><b>P4</b><span>Two-step rail, <code>aria-current="step"</code>; a screen reader reads the list as the sequence.</span></p>
+    <p class="annot"><b>P5</b><span>Primary action is a sticky footer — on screen at any line count, never below the fold.</span></p>
+    <p class="annot"><b>P6</b><span>Tie-out bar pinned above the footer: “6 of 12 counted · 4 short”.</span></p>
+    <p class="annot"><b>P2</b><span>Flat <code>#08322E</code> chrome; subtitle <code>#E6F5F1</code> → <b>12.41:1</b>.</span></p>
+    <p class="annot"><b>P1</b><span>Steppers are 48×48, back/refresh 48×48 — above the 44pt floor.</span></p>
+    <p class="annot"><b>P10</b><span>Mismatch is a full-width 56pt row that opens the evidence tray directly.</span></p>
+  </section>
+
+</div>
+
+<!-- ============ 2 · STATES ============ -->
+<h2 class="section">2 · States — loading, empty, error, offline</h2>
+<p class="sectionNote">Before, loading / empty / error are one grey <code>PackageCheck</code> picture with different words
+(<code>:280</code>, <code>:282</code>, <code>:332–334</code>), and none of them offers a control. After, each state is
+distinguishable and carries the one action it needs. Offline does not exist today at all — <code>NetInfo</code> is not
+imported anywhere in <code>apps/mobile-partners/src</code>.</p>
+
+<div class="compare">
+
+  <!-- LOADING -->
+  <section class="panel">
+    <header><h3>Loading</h3><span class="tag old">before / after</span></header>
+    <div style="display:grid;grid-template-columns:1fr;gap:18px">
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P9</b><span>Before — one centred spinner in a <code>minHeight:480</code> box; the real layout replaces it, so content jumps.</span></p>
+        <div class="device before">
+          <div class="statusbar on-grad"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero grad">
+            <button class="iconbtn" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">RIDER PICKUP</p><h4>Verify exact handoff</h4><p class="sub">Count every unit, then verify the owning store.</p></div>
+            <button class="iconbtn" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <div class="b-state"><div class="spinner" role="status" aria-label="Loading pickup task"></div><p class="b-stitle">Loading pickup task</p><p class="b-stext">Reading the canonical store handoff.</p></div>
+        </div>
+      </div>
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P9</b><span>After — skeleton in the manifest's final shape: rail, ruled rows, tie-out bar and footer. No jump when data lands.</span></p>
+        <div class="device">
+          <div class="statusbar on-ink"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero ink">
+            <button class="iconbtn t48" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">Rider pickup</p><h4 style="opacity:.55">Loading the manifest…</h4><p class="sub">Reading the canonical store handoff.</p></div>
+            <button class="iconbtn t48" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <ol class="steps" aria-label="Pickup steps">
+            <li aria-current="step"><span class="num">1</span><span class="lbl">Count the parcel</span></li>
+            <li><span class="num">2</span><span class="lbl">Sign the hand-off</span></li>
+          </ol>
+          <div class="manifest">
+            <div class="m-card">
+              <div class="m-head"><div class="skel" style="width:20px;height:20px;border-radius:6px"></div><div style="flex:1"><div class="skel" style="height:13px;width:46%"></div><div class="skel" style="height:10px;width:78%;margin-top:7px"></div></div></div>
+              <ul class="m-rows">
+                <li><div><div class="skel" style="height:14px;width:62%"></div><div class="skel" style="height:11px;width:44%;margin-top:8px"></div></div><div class="m-step"><div class="skel" style="width:48px;height:48px;border-radius:14px"></div><div class="skel" style="width:48px;height:48px;border-radius:14px"></div></div></li>
+                <li><div><div class="skel" style="height:14px;width:52%"></div><div class="skel" style="height:11px;width:40%;margin-top:8px"></div></div><div class="m-step"><div class="skel" style="width:48px;height:48px;border-radius:14px"></div><div class="skel" style="width:48px;height:48px;border-radius:14px"></div></div></li>
+                <li><div><div class="skel" style="height:14px;width:58%"></div><div class="skel" style="height:11px;width:36%;margin-top:8px"></div></div><div class="m-step"><div class="skel" style="width:48px;height:48px;border-radius:14px"></div><div class="skel" style="width:48px;height:48px;border-radius:14px"></div></div></li>
+              </ul>
+            </div>
+          </div>
+          <div class="tiebar" role="status" aria-live="polite"><span class="cap">Tie-out</span><span class="big" style="opacity:.5">counting…</span></div>
+          <div class="footbar"><button class="cta" disabled aria-busy="true">Loading manifest…</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMPTY + ERROR -->
+  <section class="panel">
+    <header><h3>Empty &amp; error</h3><span class="tag old">before / after</span></header>
+    <div style="display:grid;grid-template-columns:1fr;gap:18px">
+
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P7</b><span>Before — error and empty are the <em>same</em> grey picture with different words, and neither has a control.</span></p>
+        <div class="device before">
+          <div class="statusbar on-grad"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero grad">
+            <button class="iconbtn" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">RIDER PICKUP</p><h4>Verify exact handoff</h4><p class="sub">Count every unit, then verify the owning store.</p></div>
+            <button class="iconbtn" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <div class="b-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            <p class="b-stitle">Pickup task unavailable</p>
+            <p class="b-stext">Network request failed</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P7</b><span>After (empty) — its own illustration and a real “Check again” button. Empty is not a failure.</span></p>
+        <div class="device">
+          <div class="statusbar on-ink"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero ink">
+            <button class="iconbtn t48" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">Rider pickup</p><h4>Nothing to hand over yet</h4><p class="sub">This updates the moment the store packs your bag.</p></div>
+            <button class="iconbtn t48" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <div class="b-state" style="min-height:280px;background:var(--manifest)">
+            <div class="emptyArt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+            <p class="b-stitle" style="color:var(--matchFg)">No pickup waiting</p>
+            <p class="b-stext">The store has not packed this order yet. We are checking every 5 seconds.</p>
+            <div class="btnRow"><button class="btn2 solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>Check again</button><button class="btn2">Back to runs</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P7</b><span>After (error) — rose strip names the failure, a “Try again” button and a copyable reference. Recovery is one tap.</span></p>
+        <div class="device">
+          <div class="statusbar on-ink"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero ink">
+            <button class="iconbtn t48" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">Rider pickup</p><h4>Could not read the hand-off</h4><p class="sub">The store's record did not load.</p></div>
+            <button class="iconbtn t48" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <div class="errStrip" role="alert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <span><span class="t">Pickup task unavailable</span><span class="s" style="display:block">Network request failed. Nothing has been verified or locked.</span></span>
+          </div>
+          <div class="b-state" style="min-height:240px;background:var(--manifest)">
+            <p class="b-stext" style="max-width:34ch">This is usually a signal drop. Your count is kept on the device until it saves.</p>
+            <div class="btnRow"><button class="btn2 solid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>Try again</button><button class="btn2">Copy reference</button></div>
+            <p class="b-stext" style="font-family:var(--font-mono);font-size:11px;color:var(--slate500);margin-top:10px">ref AAG-PICK-8F31C2</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="annot" style="margin:0 0 8px"><b>P8</b><span>After (offline) — a state the screen does not have today. Amber bar, last-synced time, stale rows visibly marked, CTA disabled with the reason stated.</span></p>
+        <div class="device">
+          <div class="statusbar on-ink"><span>9:41</span><span>▮▮▮ ▮ 84%</span></div>
+          <div class="hero ink">
+            <button class="iconbtn t48" aria-label="Back to jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div style="flex:1"><p class="eyebrow">Rider pickup · Order #A1B2C3D4</p><h4>Anakapalle Hub</h4><p class="sub">Count what the store hands you, then sign for it.</p></div>
+            <button class="iconbtn t48" aria-label="Refresh pickup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+          </div>
+          <div class="offline" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 12.55a11 11 0 0 1 5.17-2.39"/><circle cx="12" cy="20" r="1"/></svg>
+            <span class="t">Offline · last synced 9:38</span>
+            <span class="r">Retry</span>
+          </div>
+          <ol class="steps" aria-label="Pickup steps">
+            <li aria-current="step"><span class="num">1</span><span class="lbl">Count the parcel</span></li>
+            <li><span class="num">2</span><span class="lbl">Sign the hand-off</span></li>
+          </ol>
+          <div class="manifest">
+            <div class="m-card">
+              <div class="m-head"><svg class="b-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><div style="flex:1"><h5>Count the parcel</h5><p>Shown from the last sync — counts are kept locally until it saves.</p></div></div>
+              <ul class="m-rows">
+                <li style="opacity:.6">
+                  <div><p class="m-name">Aagaam Toned Milk 500 ml</p><p class="m-tie">expected 4 · received 4 <span class="m-flag" style="background:var(--pendingFg);color:#fff">Stale</span></p></div>
+                  <div class="m-step"><button class="m-btn" disabled aria-label="Decrease received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">4</span><button class="m-btn" disabled aria-label="Increase received quantity for Aagaam Toned Milk 500 ml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+                </li>
+                <li style="opacity:.6">
+                  <div><p class="m-name">Aagaam Curd 400 g</p><p class="m-tie">expected 2 · received 2 <span class="m-flag" style="background:var(--pendingFg);color:#fff">Stale</span></p></div>
+                  <div class="m-step"><button class="m-btn" disabled aria-label="Decrease received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button><span class="m-num">2</span><button class="m-btn" disabled aria-label="Increase received quantity for Aagaam Curd 400 g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="tiebar"><span class="cap">Tie-out</span><span class="big">6 of 12 counted</span><span class="tiechip" style="background:var(--pendingFg);color:#fff">Last known</span></div>
+          <div class="footbar">
+            <button class="cta" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 4.17-2.65"/><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/><path d="M5 12.55a11 11 0 0 1 5.17-2.39"/><circle cx="12" cy="20" r="1"/></svg>Reconnect to verify</button>
+            <p class="ctaNote">Your counts stay on the device and sync when signal returns.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ 3 · KEY ============ -->
+<h2 class="section">3 · Problem key — where each fix lands</h2>
+<p class="sectionNote">Every key maps to a cited line in <code>proposal.md</code> §2. Line numbers are from
+<code>RiderPickupOperationsScreen.tsx</code> as shipped on <code>main</code>.</p>
+
+<div class="keybox">
+  <h3>Diagnosed problems and the change</h3>
+  <div class="keygrid">
+    <div><b>P1</b><span>Steppers 38×38 (<code>:343</code>), back 40×40 (<code>:338</code>), chips 36 (<code>:347</code>), file rows 40 (<code>:348</code>) → every control ≥48pt.</span></div>
+    <div><b>P2</b><span>Hero subtitle 2.88:1, eyebrow 3.33:1 on the light gradient stop (<code>:338</code>) → flat <code>#08322E</code> chrome, 12.41:1 / 9.17:1.</span></div>
+    <div><b>P3</b><span>Nine rules at 9–10px (<code>:338</code>–<code>:348</code>) → body 13px, labels 12px, help 12px, figures 16px mono.</span></div>
+    <div><b>P4</b><span>Two steps on one scroll, no labels; handoff gated on <code>checklistVerified</code> (<code>:231</code>, <code>:287</code>, <code>:290</code>) → numbered step rail with <code>aria-current</code>.</span></div>
+    <div><b>P5</b><span>Verify button last in the card, ~690pt down (<code>:310</code>) → sticky footer, always on screen.</span></div>
+    <div><b>P6</b><span>Totals only in a scrolling badge (<code>:286</code>, <code>:287</code>) → pinned tie-out bar.</span></div>
+    <div><b>P7</b><span>Empty and error share one picture, no action (<code>:280</code>, <code>:282</code>, <code>:332–334</code>) → distinct states, each with its own button.</span></div>
+    <div><b>P8</b><span>No <code>NetInfo</code> anywhere in the app; 5s poll + <code>retry: 1</code>; vanishing toasts (<code>:94</code>, <code>:95</code>, <code>:155</code>) → persistent offline bar + stale marking.</span></div>
+    <div><b>P9</b><span>Bare centred spinner in a <code>minHeight:480</code> box (<code>:333</code>, <code>:349</code>) → manifest-shaped skeleton, no layout jump.</span></div>
+    <div><b>P10</b><span>Mismatch behind a 36pt chip row and a collapsed header (<code>:314</code>, <code>:347</code>) → full-width 56pt wrong-parcel row.</span></div>
+  </div>
+
+  <h3 style="margin-top:24px">Proposed OPS token block — measured contrast</h3>
+  <p class="sectionNote" style="margin-bottom:10px">Additive to <code>packages/mobile-shared/src/constants/theme.ts</code>. No existing token is renamed or changed, so no shipped surface moves. Ratios computed with the WCAG 2.1 relative-luminance formula.</p>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#08322E"></div><div class="cap">ink #08322E<br>onInk #E6F5F1 → 12.41:1</div></div>
+    <div class="sw"><div class="chip" style="background:#E6F5F1"></div><div class="cap">onInk #E6F5F1<br>onInkMuted #B9D8D2 → 9.17:1</div></div>
+    <div class="sw"><div class="chip" style="background:#E3F1E9"></div><div class="cap">matchFg #0B4F4A on<br>matchWash #E3F1E9 → 8.08:1</div></div>
+    <div class="sw"><div class="chip" style="background:#FBEAE4"></div><div class="cap">shortFg #8A2E0B on<br>shortWash #FBEAE4 → 7.27:1</div></div>
+    <div class="sw"><div class="chip" style="background:#FBF0DC"></div><div class="cap">overFg #6B4703 on<br>overWash #FBF0DC → 7.36:1</div></div>
+    <div class="sw"><div class="chip" style="background:#EDEAE3"></div><div class="cap">pendingFg #3F5751 on<br>pendingWash #EDEAE3 → 6.49:1</div></div>
+    <div class="sw"><div class="chip" style="background:#FBFAF7;border-bottom:1px solid var(--manifestRule)"></div><div class="cap">manifest #FBFAF7<br>rule #DCE7E3</div></div>
+  </div>
+</div>
+
+<div class="rule"></div>
+<p style="font-size:13px;color:var(--slate600);max-width:90ch">
+  <b>Accessibility notes carried into the mockup.</b> Every interactive element is a real <code>&lt;button&gt;</code>,
+  <code>&lt;input&gt;</code> or <code>&lt;a&gt;</code> with a visible label or an <code>aria-label</code>; the step rail is an
+  ordered list with <code>aria-current="step"</code>; the tie-out bar is an <code>aria-live="polite"</code> status; the error
+  strip is <code>role="alert"</code>; the disabled CTA states its reason in text rather than only dimming; focus is drawn with
+  <code>:focus-visible</code>; and <code>@media (prefers-reduced-motion: reduce)</code> disables the skeleton shimmer. On
+  React Native the equivalents are <code>accessibilityRole</code>, <code>accessibilityState</code>,
+  <code>accessibilityLiveRegion</code> / <code>AccessibilityInfo.announceForAccessibility</code>, and
+  <code>AccessibilityInfo.isReduceMotionEnabled</code> — see §5 of <code>proposal.md</code> for what still needs a device.
+</p>
+<p style="font-size:13px;color:var(--slate600);max-width:90ch">
+  <b>What this mockup cannot answer.</b> Fold position on real hardware, TalkBack/VoiceOver traversal order, dynamic-type
+  reflow at 200%, and whether the sticky footer correctly reserves content height are all listed as unverified in
+  <code>proposal.md</code> §5. This file is a static comparison, not a runnable app.
+</p>
+
+<p style="font-size:12px;color:var(--slate500);margin-top:26px">
+  This proposal contains static HTML mockups only and changes no application code. It is generated by an AI agent
+  (OpenHands) on behalf of Saikumar-bali and is intended as a design discussion starting point, not as mergeable code.
+</p>
+
+</div>
+</body>
+</html>
