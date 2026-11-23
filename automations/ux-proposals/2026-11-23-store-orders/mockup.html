@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="en" data-state="default" data-width="phone" data-height="fold">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX proposal — Store Orders board (Counter Ledger) · AAGAM · 2026-11-23</title>
+<meta name="description" content="Side-by-side static mockup: shipped StoreOrdersScreen vs the proposed Counter Ledger redesign.">
+<style>
+/* =========================================================================
+   0. Design tokens — the same names proposed for
+      packages/mobile-shared/src/constants/theme.ts (see proposal.md §6)
+   ========================================================================= */
+:root{
+  --paper:#F7F5EF;
+  --card:#FFFFFF;
+  --ink:#14110C;
+  --ink-muted:#5B5346;
+  --brand:#0F766E;
+  --brand-dark:#0B5F58;
+  --brand-ink:#0B3B36;
+  --rule-subtle:#E3DED2;   /* decorative hairline only */
+  --rule-strong:#8C8574;   /* control boundary, 3.37:1 on paper */
+  --new:#0A5C2E;      --new-tint:#E6F4E9;
+  --prep:#0B5563;     --prep-tint:#E4F1F4;
+  --ready:#8A4A00;    --ready-tint:#FBEEDD;
+  --pickup:#1E45A0;   --pickup-tint:#E7EDFB;
+  --deliv:#0F5C2A;    --deliv-tint:#E7F5E9;
+  --issue:#8E1B1B;    --issue-tint:#FBE7E7;
+  --cod-ink:#7A3B00;  --cod-tint:#FBEEDD;
+
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,"Liberation Mono",monospace;
+
+  --focus:#0F766E;
+  --frame-w:360px;
+}
+
+/* =========================================================================
+   1. Review surface (this page, not the product)
+   ========================================================================= */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(15,118,110,.22), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(201,166,107,.10), transparent 55%),
+    #14110C;
+  color:#EDE8DC;
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  --focus:#7DD3C7;
+}
+body::before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(237,232,220,.035) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(237,232,220,.035) 1px,transparent 1px);
+  background-size:32px 32px;
+  mask-image:linear-gradient(180deg,rgba(0,0,0,.7),transparent 70%);
+}
+.wrap{position:relative;z-index:1;max-width:1360px;margin:0 auto;padding:0 20px 80px}
+
+a{color:#9FE3D9}
+:where(a,button,input,summary,[tabindex]):focus-visible{
+  outline:3px solid var(--focus);
+  outline-offset:2px;
+  border-radius:6px;
+}
+.skip{
+  position:absolute;left:-9999px;top:0;background:#EDE8DC;color:#14110C;
+  padding:12px 16px;border-radius:0 0 8px 0;font-weight:700;z-index:99
+}
+.skip:focus{left:0}
+
+/* =========================================================================
+   2. Masthead + controls
+   ========================================================================= */
+.masthead{padding:44px 0 8px;border-bottom:1px solid rgba(237,232,220,.16)}
+.kicker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:#C9A66B;margin:0 0 14px
+}
+h1{
+  font-size:clamp(28px,4vw,44px);line-height:1.08;margin:0 0 10px;
+  letter-spacing:-.02em;font-weight:700;color:#FBF7EC;max-width:22ch
+}
+h1 em{font-style:normal;color:#9FE3D9}
+.lede{margin:0 0 26px;max-width:74ch;color:#C8C1B0;font-size:15px}
+.lede strong{color:#FBF7EC;font-weight:600}
+.lede code{font-family:var(--mono);font-size:12.5px;color:#EDE8DC;background:rgba(237,232,220,.10);padding:1px 5px;border-radius:4px}
+
+.controls{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;padding:0 0 26px}
+.control{display:flex;flex-direction:column;gap:8px;min-width:0}
+.control__label{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#9A927F
+}
+.seg{display:flex;flex-wrap:wrap;gap:4px;background:rgba(237,232,220,.06);padding:4px;border-radius:12px}
+.seg__btn{
+  appearance:none;border:1px solid transparent;background:transparent;color:#CFC7B5;
+  font:600 12.5px/1 var(--sans);padding:10px 13px;min-height:38px;border-radius:9px;cursor:pointer;
+  white-space:nowrap
+}
+.seg__btn:hover{background:rgba(237,232,220,.08);color:#FBF7EC}
+.seg__btn[aria-pressed="true"]{background:#EDE8DC;color:#14110C}
+.seg__btn[aria-pressed="true"]:hover{background:#FBF7EC}
+
+/* =========================================================================
+   3. Stage / columns / device frames
+   ========================================================================= */
+.stage{display:grid;grid-template-columns:1fr;gap:40px;padding:36px 0 10px}
+@media(min-width:1100px){.stage{grid-template-columns:1fr 1fr;gap:32px}}
+
+.col{min-width:0}
+.col__head{margin:0 0 14px}
+.col__eyebrow{
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  margin:0 0 6px
+}
+.col--before .col__eyebrow{color:#E0A3A3}
+.col--after .col__eyebrow{color:#9FE3D9}
+.col__title{margin:0;font-size:19px;line-height:1.3;font-weight:700;color:#FBF7EC}
+.col__file{
+  margin:6px 0 0;font-family:var(--mono);font-size:11.5px;color:#9A927F;word-break:break-all
+}
+.col__stats{
+  display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0;list-style:none
+}
+.col__stats li{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;
+  border:1px solid rgba(237,232,220,.18);border-radius:999px;padding:5px 10px;color:#CFC7B5
+}
+.col__stats li b{font-weight:700}
+.col--before .col__stats li b{color:#F0B4B4}
+.col--after .col__stats li b{color:#9FE3D9}
+
+.device{
+  width:var(--frame-w);max-width:100%;
+  border-radius:22px;border:1px solid rgba(237,232,220,.24);
+  background:#0D0B07;overflow:hidden;
+  box-shadow:0 30px 60px -30px rgba(0,0,0,.9),0 2px 0 rgba(255,255,255,.05) inset;
+}
+.device__chrome{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:7px 12px;background:#0D0B07;border-bottom:1px solid rgba(237,232,220,.14);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8A8271
+}
+.device__chrome span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.screen{
+  height:640px;overflow-y:auto;overflow-x:hidden;position:relative;
+  background:var(--paper);color:var(--ink);font-family:var(--sans);
+  --focus:#0F766E;
+  scrollbar-width:thin;
+}
+html[data-height="full"] .screen{height:auto;overflow-y:visible}
+html[data-width="desktop"]{--frame-w:min(1000px,100%)}
+
+.note{
+  margin:14px 0 0;font-size:12.5px;line-height:1.5;color:#A79E8C;
+  border-left:2px solid rgba(237,232,220,.22);padding-left:12px
+}
+.note b{color:#E6DFCF;font-weight:600}
+
+/* =========================================================================
+   4. BEFORE — faithful reproduction of StoreOrdersScreen.tsx
+      (styles copied from the StyleSheet at lines 431-494)
+   ========================================================================= */
+.b-header{
+  position:relative;overflow:hidden;padding:0 20px 20px;
+  background:linear-gradient(135deg,#0B3B36 0%,#0F766E 55%,#12897F 100%);
+}
+.b-header__glow{position:absolute;top:-60px;right:-60px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08)}
+.b-header__row{position:relative;display:flex;align-items:flex-start;gap:12px;padding-top:56px}
+.b-header__text{flex:1;min-width:0}
+.b-eyebrow{margin:0;color:#A7F3D0;font-size:9px;font-weight:600;letter-spacing:1px}
+.b-title{margin:2px 0 0;color:#fff;font-size:24px;font-weight:600;line-height:1.2}
+.b-sub{margin:4px 0 0;color:#D1FAE5;font-size:11px}
+.b-bell{
+  position:relative;flex:0 0 auto;width:44px;height:44px;border-radius:14px;border:0;
+  background:rgba(255,255,255,.15);display:grid;place-items:center;cursor:pointer
+}
+.b-bell__badge{
+  position:absolute;right:-4px;top:-4px;min-width:20px;height:20px;border-radius:10px;
+  background:#EF1D25;color:#fff;font-size:9px;font-weight:600;display:grid;place-items:center;padding:0 3px
+}
+/* The rail is a horizontal ScrollView in the app (line 215-218). At rest it
+   looks exactly like this: maxHeight 56 (line 442) clipping a 68pt tab (444). */
+.b-tabs{
+  height:56px;overflow:hidden;display:flex;gap:20px;padding:0 18px;
+  background:#fff;border-bottom:1px solid #E2E8F0
+}
+.b-tab{
+  flex:0 0 auto;min-width:76px;height:68px;display:flex;align-items:center;justify-content:center;
+  gap:8px;border-bottom:4px solid transparent;color:#5C626B;font-size:13px;font-weight:500
+}
+.b-tab--active{border-bottom-color:#0F766E;color:#0F766E;font-weight:600}
+.b-tab__count{
+  min-width:28px;height:28px;border-radius:14px;background:#EEF1F3;color:#3F474F;
+  font-size:12px;font-weight:600;display:grid;place-items:center;padding:0 6px
+}
+.b-tab--active .b-tab__count{background:#0F766E;color:#fff}
+.b-search{
+  margin:6px 16px 2px;height:48px;border-radius:16px;border:1px solid #D9DEDC;background:#fff;
+  display:flex;align-items:center;gap:8px;padding:0 12px
+}
+.b-search input{
+  flex:1;min-width:0;border:0;outline:0;background:transparent;color:#11131A;
+  font-family:inherit;font-size:13px;font-weight:500
+}
+.b-search input::placeholder{color:#9AA1A8;opacity:1}
+.b-list{padding:16px 16px 0}
+.b-card{
+  border-radius:16px;background:#fff;border:1px solid #E2E4E3;padding:16px;margin:0 0 12px;
+  box-shadow:0 2px 8px rgba(28,41,35,.05)
+}
+.b-card__top{display:flex;align-items:center;gap:12px}
+.b-card__id{flex:1;min-width:0;color:#11131A;font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-pill{border-radius:999px;padding:4px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-card__time{color:#5D6570;font-size:13px;white-space:nowrap}
+.b-card__name{margin:12px 0 0;color:#11131A;font-size:17px;font-weight:600}
+.b-card__phone{margin:4px 0 0;color:#5D6570;font-size:15px}
+.b-card__sched{
+  margin:12px 0 0;border-radius:12px;border:1px solid #B8E5D5;background:#ECFDF5;
+  padding:12px;display:flex;align-items:center;gap:12px
+}
+.b-card__schedlabel{margin:0;color:#0F766E;font-size:9px;font-weight:600;letter-spacing:.7px}
+.b-card__schedtime{margin:2px 0 0;color:#12352A;font-size:12px;font-weight:600}
+.b-card__items{margin:12px 0 0;border-radius:12px;background:#F7F9F8;padding:8px 12px}
+.b-line{min-height:27px;display:flex;align-items:center;gap:10px}
+.b-line__name{flex:1;min-width:0;color:#4B535C;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-line__qty{color:#161A1D;font-size:11px;font-weight:600}
+.b-card__more{margin:4px 0 0;color:#0F766E;font-size:10px;font-weight:600}
+.b-card__meta{margin:16px 0 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.b-card__total{color:#11131A;font-size:21px;font-weight:600}
+.b-card__units{color:#59616B;font-size:14px}
+.b-card__pay{margin:18px 0 0;display:flex;align-items:center;gap:18px}
+.b-card__paylabel{color:#626A74;font-size:14px}
+.b-paypill{border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600}
+.b-paypill--cod{background:#FFF3E8;border:1px solid #FFD7B4;color:#B85907}
+.b-paypill--prepaid{background:#EAF9EE;border:1px solid #C8EBCF;color:#087C35}
+.b-state{min-height:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center}
+.b-state__title{margin:12px 0 0;color:#171A1D;font-size:18px;font-weight:600}
+.b-state__text{margin:8px 0 0;color:#6D747B;font-size:13px;line-height:1.5;max-width:26ch}
+.b-spinner{
+  width:34px;height:34px;border-radius:50%;
+  border:3px solid #CBD5E1;border-top-color:#0F766E;
+}
+@media (prefers-reduced-motion:no-preference){.b-spinner{animation:spin .9s linear infinite}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* =========================================================================
+   5. AFTER — Counter Ledger
+   ========================================================================= */
+.a-head{padding:10px 16px 8px;background:var(--paper)}
+.a-row1{display:flex;align-items:center;gap:8px;min-height:44px}
+.a-title{margin:0 0 0 0;font-size:20px;line-height:1.1;font-weight:700;letter-spacing:-.01em;color:var(--ink);flex:1;min-width:0}
+.a-live{
+  display:flex;align-items:center;gap:6px;margin:0 0 0 auto;
+  font-family:var(--mono);font-size:11px;color:var(--ink-muted);white-space:nowrap
+}
+.a-live__dot{width:7px;height:7px;border-radius:50%;background:var(--new);flex:0 0 auto}
+.a-live__dot--warn{background:var(--ready)}
+.a-live__dot--off{background:var(--issue)}
+@media (prefers-reduced-motion:no-preference){
+  .a-live__dot--pulse{animation:pulse 2.4s ease-in-out infinite}
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.82)}}
+.a-icon{
+  flex:0 0 auto;width:44px;height:44px;border-radius:12px;border:1px solid var(--rule-strong);
+  background:#fff;color:var(--brand-ink);display:grid;place-items:center;cursor:pointer;
+  font:600 11px/1 var(--sans);text-decoration:none
+}
+.a-icon--labelled{width:auto;padding:0 11px;display:inline-flex;align-items:center;gap:7px}
+.a-icon:hover{background:#F1EEE4}
+.a-icon--bell{position:relative}
+.a-icon__badge{
+  position:absolute;right:-3px;top:-3px;min-width:18px;height:18px;border-radius:9px;
+  background:var(--issue);color:#fff;font:700 10px/1 var(--mono);display:grid;place-items:center;padding:0 4px
+}
+.a-summary{display:flex;align-items:center;gap:6px;margin:5px 0 0;font-size:12.5px;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-summary b{color:var(--ink);font-weight:700}
+
+.a-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+  padding:8px 16px 10px;background:var(--paper)
+}
+.a-tab{
+  min-height:44px;border-radius:10px;border:1px solid var(--rule-subtle);background:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font:600 12px/1.15 var(--sans);color:var(--ink-muted);cursor:pointer;padding:4px 2px
+}
+.a-tab:hover{background:#FCFAF4}
+.a-tab[aria-pressed="true"]{
+  background:var(--tint);color:var(--tone);border-color:var(--tone);
+  box-shadow:inset 0 0 0 1px var(--tone)
+}
+.a-tab__n{font:700 13px/1 var(--mono);font-variant-numeric:tabular-nums}
+
+.a-searchbox{padding:0 16px 10px;background:var(--paper)}
+.a-searchbox label{display:block;font:700 11px/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:4px}
+.a-searchfield{
+  display:flex;align-items:center;gap:8px;height:48px;border-radius:10px;
+  border:1px solid var(--rule-strong);background:#fff;padding:0 10px
+}
+.a-searchfield input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:500 14px/1 var(--sans);color:var(--ink)}
+.a-searchfield input::placeholder{color:#6B6357;opacity:1}
+.a-searchcount{margin:6px 0 0;font:600 11.5px/1.3 var(--mono);color:var(--ink-muted)}
+
+.a-list{padding:12px 16px 24px}
+
+.a-new{
+  display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:8px 10px;
+  border-radius:10px;border:1px solid var(--new);background:var(--new-tint);color:var(--new);
+  font:600 12.5px/1.3 var(--sans)
+}
+.a-new__btn{
+  margin-left:auto;min-height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--new);
+  background:transparent;color:var(--new);font:700 12px/1 var(--sans);cursor:pointer
+}
+
+.docket{
+  position:relative;background:var(--card);border:1px solid var(--rule-subtle);
+  border-left:4px solid var(--tone);border-radius:12px;padding:10px 12px 12px;
+  margin:0 0 10px;box-shadow:0 1px 0 rgba(20,17,12,.04)
+}
+.docket__top{display:flex;align-items:center;gap:8px}
+.docket__id{font:600 12.5px/1 var(--mono);letter-spacing:.02em;color:var(--ink)}
+.stamp{
+  margin-left:auto;font:700 9.5px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--tone);background:var(--tint);border:1px solid var(--tone);border-radius:3px;
+  padding:4px 5px;transform:rotate(-1.5deg)
+}
+.docket__time{font:600 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-muted)}
+.docket__who{margin:7px 0 0;font:700 16px/1.2 var(--sans);color:var(--ink);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.docket__who span{font:400 12px/1.2 var(--mono);color:var(--ink-muted);font-weight:400}
+.docket__what{margin:3px 0 0;font:400 12.5px/1.35 var(--sans);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.docket__what b{color:var(--ink);font-weight:600}
+.docket__money{display:flex;align-items:baseline;gap:16px;margin:7px 0 0;flex-wrap:wrap}
+.money__cell{display:inline-flex;align-items:baseline}
+.money__k{font:700 10px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted)}
+.money__v{font:700 15px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);margin-left:5px}
+.money__cell--cod .money__k,.money__cell--cod .money__v{color:var(--cod-ink)}
+.money__cell--prepaid .money__k,.money__cell--prepaid .money__v{color:var(--new)}
+.money__cell--unknown .money__k,.money__cell--unknown .money__v{color:var(--issue)}
+.docket__actions{display:flex;gap:8px;margin:10px 0 0}
+
+.btn{
+  min-height:44px;border-radius:9px;border:1px solid transparent;padding:0 14px;cursor:pointer;
+  font:700 13.5px/1 var(--sans);display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:background-color .15s ease,color .15s ease,border-color .15s ease
+}
+.btn--primary{background:var(--brand);color:#fff;flex:1}
+.btn--primary:hover{background:var(--brand-dark)}
+.btn--quiet{background:transparent;color:var(--ink-muted);border-color:var(--rule-strong);flex:0 0 auto}
+.btn--quiet:hover{background:#F1EEE4;color:var(--ink)}
+.btn--wide{width:100%;background:#fff;border-color:var(--rule-strong);color:var(--brand-ink)}
+.btn--wide:hover{background:#F1EEE4}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn--ghost{background:transparent;color:var(--brand-ink);border-color:var(--rule-strong)}
+
+.a-empty{text-align:center;padding:34px 18px 20px}
+.a-empty__icon{width:52px;height:52px;margin:0 auto 14px;border-radius:14px;background:#fff;border:1px solid var(--rule-strong);display:grid;place-items:center;color:var(--brand)}
+.a-empty__title{margin:0;font-size:18px;line-height:1.25;font-weight:700;color:var(--ink)}
+.a-empty__text{margin:8px auto 0;max-width:30ch;font-size:13px;line-height:1.55;color:var(--ink-muted)}
+.a-empty__actions{margin:18px 0 0;display:flex;flex-direction:column;gap:8px}
+
+.a-alert{
+  border:1px solid var(--issue);background:var(--issue-tint);border-radius:12px;padding:12px;
+  margin:0 0 10px
+}
+.a-alert__head{display:flex;align-items:center;gap:8px}
+.a-alert__title{margin:0;font:700 14px/1.25 var(--sans);color:var(--issue)}
+.a-alert__text{margin:6px 0 0;font:400 12.5px/1.5 var(--sans);color:#5C2B2B}
+.a-alert__meta{margin:8px 0 0;font:600 11px/1.3 var(--mono);color:#5C2B2B}
+.a-alert__actions{margin:10px 0 0;display:flex;gap:8px}
+
+.a-banner{
+  border:1px solid var(--ready);background:var(--ready-tint);border-radius:12px;padding:10px 12px;
+  margin:0 0 10px;display:flex;align-items:flex-start;gap:10px
+}
+.a-banner__title{margin:0;font:700 13px/1.3 var(--sans);color:var(--ready)}
+.a-banner__text{margin:3px 0 0;font:400 12px/1.45 var(--sans);color:#4A3208}
+.a-banner .btn{min-height:36px;font-size:12.5px;flex:0 0 auto;align-self:center}
+
+.a-skel{
+  background:#fff;border:1px solid var(--rule-subtle);border-left:4px solid #D8D2C4;
+  border-radius:12px;padding:12px;margin:0 0 10px
+}
+.a-skel__bar{height:10px;border-radius:5px;background:#EDE9DE;margin:0 0 8px}
+.a-skel__bar--w40{width:40%}
+.a-skel__bar--w70{width:70%}
+.a-skel__bar--w55{width:55%}
+.a-skel__btn{height:44px;border-radius:9px;background:#EDE9DE;margin-top:10px}
+@media (prefers-reduced-motion:no-preference){
+  .a-skel__bar,.a-skel__btn{animation:breathe 1.6s ease-in-out infinite}
+}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.55}}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0
+}
+
+/* state switching */
+.state{display:none}
+html[data-state="default"]  .state[data-for="default"],
+html[data-state="loading"]  .state[data-for="loading"],
+html[data-state="empty"]    .state[data-for="empty"],
+html[data-state="noresults"] .state[data-for="noresults"],
+html[data-state="error"]    .state[data-for="error"],
+html[data-state="offline"]  .state[data-for="offline"]{display:block}
+
+/* the after-screen live line changes with the state (unused: the dot now sits
+   on the summary line, which is the live region) */
+[data-live]{display:none}
+html[data-state="default"] [data-live="default"],
+html[data-state="noresults"] [data-live="default"],
+html[data-state="empty"] [data-live="default"],
+html[data-state="loading"] [data-live="loading"],
+html[data-state="error"] [data-live="error"],
+html[data-state="offline"] [data-live="offline"]{display:flex}
+
+/* the summary line, and the tab counts, must never claim "0" when the
+   queue could not be read — they show "—" instead */
+[data-sum]{display:none}
+html[data-state="default"] [data-sum="default"],
+html[data-state="noresults"] [data-sum="default"],
+html[data-state="empty"] [data-sum="empty"],
+html[data-state="loading"] [data-sum="loading"],
+html[data-state="error"] [data-sum="error"],
+html[data-state="offline"] [data-sum="offline"]{display:flex}
+
+.n-b{display:none}
+.n-dash{display:none;font:700 13px/1 var(--mono);color:var(--ink-muted)}
+html[data-state="empty"] .n-a{display:none}
+html[data-state="empty"] .n-b{display:inline}
+html[data-state="loading"] .a-tab__n,
+html[data-state="error"] .a-tab__n{display:none}
+html[data-state="loading"] .n-dash,
+html[data-state="error"] .n-dash{display:inline}
+
+/* wide frame: the dockets become a 2-column board, the status grid one row */
+html[data-state="noresults"] .a-icon--labelled{display:none}
+html[data-width="desktop"] .a-grid{grid-template-columns:repeat(6,1fr)}
+html[data-width="desktop"] .a-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;align-items:start}
+html[data-width="desktop"] .a-list > .a-new,
+html[data-width="desktop"] .a-list > .a-alert,
+html[data-width="desktop"] .a-list > .a-banner,
+html[data-width="desktop"] .a-list > .a-empty,
+html[data-width="desktop"] .a-list > .a-searchcount,
+html[data-width="desktop"] .a-list > .btn{grid-column:1 / -1}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;scroll-behavior:auto !important
+  }
+}
+
+/* =========================================================================
+   6. Evidence block
+   ========================================================================= */
+.evidence{margin:56px 0 0;padding:32px 0 0;border-top:1px solid rgba(237,232,220,.16)}
+.evidence h2{font-size:22px;margin:0 0 6px;color:#FBF7EC;letter-spacing:-.01em}
+.evidence p{margin:0 0 22px;max-width:80ch;color:#C8C1B0;font-size:14px}
+.tablewrap{overflow-x:auto;border:1px solid rgba(237,232,220,.16);border-radius:14px;margin:0 0 34px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:13px}
+caption{text-align:left;padding:12px 14px;color:#9A927F;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid rgba(237,232,220,.16)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid rgba(237,232,220,.10);vertical-align:top}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9A927F;font-weight:700;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fail{color:#F0A9A9;font-weight:700}
+.pass{color:#9FE3D9;font-weight:700}
+.badge{display:inline-block;border-radius:999px;padding:2px 8px;font-family:var(--mono);font-size:10.5px;border:1px solid rgba(237,232,220,.24);color:#CFC7B5}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin:0 0 28px;padding:0;list-style:none;font-size:12.5px;color:#A79E8C}
+.legend li{display:flex;align-items:center;gap:7px}
+.sw{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.2)}
+.foot{margin:34px 0 0;font-size:12px;color:#8A8271;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<a class="skip" href="#compare">Skip to the comparison</a>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">AAGAM · UX proposal · 2026-11-23 · review-only</p>
+    <h1>Store Orders board, rebuilt as a <em>Counter Ledger</em></h1>
+    <p class="lede">
+      The store order queue is the screen a shop owner works through during the 6–9am milk run.
+      The shipped version cannot fit <strong>one complete order</strong> above the fold, hides three of six status
+      tabs off-screen, clips its own active-tab underline, and renders an unknown payment method in
+      the green &ldquo;prepaid&rdquo; pill. The redesign keeps the AAGAM green and the same six statuses,
+      drops the gradient hero, and turns the queue into a scan-and-act surface:
+      <strong>one full docket and most of a second</strong>, one inline action each, cash stated explicitly.
+    </p>
+    <div class="controls">
+      <div class="control">
+        <span class="control__label" id="lbl-state">Screen state</span>
+        <div class="seg" role="group" aria-labelledby="lbl-state">
+          <button class="seg__btn" type="button" data-set="state" data-value="default" aria-pressed="true">Default</button>
+          <button class="seg__btn" type="button" data-set="state" data-value="loading" aria-pressed="false">Loading</button>
+          <button class="seg__btn" type="button" data-set="state" data-value="empty" aria-pressed="false">Empty</button>
+          <button class="seg__btn" type="button" data-set="state" data-value="noresults" aria-pressed="false">No results</button>
+          <button class="seg__btn" type="button" data-set="state" data-value="error" aria-pressed="false">Error</button>
+          <button class="seg__btn" type="button" data-set="state" data-value="offline" aria-pressed="false">Offline</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="control__label" id="lbl-width">Frame width</span>
+        <div class="seg" role="group" aria-labelledby="lbl-width">
+          <button class="seg__btn" type="button" data-set="width" data-value="phone" aria-pressed="true">360px</button>
+          <button class="seg__btn" type="button" data-set="width" data-value="desktop" aria-pressed="false">Desktop</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="control__label" id="lbl-height">Frame height</span>
+        <div class="seg" role="group" aria-labelledby="lbl-height">
+          <button class="seg__btn" type="button" data-set="height" data-value="fold" aria-pressed="true">360×640</button>
+          <button class="seg__btn" type="button" data-set="height" data-value="full" aria-pressed="false">Full height</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage" id="compare">
+    <!-- ================= BEFORE ================= -->
+    <section class="col col--before" aria-labelledby="before-h">
+      <div class="col__head">
+        <p class="col__eyebrow">Before · as shipped</p>
+        <h2 class="col__title" id="before-h">Store Orders, today</h2>
+        <p class="col__file">apps/mobile-partners/src/screens/store/StoreOrdersScreen.tsx</p>
+        <ul class="col__stats">
+          <li>Chrome above list <b>270pt</b></li>
+          <li>Order cards above fold <b>0.85</b></li>
+          <li>Status tabs visible <b>3 of 6</b></li>
+          <li>Targets &lt; 44pt <b>2</b></li>
+          <li>Contrast fails <b>5</b></li>
+        </ul>
+      </div>
+
+      <div class="device">
+        <div class="device__chrome"><span>AAGAM Store · 360 × 640</span><span>react-native</span></div>
+        <div class="screen">
+
+          <!-- header (lines 194-213) -->
+          <div class="b-header">
+            <div class="b-header__glow"></div>
+            <div class="b-header__row">
+              <div class="b-header__text">
+                <p class="b-eyebrow">STORE ORDERS</p>
+                <p class="b-title">Orders</p>
+                <p class="b-sub">Manage and track customer orders.</p>
+              </div>
+              <button class="b-bell" type="button" aria-label="Open notifications">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                <span class="b-bell__badge">3</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- tab rail (lines 215-232): 592pt of tabs inside 342pt, clipped at 56pt -->
+          <div class="b-tabs">
+            <div class="b-tab b-tab--active">New<span class="b-tab__count">4</span></div>
+            <div class="b-tab">Preparing<span class="b-tab__count">2</span></div>
+            <div class="b-tab">Ready<span class="b-tab__count">2</span></div>
+            <div class="b-tab">Pickup<span class="b-tab__count">1</span></div>
+            <div class="b-tab">Delivered<span class="b-tab__count">8</span></div>
+            <div class="b-tab">Issues<span class="b-tab__count">0</span></div>
+          </div>
+
+          <!-- search (lines 289-301): placeholder-only, no label -->
+          <div class="b-search">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#6B747B" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <!-- shipped: placeholder only, no accessibilityLabel (line 292-299) -->
+            <input type="text" placeholder="Search order, customer, phone or email">
+          </div>
+
+          <!-- default -->
+          <div class="state" data-for="default">
+            <div class="b-list">
+
+              <article class="b-card">
+                <div class="b-card__top">
+                  <span class="b-card__id">#ORD-7C4E1A20</span>
+                  <span class="b-pill" style="color:#0D7E41;background:#EAF9EE">New</span>
+                  <span class="b-card__time">7:42 am</span>
+                </div>
+                <p class="b-card__name">S. Rao</p>
+                <p class="b-card__phone">+91 98••• 4210</p>
+                <div class="b-card__sched">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F766E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  <div>
+                    <p class="b-card__schedlabel">SCHEDULED DELIVERY</p>
+                    <p class="b-card__schedtime">Wed, 26 Nov · 7:00 am–9:00 am</p>
+                  </div>
+                </div>
+                <div class="b-card__items">
+                  <div class="b-line"><span class="b-line__name">Amul Taaza Toned Milk 500 ml</span><span class="b-line__qty">×2</span></div>
+                  <div class="b-line"><span class="b-line__name">Amul Masti Curd 400 g</span><span class="b-line__qty">×1</span></div>
+                  <div class="b-line"><span class="b-line__name">Heritage Paneer 200 g</span><span class="b-line__qty">×1</span></div>
+                  <p class="b-card__more">+1 more</p>
+                </div>
+                <div class="b-card__meta">
+                  <span class="b-card__total">₹1,284</span>
+                  <span class="b-card__units">4 Items</span>
+                </div>
+                <div class="b-card__pay">
+                  <span class="b-card__paylabel">Payment</span>
+                  <span class="b-paypill b-paypill--cod">COD</span>
+                </div>
+              </article>
+
+              <article class="b-card">
+                <div class="b-card__top">
+                  <span class="b-card__id">#ORD-2B9D33F1</span>
+                  <span class="b-pill" style="color:#0D7E41;background:#EAF9EE">New</span>
+                  <span class="b-card__time">7:39 am</span>
+                </div>
+                <p class="b-card__name">P. Anitha</p>
+                <p class="b-card__phone">+91 90••• 8817</p>
+                <div class="b-card__items">
+                  <div class="b-line"><span class="b-line__name">Heritage Fresh Milk 1 L</span><span class="b-line__qty">×1</span></div>
+                  <div class="b-line"><span class="b-line__name">Britannia Brown Bread 400 g</span><span class="b-line__qty">×2</span></div>
+                </div>
+                <div class="b-card__meta">
+                  <span class="b-card__total">₹432</span>
+                  <span class="b-card__units">3 Items</span>
+                </div>
+                <div class="b-card__pay">
+                  <span class="b-card__paylabel">Payment</span>
+                  <span class="b-paypill b-paypill--prepaid">Prepaid</span>
+                </div>
+              </article>
+
+              <article class="b-card">
+                <div class="b-card__top">
+                  <span class="b-card__id">#ORD-5E1C88A4</span>
+                  <span class="b-pill" style="color:#0D7E41;background:#EAF9EE">New</span>
+                  <span class="b-card__time">7:31 am</span>
+                </div>
+                <p class="b-card__name">M. Venkatesh</p>
+                <p class="b-card__phone">Contact unavailable</p>
+                <div class="b-card__items">
+                  <div class="b-line"><span class="b-line__name">Amul Gold Full Cream Milk 1 L</span><span class="b-line__qty">×4</span></div>
+                  <div class="b-line"><span class="b-line__name">Amul Butter 500 g</span><span class="b-line__qty">×1</span></div>
+                  <div class="b-line"><span class="b-line__name">Nandini Curd 1 kg</span><span class="b-line__qty">×2</span></div>
+                  <p class="b-card__more">+1 more</p>
+                </div>
+                <div class="b-card__meta">
+                  <span class="b-card__total">₹2,140</span>
+                  <span class="b-card__units">7 Items</span>
+                </div>
+                <div class="b-card__pay">
+                  <span class="b-card__paylabel">Payment</span>
+                  <!-- the shipped branch: everything that is not COD gets prepaidPill -->
+                  <span class="b-paypill b-paypill--prepaid">Payment unavailable</span>
+                </div>
+              </article>
+
+            </div>
+          </div>
+
+          <!-- loading -->
+          <div class="state" data-for="loading">
+            <div class="b-list">
+              <div class="b-state">
+                <div class="b-spinner" role="img" aria-label="Loading"></div>
+                <p class="b-state__title">Loading orders…</p>
+                <p class="b-state__text">Fetching the selected store queue.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- empty -->
+          <div class="state" data-for="empty">
+            <div class="b-list">
+              <div class="b-state">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#A8B0B7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                <p class="b-state__title">No new orders</p>
+                <p class="b-state__text">Try another status or search term.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- no results -->
+          <div class="state" data-for="noresults">
+            <div class="b-list">
+              <div class="b-state">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#A8B0B7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                <p class="b-state__title">No new orders</p>
+                <p class="b-state__text">Try another status or search term.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- error -->
+          <div class="state" data-for="error">
+            <div class="b-list">
+              <div class="b-state">
+                <p class="b-state__title">Orders unavailable</p>
+                <p class="b-state__text">Pull down to retry the selected store.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- offline: the shipped screen has no offline state at all -->
+          <div class="state" data-for="offline">
+            <div class="b-list">
+              <article class="b-card">
+                <div class="b-card__top">
+                  <span class="b-card__id">#ORD-7C4E1A20</span>
+                  <span class="b-pill" style="color:#0D7E41;background:#EAF9EE">New</span>
+                  <span class="b-card__time">7:42 am</span>
+                </div>
+                <p class="b-card__name">S. Rao</p>
+                <p class="b-card__phone">+91 98••• 4210</p>
+                <div class="b-card__items">
+                  <div class="b-line"><span class="b-line__name">Amul Taaza Toned Milk 500 ml</span><span class="b-line__qty">×2</span></div>
+                  <div class="b-line"><span class="b-line__name">Amul Masti Curd 400 g</span><span class="b-line__qty">×1</span></div>
+                </div>
+                <div class="b-card__meta">
+                  <span class="b-card__total">₹1,284</span>
+                  <span class="b-card__units">4 Items</span>
+                </div>
+                <div class="b-card__pay">
+                  <span class="b-card__paylabel">Payment</span>
+                  <span class="b-paypill b-paypill--cod">COD</span>
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="note">
+        <b>No offline state exists.</b> Switch the state to <b>Offline</b>: nothing on this screen
+        changes — no banner, no timestamp, no disabled actions. The 15s poll fails silently and the
+        board keeps showing data that may be hours old. <code>grep -rn NetInfo
+        apps/mobile-partners/src</code> returns nothing.
+      </p>
+    </section>
+    <!-- ================= AFTER ================= -->
+    <section class="col col--after" aria-labelledby="after-h">
+      <div class="col__head">
+        <p class="col__eyebrow">After · Counter Ledger</p>
+        <h2 class="col__title" id="after-h">Store Orders, proposed</h2>
+        <p class="col__file">automations/ux-proposals/2026-11-23-store-orders/mockup.html</p>
+        <ul class="col__stats">
+          <li>Chrome above list <b>209pt</b></li>
+          <li>Dockets above fold <b>1.7</b></li>
+          <li>Status tabs visible <b>6 of 6</b></li>
+          <li>Targets &lt; 44pt <b>0</b></li>
+          <li>Contrast fails <b>0</b></li>
+        </ul>
+      </div>
+
+      <div class="device">
+        <div class="device__chrome"><span>AAGAM Store · 360 × 640</span><span>counter ledger</span></div>
+        <div class="screen">
+
+          <header class="a-head">
+            <div class="a-row1">
+              <h2 class="a-title">Orders</h2>
+
+              <button class="a-icon a-icon--labelled" type="button" aria-label="Search orders">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                Search
+              </button>
+              <button class="a-icon a-icon--bell" type="button" aria-label="Notifications, 3 unread">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                <span class="a-icon__badge">3</span>
+              </button>
+            </div>
+
+            <p class="a-summary" data-sum="default">
+              <span class="a-live__dot a-live__dot--pulse" aria-hidden="true"></span>Live · <b>4</b> to accept · <b>2</b> to pack · <b>1</b> with rider
+            </p>
+            <p class="a-summary" data-sum="empty">
+              <span class="a-live__dot a-live__dot--pulse" aria-hidden="true"></span>Live · <b>0</b> to accept · <b>2</b> to pack · <b>1</b> with rider
+            </p>
+            <p class="a-summary" data-sum="loading">
+              <span class="a-live__dot a-live__dot--pulse" aria-hidden="true"></span>Connecting to the store queue…
+            </p>
+            <p class="a-summary" data-sum="error">
+              <span class="a-live__dot a-live__dot--warn" aria-hidden="true"></span>Last sync 07:58 · counts unavailable
+            </p>
+            <p class="a-summary" data-sum="offline">
+              <span class="a-live__dot a-live__dot--off" aria-hidden="true"></span>Offline · showing 07:58
+            </p>
+          </header>
+
+          <nav class="a-grid" aria-label="Filter orders by status">
+            <button class="a-tab" type="button" aria-pressed="true" style="--tone:#0A5C2E;--tint:#E6F4E9">
+              New<span class="a-tab__n"><span class="n-a">4</span><span class="n-b">0</span></span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+            <button class="a-tab" type="button" aria-pressed="false" style="--tone:#0B5563;--tint:#E4F1F4">
+              Preparing<span class="a-tab__n">2</span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+            <button class="a-tab" type="button" aria-pressed="false" style="--tone:#8A4A00;--tint:#FBEEDD">
+              Ready<span class="a-tab__n">2</span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+            <button class="a-tab" type="button" aria-pressed="false" style="--tone:#1E45A0;--tint:#E7EDFB">
+              Pickup<span class="a-tab__n">1</span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+            <button class="a-tab" type="button" aria-pressed="false" style="--tone:#0F5C2A;--tint:#E7F5E9">
+              Delivered<span class="a-tab__n">8</span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+            <button class="a-tab" type="button" aria-pressed="false" style="--tone:#8E1B1B;--tint:#FBE7E7">
+              Issues<span class="a-tab__n">0</span><span class="n-dash" aria-hidden="true">—</span>
+            </button>
+          </nav>
+
+          <!-- ---------- default ---------- -->
+          <div class="state" data-for="default">
+            <div class="a-list">
+
+              <div class="a-new" role="status" aria-live="polite">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg>
+                2 new orders since 07:40
+                <button class="a-new__btn" type="button">Show</button>
+              </div>
+
+              <article class="docket" style="--tone:#0A5C2E;--tint:#E6F4E9">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-7C4E1A20</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:42+05:30">07:42</time>
+                </div>
+                <p class="docket__who">S. Rao <span>+91 98••• 4210</span></p>
+                <p class="docket__what"><b>4 items</b> · Milk 500 ml ×2 · Curd 400 g · Paneer 200 g · Bread</p>
+                <p class="docket__what" style="margin-top:1px">Deliver Wed 26 Nov · 07:00–09:00</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹1,284</span></span>
+                  <span class="money__cell money__cell--cod"><span class="money__k">Collect cash</span><span class="money__v">₹1,284</span></span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button">Accept order</button>
+                  <button class="btn btn--quiet" type="button">Reject</button>
+                </div>
+              </article>
+
+              <article class="docket" style="--tone:#0A5C2E;--tint:#E6F4E9">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-2B9D33F1</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:39+05:30">07:39</time>
+                </div>
+                <p class="docket__who">P. Anitha <span>+91 90••• 8817</span></p>
+                <p class="docket__what"><b>3 items</b> · Milk 1 L · Brown bread 400 g ×2</p>
+                <p class="docket__what" style="margin-top:1px">Pickup at counter · paid online</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹432</span></span>
+                  <span class="money__cell money__cell--prepaid">
+                    <span class="money__k">Prepaid</span>
+                    <span class="money__v" style="font-size:12.5px">nothing to collect</span>
+                  </span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button">Accept order</button>
+                  <button class="btn btn--quiet" type="button">Reject</button>
+                </div>
+              </article>
+
+              <article class="docket" style="--tone:#0A5C2E;--tint:#E6F4E9">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-5E1C88A4</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:31+05:30">07:31</time>
+                </div>
+                <p class="docket__who">M. Venkatesh <span>no phone on file</span></p>
+                <p class="docket__what"><b>7 items</b> · Milk 1 L ×4 · Butter 500 g · Curd 1 kg ×2</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹2,140</span></span>
+                  <span class="money__cell money__cell--unknown">
+                    <span class="money__k">Payment</span>
+                    <span class="money__v" style="font-size:12.5px">status unknown</span>
+                  </span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button" style="background:var(--issue)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                    Review payment
+                  </button>
+                  <button class="btn btn--quiet" type="button">Reject</button>
+                </div>
+              </article>
+
+              <button class="btn btn--wide" type="button">Load 15 more orders</button>
+            </div>
+          </div>
+
+          <!-- ---------- loading ---------- -->
+          <div class="state" data-for="loading">
+            <div class="a-list">
+              <p class="sr-only" role="status">Loading today's orders</p>
+              <div class="a-skel" aria-hidden="true">
+                <div class="a-skel__bar a-skel__bar--w40"></div>
+                <div class="a-skel__bar a-skel__bar--w70"></div>
+                <div class="a-skel__bar a-skel__bar--w55"></div>
+                <div class="a-skel__btn"></div>
+              </div>
+              <div class="a-skel" aria-hidden="true">
+                <div class="a-skel__bar a-skel__bar--w40"></div>
+                <div class="a-skel__bar a-skel__bar--w70"></div>
+                <div class="a-skel__bar a-skel__bar--w55"></div>
+                <div class="a-skel__btn"></div>
+              </div>
+              <div class="a-skel" aria-hidden="true">
+                <div class="a-skel__bar a-skel__bar--w40"></div>
+                <div class="a-skel__bar a-skel__bar--w70"></div>
+                <div class="a-skel__btn"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---------- empty ---------- -->
+          <div class="state" data-for="empty">
+            <div class="a-list">
+              <div class="a-empty">
+                <div class="a-empty__icon" aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                </div>
+                <p class="a-empty__title">No new orders right now</p>
+                <p class="a-empty__text">Orders land here the moment they are placed. The board updates itself — you never need to pull to refresh.</p>
+                <div class="a-empty__actions">
+                  <button class="btn btn--primary" type="button">See today's delivered orders</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---------- no results ---------- -->
+          <div class="state" data-for="noresults">
+            <div class="a-searchbox">
+              <label for="q">Find an order</label>
+              <div class="a-searchfield">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false" style="color:#5B5346"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="q" type="search" value="anita">
+                <button class="a-icon" type="button" aria-label="Clear search" style="width:44px;height:44px;border-radius:8px;border-color:transparent;background:transparent">✕</button>
+              </div>
+              <p class="a-searchcount" role="status">0 matches for “anita” in New · 4 orders checked</p>
+            </div>
+            <div class="a-list">
+              <div class="a-empty" style="padding-top:22px">
+                <div class="a-empty__icon" aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                </div>
+                <p class="a-empty__title">No order matches “anita”</p>
+                <p class="a-empty__text">Check the spelling, or search by phone number or the last 4 characters of the order ID.</p>
+                <div class="a-empty__actions">
+                  <button class="btn btn--ghost" type="button">Clear search</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---------- error ---------- -->
+          <div class="state" data-for="error">
+            <div class="a-list">
+              <div class="a-alert" role="alert">
+                <div class="a-alert__head">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="color:var(--issue)"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                  <p class="a-alert__title">We couldn't load orders</p>
+                </div>
+                <p class="a-alert__text">The store queue did not respond. Orders loaded earlier are still shown below — they may be out of date.</p>
+                <p class="a-alert__meta">Last sync 07:58 · 4 orders cached</p>
+                <div class="a-alert__actions">
+                  <button class="btn btn--primary" type="button" style="flex:0 0 auto">Try again</button>
+                  <button class="btn btn--ghost" type="button">Contact support</button>
+                </div>
+              </div>
+
+              <article class="docket" style="--tone:#8C8574;--tint:#EFEBE1;opacity:.72">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-7C4E1A20</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:42+05:30">07:42</time>
+                </div>
+                <p class="docket__who">S. Rao <span>+91 98••• 4210</span></p>
+                <p class="docket__what"><b>4 items</b> · Milk 500 ml ×2 · Curd 400 g · Paneer 200 g · Bread</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹1,284</span></span>
+                  <span class="money__cell money__cell--cod"><span class="money__k">Collect cash</span><span class="money__v">₹1,284</span></span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button" disabled>Accept order</button>
+                  <button class="btn btn--quiet" type="button" disabled>Reject</button>
+                </div>
+              </article>
+              <p class="a-searchcount" style="margin-top:0">Actions are paused until the queue reconnects.</p>
+            </div>
+          </div>
+
+          <!-- ---------- offline ---------- -->
+          <div class="state" data-for="offline">
+            <div class="a-list">
+              <div class="a-banner" role="status">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="color:var(--ready);flex:0 0 auto;margin-top:2px"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                <div>
+                  <p class="a-banner__title">You're offline</p>
+                  <p class="a-banner__text">Showing orders saved at 07:58. New orders and status changes will sync when you reconnect.</p>
+                </div>
+                <button class="btn btn--ghost" type="button">Retry</button>
+              </div>
+
+              <article class="docket" style="--tone:#8C8574;--tint:#EFEBE1">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-7C4E1A20</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:42+05:30">07:42</time>
+                </div>
+                <p class="docket__who">S. Rao <span>+91 98••• 4210</span></p>
+                <p class="docket__what"><b>4 items</b> · Milk 500 ml ×2 · Curd 400 g · Paneer 200 g · Bread</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹1,284</span></span>
+                  <span class="money__cell money__cell--cod"><span class="money__k">Collect cash</span><span class="money__v">₹1,284</span></span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button" disabled>Accept order</button>
+                  <button class="btn btn--quiet" type="button" disabled>Reject</button>
+                </div>
+              </article>
+
+              <article class="docket" style="--tone:#8C8574;--tint:#EFEBE1">
+                <div class="docket__top">
+                  <span class="docket__id">#ORD-2B9D33F1</span>
+                  <span class="stamp">New</span>
+                  <time class="docket__time" datetime="2026-11-23T07:39+05:30">07:39</time>
+                </div>
+                <p class="docket__who">P. Anitha <span>+91 90••• 8817</span></p>
+                <p class="docket__what"><b>3 items</b> · Milk 1 L · Brown bread 400 g ×2</p>
+                <div class="docket__money">
+                  <span class="money__cell"><span class="money__k">Order total</span><span class="money__v">₹432</span></span>
+                  <span class="money__cell money__cell--prepaid">
+                    <span class="money__k">Prepaid</span>
+                    <span class="money__v" style="font-size:12.5px">nothing to collect</span>
+                  </span>
+                </div>
+                <div class="docket__actions">
+                  <button class="btn btn--primary" type="button" disabled>Accept order</button>
+                  <button class="btn btn--quiet" type="button" disabled>Reject</button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="note">
+        <b>Not a re-skin:</b> the gradient hero is gone (it cost 142pt of a 640pt screen), status moved
+        from a corner pill to a left-edge stripe plus a stamp, money is stated as what it is, and every
+        docket carries its own next action. <b>Desktop:</b> switch the frame to Desktop to see the
+        2-column docket grid; the shipped screen has no wide breakpoint and simply stretches one column.
+      </p>
+    </section>
+  </main>
+
+  <section class="evidence" id="evidence">
+    <h2>What changed, and how it was measured</h2>
+    <p>
+      Everything below is measured from the mockup's own CSS and from the shipped
+      <code>StyleSheet</code> in <code>StoreOrdersScreen.tsx:431-494</code>. Contrast ratios are
+      sRGB relative-luminance calculations against the exact hex values in each version, not
+      eyeballed. The frame is a 360 × 640pt viewport — a small Android phone held at the counter.
+    </p>
+
+    <ul class="legend" aria-label="Token legend">
+      <li><span class="sw" style="background:#F7F5EF"></span>paper #F7F5EF</li>
+      <li><span class="sw" style="background:#0F766E"></span>brand #0F766E</li>
+      <li><span class="sw" style="background:#0B3B36"></span>brand ink #0B3B36</li>
+      <li><span class="sw" style="background:#0A5C2E"></span>status new #0A5C2E</li>
+      <li><span class="sw" style="background:#8A4A00"></span>status ready #8A4A00</li>
+      <li><span class="sw" style="background:#8E1B1B"></span>status issue #8E1B1B</li>
+    </ul>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Measured — before vs after</caption>
+        <thead>
+          <tr><th scope="col">Metric</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Source</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Chrome above the first order</td>
+            <td class="num fail">270pt</td>
+            <td class="num pass">209pt</td>
+            <td>header 142 + rail 56 + search 56 + list 16 (<code>:435-458</code>)</td>
+          </tr>
+          <tr>
+            <td>Complete orders visible at 360 × 640</td>
+            <td class="num fail">0.85 of one card</td>
+            <td class="num pass">1.7 dockets</td>
+            <td>measured: first card 425pt, second 306pt (<code>:460-486</code>) vs docket 214pt</td>
+          </tr>
+          <tr>
+            <td>Status filters reachable without a hidden swipe</td>
+            <td class="num fail">3 of 6</td>
+            <td class="num pass">6 of 6</td>
+            <td>592pt of tabs in a 342pt window (<code>:215-218</code>, <code>:443-445</code>)</td>
+          </tr>
+          <tr>
+            <td>Active-tab indicator visible</td>
+            <td class="num fail">clipped</td>
+            <td class="num pass">visible</td>
+            <td><code>maxHeight:56</code> clipping a 68pt tab with a 4pt border (<code>:442</code>, <code>:444</code>)</td>
+          </tr>
+          <tr>
+            <td>Interactive targets under 44pt</td>
+            <td class="num fail">2</td>
+            <td class="num pass">0</td>
+            <td>page buttons 39pt (<code>:491</code>), store chips 39pt (<code>:454</code>)</td>
+          </tr>
+          <tr>
+            <td>Inline next action per order</td>
+            <td class="num fail">none</td>
+            <td class="num pass">1 primary + 1 secondary</td>
+            <td>card only navigates (<code>:387-391</code>); actions exist but are detail-screen-only (<code>StoreOrderDetailsScreen.tsx:52-73</code>)</td>
+          </tr>
+          <tr>
+            <td>New-order signal while polling</td>
+            <td class="num fail">none</td>
+            <td class="num pass">live dot + “2 new orders” live region</td>
+            <td><code>refetchInterval: 15_000</code> (<code>:157</code>)</td>
+          </tr>
+          <tr>
+            <td>Offline state</td>
+            <td class="num fail">absent</td>
+            <td class="num pass">banner + cached timestamp + disabled actions</td>
+            <td>no <code>NetInfo</code> anywhere in <code>apps/mobile-partners/src</code></td>
+          </tr>
+          <tr>
+            <td>Recovery from an error, without a gesture</td>
+            <td class="num fail">pull-to-refresh only</td>
+            <td class="num pass">“Try again” button, 44pt</td>
+            <td><code>:306</code></td>
+          </tr>
+          <tr>
+            <td>Order timestamps pinned to store timezone</td>
+            <td class="num fail">no</td>
+            <td class="num pass">Asia/Kolkata, <code>datetime</code> attribute</td>
+            <td><code>:79-85</code> vs <code>customer/OrdersScreen.tsx:26</code></td>
+          </tr>
+          <tr>
+            <td>Unknown payment method rendered as</td>
+            <td class="num fail">green “prepaid” pill</td>
+            <td class="num pass">red “status unknown” + blocked action</td>
+            <td><code>:484</code> + <code>storeReferenceUi.ts:44</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Contrast — every pair used, before and after</caption>
+        <thead>
+          <tr><th scope="col">Element</th><th scope="col">Before</th><th scope="col">Ratio</th><th scope="col">After</th><th scope="col">Ratio</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Header eyebrow / micro-label</td>
+            <td class="num">#A7F3D0 on #0F766E, 9px</td>
+            <td class="num fail">4.27 ✗</td>
+            <td class="num">#5B5346 on #F7F5EF, 11px</td>
+            <td class="num pass">6.95 ✓</td>
+          </tr>
+          <tr>
+            <td>Search placeholder</td>
+            <td class="num">#9AA1A8 on #FFFFFF</td>
+            <td class="num fail">2.61 ✗</td>
+            <td class="num">#6B6357 on #FFFFFF</td>
+            <td class="num pass">5.92 ✓</td>
+          </tr>
+          <tr>
+            <td>“Ready” status</td>
+            <td class="num">#CB6F0C on #FFF2E5, 11px</td>
+            <td class="num fail">3.28 ✗</td>
+            <td class="num">#8A4A00 on #FBEEDD</td>
+            <td class="num pass">6.00 ✓</td>
+          </tr>
+          <tr>
+            <td>“Delivered” status</td>
+            <td class="num">#148A35 on #E8F8E8, 11px</td>
+            <td class="num fail">4.03 ✗</td>
+            <td class="num">#0F5C2A on #E7F5E9</td>
+            <td class="num pass">7.21 ✓</td>
+          </tr>
+          <tr>
+            <td>COD money label</td>
+            <td class="num">#B85907 on #FFF3E8, 12px</td>
+            <td class="num fail">4.30 ✗</td>
+            <td class="num">#7A3B00 on #FBEEDD</td>
+            <td class="num pass">7.49 ✓</td>
+          </tr>
+          <tr>
+            <td>Body / secondary copy</td>
+            <td class="num">#5D6570 on #FFFFFF</td>
+            <td class="num">5.90 ✓</td>
+            <td class="num">#5B5346 on #FFFFFF</td>
+            <td class="num pass">7.58 ✓</td>
+          </tr>
+          <tr>
+            <td>Primary button label</td>
+            <td class="num">#FFFFFF on #0F766E</td>
+            <td class="num">5.47 ✓</td>
+            <td class="num">#FFFFFF on #0F766E</td>
+            <td class="num pass">5.47 ✓</td>
+          </tr>
+          <tr>
+            <td>Control boundary (input / card edge)</td>
+            <td class="num">#D9DEDC on #FFFFFF</td>
+            <td class="num fail">1.35 ✗</td>
+            <td class="num">#8C8574 on #F7F5EF</td>
+            <td class="num pass">3.37 ✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Problem → change → expected effect</caption>
+        <thead>
+          <tr><th scope="col">#</th><th scope="col">Problem</th><th scope="col">Change</th><th scope="col">Effect</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">P1</td><td>3 of 6 tabs off-screen; active underline clipped</td><td>3 × 2 status grid, all six visible, 44pt each</td><td>Every bucket is one tap; selection can’t be hidden</td></tr>
+          <tr><td class="num">P2</td><td>Silent 15s poll; spinner on every poll</td><td>Live strip + “new orders” live region; spinner only on user refresh</td><td>New work is noticed; the screen stops looking busy</td></tr>
+          <tr><td class="num">P3</td><td>No next step on the card</td><td>Inline primary action per docket</td><td>Accepting four orders is four taps, not eight</td></tr>
+          <tr><td class="num">P4</td><td>Unlabelled total; unknown payment styled as prepaid</td><td>“Order total” + “Collect cash” / “Prepaid”; explicit unknown state that blocks Accept</td><td>No handover with the wrong cash expectation</td></tr>
+          <tr><td class="num">P5</td><td>5 contrast failures</td><td>Contrast-tested ramp, all ≥ 5.9:1</td><td>WCAG AA at every size used</td></tr>
+          <tr><td class="num">P6</td><td>39pt page buttons and store chips</td><td>All targets ≥ 44pt</td><td>Passes the target guideline</td></tr>
+          <tr><td class="num">P7</td><td>Placeholder-only search</td><td>Visible label + result count</td><td>Field keeps its identity; typos read as “no match”</td></tr>
+          <tr><td class="num">P8</td><td>No roles or selected state</td><td>Toggle buttons with <code>aria-pressed</code>; dockets are articles with labelled buttons</td><td>Navigable by screen reader</td></tr>
+          <tr><td class="num">P9</td><td>Error = “pull down to retry”; counts read 0</td><td>Alert with a real button, cached timestamp, counts show “—”</td><td>Recovery without a gesture; no false “0 orders”</td></tr>
+          <tr><td class="num">P10</td><td>Times in device timezone</td><td>Pinned to Asia/Kolkata, tabular, with <code>datetime</code></td><td>Correct ordering signal anywhere</td></tr>
+          <tr><td class="num">P11</td><td>No offline handling</td><td>Offline banner + cached time + disabled actions</td><td>The frozen state is visible instead of invisible</td></tr>
+          <tr><td class="num">P12</td><td>~30 hardcoded hex, five greens</td><td>Tokens only; one green family</td><td>Auditable, cannot drift again</td></tr>
+          <tr><td class="num">P13</td><td>Chrome eats the fold; pagination flickers</td><td>Hero removed, search into the header: 209pt of chrome; a 425pt card becomes a 214pt docket</td><td>0.85 → 1.7 complete orders above the fold</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note" style="border-left-color:rgba(159,227,217,.5)">
+      <b>Review notes.</b> Static HTML only — no framework, no build step, no network requests, no
+      dependencies. The “before” frame reproduces the shipped component’s own styles (including the
+      clipped tab rail and the green “Payment unavailable” pill); the “after” frame is the proposal.
+      Interaction here is limited to the state / width / height switches; the dockets are not wired
+      to an API. Real-device rendering, screen-reader behaviour, 200% font scale and on-panel
+      contrast still need a device pass — see <code>proposal.md</code> §5.
+    </p>
+
+    <p class="foot">ux-proposals/2026-11-23-store-orders · mockup.html · review-only, changes no application code</p>
+  </section>
+
+</div>
+<script>
+(function(){
+  var root = document.documentElement;
+
+  /* deep-link a single state for review: mockup.html#state=error&width=desktop */
+  (function fromHash(){
+    var h = (location.hash || '').replace(/^#/, '');
+    if (!h) return;
+    h.split('&').forEach(function(pair){
+      var kv = pair.split('=');
+      var k = kv[0], v = kv[1];
+      if (k === 'state' || k === 'width' || k === 'height') {
+        root.setAttribute('data-' + k, v);
+        var b = document.querySelector('[data-set="' + k + '"][data-value="' + v + '"]');
+        if (b) {
+          Array.prototype.forEach.call(b.parentNode.querySelectorAll('[data-set]'), function(sib){
+            sib.setAttribute('aria-pressed', sib === b ? 'true' : 'false');
+          });
+        }
+      }
+    });
+  })();
+
+  var groups = document.querySelectorAll('[data-set]');
+  Array.prototype.forEach.call(groups, function(btn){
+    btn.addEventListener('click', function(){
+      var key = btn.getAttribute('data-set');
+      var val = btn.getAttribute('data-value');
+      if (key === 'state')   root.setAttribute('data-state', val);
+      if (key === 'width')   root.setAttribute('data-width', val);
+      if (key === 'height')  root.setAttribute('data-height', val);
+      var scope = btn.parentNode;
+      Array.prototype.forEach.call(scope.querySelectorAll('[data-set]'), function(sib){
+        sib.setAttribute('aria-pressed', sib === btn ? 'true' : 'false');
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
